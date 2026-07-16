@@ -59,8 +59,9 @@ body {
     min-height: 100dvh;
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
     padding: var(--space-md);
+    padding-top: max(24px, 4dvh);
     -webkit-tap-highlight-color: transparent;
     -webkit-user-select: none;
     user-select: none;
