@@ -4,12 +4,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: calc
-    ports:
-      - "8080:80"
     volumes:
-      # npm 캐시 볼륨 — decimal.js 재다운로드 방지
       - npm_cache:/root/.npm
     restart: unless-stopped
+    # No host port — Caddy or dev override handles exposure
 
 volumes:
   npm_cache:
