@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Calc — High Precision (32 digits)</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="calculator">
+        <div class="display">
+            <div class="expression" id="expression">&nbsp;</div>
+            <div class="result" id="result">0</div>
+        </div>
+
+        <div class="keypad">
+            <button class="btn func" data-action="clear">C</button>
+            <button class="btn func" data-action="negate">±</button>
+            <button class="btn func" data-action="backspace">⌫</button>
+            <button class="btn op" data-action="operator" data-value="div">÷</button>
+
+            <button class="btn num" data-action="digit" data-value="7">7</button>
+            <button class="btn num" data-action="digit" data-value="8">8</button>
+            <button class="btn num" data-action="digit" data-value="9">9</button>
+            <button class="btn op" data-action="operator" data-value="mul">×</button>
+
+            <button class="btn num" data-action="digit" data-value="4">4</button>
+            <button class="btn num" data-action="digit" data-value="5">5</button>
+            <button class="btn num" data-action="digit" data-value="6">6</button>
+            <button class="btn op" data-action="operator" data-value="sub">−</button>
+
+            <button class="btn num" data-action="digit" data-value="1">1</button>
+            <button class="btn num" data-action="digit" data-value="2">2</button>
+            <button class="btn num" data-action="digit" data-value="3">3</button>
+            <button class="btn op" data-action="operator" data-value="add">+</button>
+
+            <button class="btn num zero" data-action="digit" data-value="0">0</button>
+            <button class="btn num" data-action="decimal" data-value=".">.</button>
+            <button class="btn eq" data-action="equals">=</button>
+        </div>
+
+        <div class="footer">
+            <p class="info">32-digit precision &middot; truncated (PHP BCMATH style)</p>
+            <button class="mute-toggle" id="muteBtn" aria-label="Toggle sound" title="Toggle sound">🔊</button>
+        </div>
+    </div>
+
+    <script src="/js/decimal.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
