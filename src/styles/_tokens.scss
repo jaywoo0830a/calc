@@ -52,15 +52,15 @@ $duration-fast:   100ms;
 $duration-normal: 150ms;
 
 // --- calculator proportions ---
-$display-min-height: 7.5rem;   // 120px
+$display-min-height: 6rem;     // 96px — tighter
 $keypad-rows: 5;
 $keypad-cols: 4;
 
 // --- layout ---
-$calc-padding:    $space-4;    // 16px around calculator
+$calc-padding:    $space-3;    // 12px around calculator
 $calc-gap:        $space-3;    // 12px between sections
 $keypad-gap:      $space-2;    // 8px between buttons
-$display-padding: $space-5 $space-6 $space-4; // top right bottom
+$display-padding: $space-4 $space-5 $space-3; // top right bottom
 $display-radius:  $radius-lg;
 
 // --- colors — CSS custom properties for runtime access ---
