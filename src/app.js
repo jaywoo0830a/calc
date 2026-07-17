@@ -213,6 +213,10 @@ document.querySelector('.keypad').addEventListener('click', (e) => {
     const btn = e.target.closest('.btn');
     if (!btn) return;
     Sound.unlock();
+
+    // Release focus immediately — prevents persistent :hover on iOS
+    if (document.activeElement) document.activeElement.blur();
+
     const action = btn.dataset.action;
 
     switch (action) {
