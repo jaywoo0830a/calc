@@ -5,6 +5,11 @@
 
 Decimal.set({ precision: 32, rounding: Decimal.ROUND_DOWN });
 
+// Block all multi-touch zoom gestures at the document level
+document.addEventListener('touchmove', e => {
+    if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+
 // ============================================================
 //  Sound engine — Web Audio API, zero-dependency
 // ============================================================
