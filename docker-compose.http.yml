@@ -1,6 +1,11 @@
 services:
   caddy:
+    image: caddy:alpine
+    container_name: calc-caddy
     ports:
       - "80:80"
     volumes:
       - ./Caddyfile.http:/etc/caddy/Caddyfile:ro
+    restart: unless-stopped
+    depends_on:
+      - calc
