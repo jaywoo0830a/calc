@@ -1,5 +1,6 @@
 .git
-README.md
 .gitignore
 .dockerignore
 node_modules
+dist
+README.md

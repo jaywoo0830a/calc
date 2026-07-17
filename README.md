@@ -1,61 +1,70 @@
-# calc — 고정밀 사칙연산 계산기
+# Calc — High-Precision Calculator
 
-소수점 32자리 정밀도를 지원하는 간단한 웹 계산기입니다. PHP BCMATH 방식처럼 32자리를 초과하는 소수부는 절사(버림) 처리됩니다.
+32-digit decimal precision calculator. Truncates beyond 32 digits (PHP BCMATH style).
 
-## 기술 스택
+## Tech Stack
 
-- **decimal.js** — JavaScript 임의 정밀도 연산 라이브러리 (npm)
-- **Node.js 24.18.0** — 빌드 스테이지 (decimal.js 설치)
-- **Nginx (latest)** — 정적 파일 서빙
-- **Docker** — 멀티 스테이지 컨테이너화
+| Layer | Technology |
+|-------|-----------|
+| **Framework** | React 19.2.7 |
+| **Build** | Vite 8.1.5 |
+| **Math** | decimal.js 10.4.3 |
+| **Server** | Nginx (latest) |
+| **HTTPS** | Caddy (auto Let's Encrypt) |
+| **Container** | Docker multi-stage (node:24.18.0 → nginx:latest) |
 
-## 빠른 실행
+## Quick Start
 
-### Docker Compose (권장)
-
-```bash
-# 빌드 & 실행 (npm 캐시 볼륨 자동 마운트)
-docker compose up -d --build
-
-# 중지
-docker compose down
-```
-
-### Docker CLI
+### Docker Compose (recommended)
 
 ```bash
-docker build -t calc .
-docker run -d -p 8080:80 --name calc calc
+# Production (HTTPS via Caddy)
+bash run/prod/up.sh      # https://calc.rlawjddn00.online
+
+# Development (Vite HMR, port 3000)
+bash run/dev/up.sh       # http://localhost:3000
 ```
 
-브라우저에서 `http://localhost:8080` 접속.
-
-### 로컬 개발
+### Local Dev (without Docker)
 
 ```bash
-# src/ 폴더의 파일을 직접 열거나 간단한 HTTP 서버로 확인
-cd src && python3 -m http.server 8000
+npm install
+npm run dev              # http://localhost:3000
 ```
 
-## 프로젝트 구조
+## Project Structure
 
 ```
 calc/
-├── Dockerfile           # 멀티 스테이지 빌드 (node → nginx)
-├── docker-compose.yml   # npm 캐시 볼륨 포함
-├── nginx.conf           # Nginx 설정
-├── .gitignore           # node_modules 제외
-├── .dockerignore
-├── README.md
+├── index.html           # Vite entry
+├── vite.config.js
+├── package.json
+├── Dockerfile           # Multi-stage: node build → nginx serve
+├── Caddyfile            # Reverse proxy + auto TLS
+├── nginx.conf
+├── docker-compose.yml
+├── docker-compose.prod.yml  # + Caddy HTTPS
+├── docker-compose.dev.yml   # + HMR port
+├── public/              # Static assets (favicon, manifest, sw)
+│   ├── favicon.ico
+│   ├── manifest.json
+│   └── sw.js
 └── src/
-    ├── index.html       # 계산기 UI
-    ├── style.css        # 스타일
-    └── app.js           # 계산 로직 (decimal.js)
+    ├── main.jsx         # React entry
+    ├── App.jsx
+    ├── index.css        # @layer-based design tokens
+    ├── components/
+    │   ├── Display.jsx
+    │   └── Keypad.jsx
+    └── hooks/
+        ├── useCalculator.js
+        └── useSound.js
 ```
 
-## 동작 방식
+## How It Works
 
-1. `decimal.js`의 정밀도를 32자리로 설정
-2. 반올림 모드는 `ROUND_DOWN` (절사/버림)
-3. 사칙연산(`+`, `−`, `×`, `÷`) 수행
+1. `decimal.js` precision set to 32, rounding mode `ROUND_DOWN`
+2. Arithmetic: `+` `−` `×` `÷`
+3. Results trimmed: trailing zeros removed, clean display
+4. PWA: Add to iOS Home Screen for standalone mode (no browser zoom)
 4. 결과에서 불필요한 후행 0은 제거하여 표시

@@ -4,11 +4,5 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: calc
-    volumes:
-      - npm_cache:/root/.npm
     restart: unless-stopped
-    # No host port — Caddy or dev override handles exposure
-
-volumes:
-  npm_cache:
-    driver: local
+    # No host port — Caddy handles exposure
