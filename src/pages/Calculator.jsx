@@ -59,10 +59,13 @@ export default function Calculator() {
 
   return (
     <div className="calculator" onKeyDown={handleKeyDown} tabIndex={-1}>
+      <nav className="nav-bar">
+        <span className="nav-tab active">Calc</span>
+        <a href="/viewer" className="nav-tab">Viewer</a>
+      </nav>
       <Display expression={calc.expression} result={calc.result} />
       <Keypad onAction={handleAction} />
       <div className="footer">
-        <a href="/viewer" className="footer-link">Viewer</a>
         <p className="info">32-digit precision &middot; truncated (PHP BCMATH style)</p>
         <button className={`mute-toggle${muted ? ' muted' : ''}`} onClick={toggleMute} aria-label="Toggle sound">
           {muted ? '🔇' : '🔊'}

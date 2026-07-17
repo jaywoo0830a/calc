@@ -178,9 +178,9 @@ export default function Viewer() {
   return (
     <div className="viewer">
       {/* Navigation tabs */}
-      <nav className="viewer-nav">
-        <a href="/" className="viewer-back">← Calculator</a>
-        <h2 className="viewer-title">📄 Markdown + KaTeX Viewer</h2>
+      <nav className="nav-bar">
+        <a href="/" className="nav-tab">Calc</a>
+        <span className="nav-tab active">Viewer</span>
       </nav>
 
       {/* Upload zone */}
