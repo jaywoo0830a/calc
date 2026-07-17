@@ -3,6 +3,7 @@ import { marked } from 'marked';
 import katex from 'katex';
 import JSZip from 'jszip';
 import ZipTree from '../components/ZipTree.jsx';
+import { listZips, saveZip, loadZip as loadZipFromDB, deleteZip } from '../lib/storage.js';
 
 import 'katex/contrib/auto-render';
 import 'katex/contrib/mhchem';
@@ -62,6 +63,15 @@ export default function Viewer() {
   const [imageBlobs, setImageBlobs] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
+  const [storedZips, setStoredZips] = useState([]);
+
+  // 마운트 시 저장된 ZIP 목록 불러오기
+  useEffect(() => { listZips().then(setStoredZips).catch(() => {}); }, []);
+
+  // 저장된 ZIP 목록 갱신 함수
+  const refreshStored = useCallback(async () => {
+    try { setStoredZips(await listZips()); } catch {}
+  }, []);
 
   // Escape key → exit fullscreen
   useEffect(() => {
@@ -90,6 +100,11 @@ export default function Viewer() {
       const zip = await JSZip.loadAsync(file);
       const blobs = await indexImages(zip);
       setImageBlobs(blobs);
+
+      // IndexedDB에 저장 (원본 blob)
+      const blob = file instanceof Blob ? file : new Blob([await file.arrayBuffer()]);
+      saveZip(file.name, blob).then(refreshStored).catch(() => {});
+
       const tree = { name: 'root', children: {}, isDir: true };
       for (const [path, f] of Object.entries(zip.files)) {
         const parts = path.split('/'); let node = tree;
@@ -110,7 +125,44 @@ export default function Viewer() {
         setRendered(processContent(await zip.files[first].async('text'), resolveImg));
       }
     } catch (e) { setRendered('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
+  }, [indexImages, refreshStored]);
+
+  // IndexedDB에서 저장된 ZIP 불러오기
+  const handleLoadStored = useCallback(async (entry) => {
+    const stored = await loadZipFromDB(entry.id);
+    if (!stored) return;
+    setFileName(stored.name);
+    try {
+      const zip = await JSZip.loadAsync(stored.blob);
+      const blobs = await indexImages(zip);
+      setImageBlobs(blobs);
+      const tree = { name: 'root', children: {}, isDir: true };
+      for (const [path, f] of Object.entries(zip.files)) {
+        const parts = path.split('/'); let node = tree;
+        for (let i = 0; i < parts.length; i++) {
+          const p = parts[i]; if (!p) continue;
+          const last = i === parts.length - 1;
+          if (!node.children[p]) node.children[p] = { name: p, children: last ? null : {}, isDir: !last, file: last ? f : null, path };
+          node = node.children[p];
+        }
+      }
+      setZipTree(tree);
+      const first = Object.keys(zip.files).find(p => p.endsWith('.md') && !zip.files[p].dir);
+      if (first) {
+        setSelectedPath(first);
+        const dir = first.substring(0, first.lastIndexOf('/') + 1);
+        const resolveImg = (src) => resolveImagePath(src, dir, blobs);
+        setRendered(processContent(await zip.files[first].async('text'), resolveImg));
+      }
+    } catch (e) { setRendered('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
   }, [indexImages]);
+
+  // 저장된 ZIP 삭제
+  const handleDeleteStored = useCallback(async (id, e) => {
+    e.stopPropagation();
+    await deleteZip(id);
+    await refreshStored();
+  }, [refreshStored]);
 
   const openFile = useCallback(async (node) => {
     if (!node || !node.file) return;
@@ -140,6 +192,21 @@ export default function Viewer() {
           {fileName
             ? <span><strong>{fileName}</strong> &mdash; drop another ZIP</span>
             : <span>Drop a <strong>ZIP</strong> archive here, or click to browse</span>}
+        </div>
+      )}
+      {!fullscreen && storedZips.length > 0 && (
+        <div className="viewer__stored">
+          <span className="viewer__stored-title">📦 Saved archives</span>
+          {storedZips.map((entry) => (
+            <div key={entry.id} className="viewer__stored-item" onClick={() => handleLoadStored(entry)}>
+              <span className="viewer__stored-name">{entry.name}</span>
+              <button
+                className="viewer__stored-delete"
+                onClick={(e) => handleDeleteStored(entry.id, e)}
+                aria-label={`Delete ${entry.name}`}
+              >🗑️</button>
+            </div>
+          ))}
         </div>
       )}
       <div className="viewer__panes">

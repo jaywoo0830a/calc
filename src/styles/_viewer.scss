@@ -50,6 +50,60 @@
     }
   }
 
+  // ---- Stored ZIPs list ------------------------------------
+  &__stored {
+    margin-bottom: $sp-3;
+    padding: $sp-2 0;
+  }
+
+  &__stored-title {
+    display: block;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-faint;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: $sp-1;
+    padding: 0 $sp-1;
+  }
+
+  &__stored-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $sp-2;
+    padding: $sp-1 $sp-2;
+    border-radius: $radius-sm;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    &:hover {
+      background: $c-page-dark;
+    }
+  }
+
+  &__stored-name {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__stored-delete {
+    flex-shrink: 0;
+    font-size: $fs-step--1;
+    padding: $sp-1;
+    border-radius: $radius-sm;
+    opacity: 0.5;
+    transition: opacity $transition-fast;
+
+    &:hover {
+      opacity: 1;
+      background: $c-error-light;
+    }
+  }
+
   // ---- Panes container (preview only — sidebar is fixed) ---
   &__panes {
     display: flex;
