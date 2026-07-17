@@ -28,6 +28,9 @@ html {
 body {
     font-family: var(--font);
     background: var(--c-bg);
+    position: fixed;
+    top: 0;
+    left: 0;
     height: 100vh;
     height: 100dvh;
     width: 100vw;
@@ -42,7 +45,6 @@ body {
 /* ===== Calculator ===== */
 .calculator {
     width: 100%;
-    max-width: 420px;
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -187,4 +189,11 @@ body {
     .btn.func:hover { background: #333; }
     .btn.eq:hover   { background: #fbbf24; }
     .mute-toggle:hover { opacity: 0.7; }
+}
+
+/* ===== Desktop constraint ===== */
+@media (min-width: 480px) {
+    .calculator {
+        max-width: 420px;
+    }
 }
