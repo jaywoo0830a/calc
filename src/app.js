@@ -3,9 +3,6 @@
  * decimal.js · 32-digit precision · truncated (PHP BCMATH style)
  */
 
-// Disable all double-tap zoom (iOS generates synthetic dblclick → block it)
-document.addEventListener('dblclick', e => e.preventDefault());
-
 Decimal.set({ precision: 32, rounding: Decimal.ROUND_DOWN });
 
 // ============================================================
@@ -203,7 +200,7 @@ function backspace() {
 
 // --- event delegation ---
 document.querySelector('.keypad').addEventListener('click', (e) => {
-    const btn = e.target.closest('button');
+    const btn = e.target.closest('.btn');
     if (!btn) return;
     Sound.unlock();
     const action = btn.dataset.action;
