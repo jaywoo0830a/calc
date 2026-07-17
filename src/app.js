@@ -218,6 +218,16 @@ document.querySelector('.keypad').addEventListener('click', (e) => {
     }
 });
 
+// --- prevent double-tap zoom on keypad ---
+let lastTouchEnd = 0;
+document.querySelector('.keypad').addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+    }
+    lastTouchEnd = now;
+}, { passive: false });
+
 // --- keyboard support ---
 document.addEventListener('keydown', (e) => {
     Sound.unlock();

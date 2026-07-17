@@ -127,6 +127,7 @@ body {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: var(--space-sm);
+    touch-action: manipulation;
 }
 
 /* --- button base --- */
@@ -144,6 +145,7 @@ body {
     transition: background var(--duration-fast) var(--ease-out),
                 transform var(--duration-fast) var(--ease-out);
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
     outline: none;
     line-height: 1;
     letter-spacing: -0.01em;
