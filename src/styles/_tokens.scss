@@ -1,0 +1,73 @@
+// ============================================================
+// Design Tokens
+// ============================================================
+
+$sp-1: 0.25rem;
+$sp-2: 0.5rem;
+$sp-3: 0.75rem;
+$sp-4: 1rem;
+$sp-5: 1.25rem;
+$sp-6: 1.5rem;
+$sp-8: 2rem;
+
+$fs-xs:  0.625rem;
+$fs-sm:  0.75rem;
+$fs-base:0.875rem;
+$fs-lg:  1.125rem;
+$fs-xl:  1.5rem;
+$fs-2xl: 1.75rem;
+$fs-3xl: 2.5rem;
+$fs-4xl: 3rem;
+
+$fw-thin:   200;
+$fw-light:  300;
+$fw-normal: 350;
+$fw-medium: 450;
+$fw-bold:   600;
+
+$r-sm:   0.375rem;
+$r-md:   0.75rem;
+$r-lg:   1rem;
+$r-full: 50%;
+
+$ease:    cubic-bezier(0.16, 1, 0.3, 1);
+$t-fast:  100ms;
+$t-normal:200ms;
+
+:root {
+  --c-bg:      #0a0a0a;
+  --c-surface: #0d0d0d;
+  --c-num:     #2a2a2a;
+  --c-num-h:   #3d3d3d;
+  --c-num-a:   #555;
+  --c-op:      #f59e0b;
+  --c-op-h:    #fbbf24;
+  --c-func:    #1f1f1f;
+  --c-func-h:  #333;
+  --c-func-a:  #444;
+  --c-text:    #fafafa;
+  --c-dim:     #6b6b6b;
+  --c-muted:   #3a3a3a;
+  --c-nav-h:   #1a1a1a;
+
+  --font: 'Noto Serif', 'Georgia', serif;
+
+  --book-bg:      #f5f0e8;
+  --book-surface: #faf7f2;
+  --book-text:    #2c2416;
+  --book-dim:     #6b5e4a;
+  --book-heading: #1a1008;
+  --book-border:  #d4c8b0;
+  --book-accent:  #8b6914;
+  --book-code:    #ede4d5;
+  --book-code-t:  #5c3d0e;
+  --book-pre:     #e8dfce;
+
+  --hint-bg:     #1a1a1a;
+  --hint-text:   #999;
+  --hint-border: #333;
+  --hint-close:  #666;
+
+  --white: #fff;
+  --black: #000;
+}
