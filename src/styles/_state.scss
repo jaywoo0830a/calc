@@ -1,11 +1,10 @@
 // ============================================================
-// State — hover, reduced-motion, responsive
+// State — hover, reduced-motion
 // ============================================================
 
 @import 'tokens';
 
 @layer state {
-  // Hover only on pointer devices (not touch)
   @media (hover: hover) and (pointer: fine) {
     .btn.num:hover  { background: var(--color-key-num-hover); }
     .btn.op:hover   { background: var(--color-key-op-hover); }
@@ -15,7 +14,6 @@
   }
 }
 
-// Accessibility
 @media (prefers-reduced-motion: reduce) {
   .btn { transition: none; }
 }

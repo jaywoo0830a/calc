@@ -6,29 +6,26 @@
   display: block;
   position: fixed;
   inset: auto 0 0;
-  background: #1a1a1a;
-  color: #999;
-  font-size: 12px;
+  background: var(--hint-bg);
+  color: var(--hint-text);
+  font-size: $text-sm;
   text-align: center;
-  padding: 12px 40px 14px 16px;
+  padding: $space-3 $space-10 $space-3 $space-4;
   z-index: 100;
-  border-top: 1px solid #333;
-
-  strong {
-    color: var(--color-key-op);
-  }
+  border-top: 1px solid var(--hint-border);
+  strong { color: var(--color-key-op); }
 }
 
 .ios-hint-close {
   position: absolute;
   inset-block-start: 50%;
-  inset-inline-end: 8px;
+  inset-inline-end: $space-2;
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #666;
-  font-size: 20px;
+  color: var(--hint-close);
+  font-size: $text-xl;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: $space-1 $space-2;
   line-height: 1;
 }

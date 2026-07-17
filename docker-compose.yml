@@ -3,6 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: prod
     container_name: calc
     restart: unless-stopped
-    # No host port — Caddy handles exposure

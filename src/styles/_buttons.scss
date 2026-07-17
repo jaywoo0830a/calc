@@ -17,16 +17,12 @@
   line-height: 1;
   -webkit-tap-highlight-color: transparent;
   transition: background $duration-fast $ease-out;
-
-  &:focus-visible {
-    box-shadow: var(--focus-ring);
-  }
+  &:focus-visible { box-shadow: var(--focus-ring); }
 }
 
 @mixin btn-variant($bg, $color, $active-bg, $active-color: null) {
   background: $bg;
   color: $color;
-
   &:active {
     background: $active-bg;
     @if $active-color { color: $active-color; }
@@ -34,19 +30,11 @@
 }
 
 @layer buttons {
-  .btn {
-    @include btn-base;
-  }
+  .btn { @include btn-base; }
 
-  // Numeric keys
   .btn.num {
-    @include btn-variant(
-      var(--color-key-num),
-      var(--color-text),
-      var(--color-key-num-active)
-    );
+    @include btn-variant(var(--color-key-num), var(--color-text), var(--color-key-num-active));
     font-size: $text-2xl;
-
     &.zero {
       grid-column: span 2;
       border-radius: $radius-pill;
@@ -55,40 +43,23 @@
     }
   }
 
-  // Operator keys
   .btn.op {
-    @include btn-variant(
-      var(--color-key-op),
-      #fff,
-      #fff,
-      var(--color-key-op)
-    );
+    @include btn-variant(var(--color-key-op), var(--color-white), var(--color-white), var(--color-key-op));
     font-size: $text-3xl;
     font-weight: $weight-medium;
   }
 
-  // Function keys (C, ±, ⌫)
   .btn.func {
-    @include btn-variant(
-      var(--color-key-func),
-      var(--color-text),
-      var(--color-key-func-active)
-    );
+    @include btn-variant(var(--color-key-func), var(--color-text), var(--color-key-func-active));
     font-size: $text-lg;
   }
 
-  // Equals key
   .btn.eq {
-    @include btn-variant(
-      var(--color-key-op),
-      #fff,
-      #fcd34d
-    );
+    @include btn-variant(var(--color-key-op), var(--color-white), #fcd34d);
     font-size: $text-3xl;
     font-weight: $weight-medium;
   }
 
-  // Mute toggle
   .mute-toggle {
     background: none;
     border: none;
@@ -97,7 +68,6 @@
     opacity: 0.3;
     padding: $space-1;
     line-height: 1;
-
     &:active { opacity: 0.7; }
     &.muted  { opacity: 0.1; }
   }

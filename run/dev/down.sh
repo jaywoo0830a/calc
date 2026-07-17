@@ -1,2 +1,5 @@
 #!/usr/bin/env bash
-# Vite dev server stops with Ctrl+C — nothing to clean up
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+echo "✓ Dev stopped"

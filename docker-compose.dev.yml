@@ -1,0 +1,19 @@
+services:
+  calc:
+    build:
+      target: dev
+    container_name: calc-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src:/app/src:ro
+      - ./public:/app/public:ro
+      - ./index.html:/app/index.html:ro
+      - ./vite.config.js:/app/vite.config.js:ro
+    command: npx vite --host
+    restart: "no"
+
+  # No Caddy in dev
+  caddy:
+    deploy:
+      replicas: 0

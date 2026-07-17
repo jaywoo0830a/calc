@@ -90,8 +90,20 @@ $display-radius:  $radius-lg;
   --book-surface:  #faf7f2;
   --book-text:     #2c2416;
   --book-text-dim: #6b5e4a;
+  --book-heading:  #1a1008;
   --book-border:   #d4c8b0;
   --book-accent:   #8b6914;
   --book-code-bg:  #ede4d5;
+  --book-code-text:#5c3d0e;
   --book-pre-bg:   #e8dfce;
+
+  // iOS hint
+  --hint-bg:     #1a1a1a;
+  --hint-text:   #999999;
+  --hint-border: #333333;
+  --hint-close:  #666666;
+
+  // Generic
+  --color-white: #ffffff;
+  --color-black: #000000;
 }
