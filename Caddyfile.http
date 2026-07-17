@@ -1,0 +1,3 @@
+http://calc.rlawjddn00.online {
+    reverse_proxy calc:80
+}
