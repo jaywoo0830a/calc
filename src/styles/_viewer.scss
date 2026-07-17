@@ -1,5 +1,5 @@
 // ============================================================
-// Viewer — Markdown + KaTeX
+// Viewer — Book-like warm theme
 // ============================================================
 
 .viewer {
@@ -9,28 +9,25 @@
   display: flex;
   flex-direction: column;
   padding: 12px 16px;
+  background: var(--book-bg);
+  color: var(--book-text);
 }
 
 // Upload zone
 .upload-zone {
   margin-top: 10px;
   padding: 14px;
-  border: 2px dashed #333;
+  border: 2px dashed var(--book-border);
   border-radius: 10px;
   text-align: center;
   cursor: pointer;
-  color: var(--color-text-dim);
+  color: var(--book-text-dim);
   font-size: 13px;
-  transition: border-color 0.15s;
   flex-shrink: 0;
+  transition: border-color 0.15s;
 
-  &:hover {
-    border-color: var(--color-key-op);
-  }
-
-  strong {
-    color: var(--color-key-op);
-  }
+  &:hover { border-color: var(--book-accent); }
+  strong { color: var(--book-accent); }
 }
 
 // Toolbar
@@ -42,9 +39,9 @@
 }
 
 .viewer-btn {
-  background: var(--color-key-func);
-  color: var(--color-text);
-  border: none;
+  background: var(--book-surface);
+  color: var(--book-text);
+  border: 1px solid var(--book-border);
   border-radius: 6px;
   padding: 6px 14px;
   font-size: 12px;
@@ -52,13 +49,12 @@
   font-family: var(--font-mono);
   transition: background 0.12s;
 
-  &:hover {
-    background: #333;
-  }
+  &:hover { background: var(--book-code-bg); }
 
   &.active {
-    background: var(--color-key-op);
-    color: #000;
+    background: var(--book-accent);
+    color: #fff;
+    border-color: var(--book-accent);
   }
 }
 
@@ -75,7 +71,8 @@
 .viewer-pane {
   overflow-y: auto;
   border-radius: 10px;
-  background: var(--color-surface);
+  background: var(--book-surface);
+  border: 1px solid var(--book-border);
 }
 
 .viewer-editor {
@@ -83,88 +80,98 @@
   height: 100%;
   background: transparent;
   border: none;
-  color: var(--color-text);
+  color: var(--book-text);
   font-family: var(--font-mono);
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.8;
   padding: 16px;
   resize: none;
   outline: none;
 
-  &::placeholder {
-    color: var(--color-text-muted);
-  }
+  &::placeholder { color: var(--book-text-dim); }
 }
 
 .viewer-preview {
-  padding: 16px 20px;
-  color: var(--color-text);
-  font-size: 14px;
-  line-height: 1.7;
+  padding: 24px 28px;
+  color: var(--book-text);
+  font-size: 15px;
+  line-height: 1.85;
 }
 
-// Markdown content styling
+// Markdown content — book typesetting
 .markdown-body {
-  h1, h2, h3 {
-    color: var(--color-key-op);
-    margin-top: 1.2em;
-    margin-bottom: 0.4em;
+  h1, h2, h3, h4 {
+    color: #1a1008;
+    font-weight: 600;
+    margin-top: 1.4em;
+    margin-bottom: 0.5em;
   }
-  h1 { font-size: 1.5em; }
-  h2 { font-size: 1.25em; }
+  h1 { font-size: 1.6em; }
+  h2 { font-size: 1.3em; }
   h3 { font-size: 1.1em; }
 
-  p { margin: 0.6em 0; }
+  p { margin: 0.75em 0; }
 
   code {
-    background: #1a1a1a;
+    background: var(--book-code-bg);
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: 3px;
     font-size: 0.9em;
+    color: #5c3d0e;
   }
 
   pre {
-    background: #111;
-    padding: 14px 16px;
-    border-radius: 8px;
+    background: var(--book-pre-bg);
+    padding: 14px 18px;
+    border-radius: 6px;
     overflow-x: auto;
-    margin: 0.8em 0;
+    margin: 0.9em 0;
+    border: 1px solid var(--book-border);
 
     code {
       background: none;
       padding: 0;
+      color: var(--book-text);
     }
   }
 
   blockquote {
-    border-left: 3px solid var(--color-key-op);
-    margin: 0.8em 0;
-    padding: 4px 14px;
-    color: var(--color-text-dim);
+    border-left: 4px solid var(--book-accent);
+    margin: 0.9em 0;
+    padding: 4px 16px;
+    color: var(--book-text-dim);
+    font-style: italic;
   }
 
-  a { color: var(--color-key-op); }
+  a { color: var(--book-accent); }
 
   ul, ol {
-    padding-left: 1.4em;
-    margin: 0.4em 0;
+    padding-left: 1.5em;
+    margin: 0.5em 0;
+    line-height: 1.8;
   }
 
   table {
     border-collapse: collapse;
     width: 100%;
-    margin: 0.8em 0;
+    margin: 0.9em 0;
   }
 
   th, td {
-    border: 1px solid #333;
-    padding: 6px 10px;
+    border: 1px solid var(--book-border);
+    padding: 6px 12px;
     text-align: left;
   }
 
-  th { background: #1a1a1a; }
+  th { background: var(--book-code-bg); font-weight: 600; }
 
-  // KaTeX overrides for dark theme
+  hr {
+    border: none;
+    border-top: 1px solid var(--book-border);
+    margin: 1.5em 0;
+  }
+
+  // KaTeX — blend with book theme
   .katex {
     font-size: 1.05em;
   }
@@ -173,6 +180,20 @@
     margin: 1em 0;
     overflow-x: auto;
     overflow-y: hidden;
+  }
+}
+
+// Nav bar in viewer
+.viewer .nav-bar {
+  .nav-tab {
+    color: var(--book-text-dim);
+
+    &:hover { background: var(--book-code-bg); }
+
+    &.active {
+      background: var(--book-accent);
+      color: #fff;
+    }
   }
 }
 

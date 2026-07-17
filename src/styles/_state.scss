@@ -1,27 +1,26 @@
 // ============================================================
-// State — hover, reduced motion, responsive
+// State — hover, reduced-motion, responsive
 // ============================================================
+
+@import 'tokens';
 
 @layer state {
   // Hover only on pointer devices (not touch)
   @media (hover: hover) and (pointer: fine) {
-    .btn.num:hover  { background: #3d3d3d; }
-    .btn.op:hover   { background: #fbbf24; }
-    .btn.func:hover { background: #333; }
-    .btn.eq:hover   { background: #fbbf24; }
-
+    .btn.num:hover  { background: var(--color-key-num-hover); }
+    .btn.op:hover   { background: var(--color-key-op-hover); }
+    .btn.func:hover { background: var(--color-key-func-hover); }
+    .btn.eq:hover   { background: var(--color-key-op-hover); }
     .mute-toggle:hover { opacity: 0.7; }
   }
 }
 
-// Accessibility: respect reduced motion
+// Accessibility
 @media (prefers-reduced-motion: reduce) {
   .btn { transition: none; }
 }
 
 // Desktop: constrain calculator width
-@media (width >= 480px) {
-  .calculator {
-    max-width: 420px;
-  }
+@media (width >= $bp-desktop) {
+  .calculator { max-width: 26.25rem; } // 420px
 }

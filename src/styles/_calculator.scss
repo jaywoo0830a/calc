@@ -2,20 +2,23 @@
 // Calculator Layout & Navigation
 // ============================================================
 
+@import 'tokens';
+
 @layer layout {
   .calculator {
     width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
-    padding: var(--pad-block) var(--pad-inline);
-    gap: var(--gap-row);
+    padding: clamp($space-2, 2.5vw, $space-6) clamp($space-3, 3vw, $space-8);
+    gap: clamp($space-1, 1.6vh, $space-4);
     outline: none;
   }
 
+  // ---- Navigation tabs ----
   .nav-bar {
     display: flex;
-    gap: 4px;
+    gap: $space-1;
     flex: 0 0 auto;
   }
 
@@ -24,44 +27,54 @@
     border: none;
     color: var(--color-text-dim);
     font-family: var(--font-mono);
-    font-size: clamp(11px, 2.8vw, 13px);
+    font-size: $text-xs;
     cursor: pointer;
-    padding: 4px 12px;
-    border-radius: 6px;
+    padding: $space-1 $space-3;
+    border-radius: $radius-sm;
     text-decoration: none;
-    transition: background 0.12s, color 0.12s;
+    transition: background $duration-fast $ease-out,
+                color $duration-fast $ease-out;
 
-    &:hover { background: #1a1a1a; }
-    &.active  { background: var(--color-key-op); color: #000; font-weight: 500; }
+    &:hover { background: var(--color-nav-hover); }
+
+    &.active {
+      background: var(--color-key-op);
+      color: #000;
+      font-weight: $weight-semibold;
+    }
   }
 
+  // ---- Display ----
   .display {
     background: var(--color-surface);
-    border-radius: 4vw;
-    padding: 4vw 5vw 3vw;
+    border-radius: clamp($radius-md, 4vw, $radius-lg);
+    padding:
+      clamp($space-3, 4vw, $space-6)
+      clamp($space-4, 5vw, $space-8)
+      clamp($space-2, 3vw, $space-5);
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     align-items: flex-end;
-    min-height: 18vh;
+    min-height: $display-min-height;
     overflow: hidden;
   }
 
   .expression {
     color: var(--color-text-dim);
-    font-size: clamp(13px, 3.4vw, 16px);
-    font-weight: 300;
+    font-size: clamp($text-xs, 3.4vw, $text-base);
+    font-weight: $weight-light;
     word-break: break-all;
     text-align: right;
     width: 100%;
     min-height: 1.4em;
-    margin-bottom: 1vh;
+    margin-bottom: clamp($space-1, 0.8vh, $space-2);
   }
 
   .result {
-    font-size: clamp(28px, 9vw, 52px);
-    font-weight: 200;
+    font-size: clamp($text-3xl, 9vw, $text-5xl);
+    font-weight: $weight-thin;
     word-break: break-all;
     text-align: right;
     width: 100%;
@@ -69,21 +82,33 @@
     letter-spacing: -0.02em;
   }
 
+  // ---- Keypad grid ----
   .keypad {
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(5, 1fr);
-    gap: var(--gap-row) var(--gap-col);
+    grid-template-columns: repeat($keypad-cols, 1fr);
+    grid-template-rows: repeat($keypad-rows, 1fr);
+    gap:
+      clamp($space-2, 1.6vh, $space-4)
+      clamp($space-2, 2vw, $space-4);
     min-height: 0;
   }
 
+  // ---- Footer ----
   .footer {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: $space-2;
     flex: 0 0 auto;
     padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .info {
+    color: var(--color-text-muted);
+    font-size: clamp(0.5rem, 2.3vw, $text-xs);
+    font-weight: $weight-light;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 }

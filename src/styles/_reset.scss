@@ -2,12 +2,14 @@
 // Reset
 // ============================================================
 
+@import 'tokens';
+
 @layer reset {
   *,
   *::before,
   *::after {
-    margin: 0;
-    padding: 0;
+    margin: $space-0;
+    padding: $space-0;
     box-sizing: border-box;
   }
 
