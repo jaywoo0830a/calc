@@ -3,6 +3,9 @@
  * decimal.js · 32-digit precision · truncated (PHP BCMATH style)
  */
 
+// Disable all double-tap zoom (iOS generates synthetic dblclick → block it)
+document.addEventListener('dblclick', e => e.preventDefault());
+
 Decimal.set({ precision: 32, rounding: Decimal.ROUND_DOWN });
 
 // ============================================================
@@ -217,22 +220,6 @@ document.querySelector('.keypad').addEventListener('click', (e) => {
         case 'backspace': Sound.func();     backspace(); break;
     }
 });
-
-// --- prevent double-tap zoom on keypad ---
-(function preventZoom(el) {
-    // Block iOS gesture events entirely on the keypad
-    el.addEventListener('gesturestart', e => e.preventDefault());
-    el.addEventListener('gesturechange', e => e.preventDefault());
-    el.addEventListener('gestureend', e => e.preventDefault());
-
-    // Aggressive: treat any rapid (<500ms) successive touchend as double-tap, block it
-    let lastEnd = 0;
-    el.addEventListener('touchend', e => {
-        const now = Date.now();
-        if (now - lastEnd < 500) e.preventDefault();
-        lastEnd = now;
-    }, { passive: false });
-})(document.querySelector('.keypad'));
 
 // --- keyboard support ---
 document.addEventListener('keydown', (e) => {
