@@ -5,6 +5,17 @@
 
 Decimal.set({ precision: 32, rounding: Decimal.ROUND_DOWN });
 
+// iOS — hide "Add to Home Screen" hint in standalone mode or on close
+(function () {
+    if (navigator.standalone) return; // already installed
+    const hint = document.getElementById('iosHint');
+    if (!hint) return;
+    // Show on iOS Safari only (handled by CSS, but double-check)
+    document.getElementById('iosHintClose').addEventListener('click', () => {
+        hint.style.display = 'none';
+    });
+})();
+
 // ============================================================
 //  Sound engine — Web Audio API, zero-dependency
 // ============================================================

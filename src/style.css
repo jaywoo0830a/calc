@@ -23,8 +23,6 @@
 html {
     height: 100%;
     overflow: hidden;
-    touch-action: none;
-    -webkit-overflow-scrolling: auto;
 }
 
 body {
@@ -197,5 +195,44 @@ body {
 @media (min-width: 480px) {
     .calculator {
         max-width: 420px;
+    }
+}
+
+/* ===== iOS Add-to-Home-Screen hint ===== */
+.ios-hint {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #1a1a1a;
+    color: #999;
+    font-family: var(--font);
+    font-size: 12px;
+    text-align: center;
+    padding: 12px 40px 14px 16px;
+    z-index: 100;
+    border-top: 1px solid #333;
+}
+.ios-hint strong { color: var(--c-op); }
+
+.ios-hint-close {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+}
+
+/* Show hint only on iOS Safari (not standalone mode) */
+@media (display-mode: browser) {
+    @supports (-webkit-touch-callout: none) {
+        .ios-hint { display: block; }
     }
 }
