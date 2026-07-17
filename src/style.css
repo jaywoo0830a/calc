@@ -1,256 +1,190 @@
 /* ============================================
-   Design System — Minimal Dark Calculator
+   Calc — Viewport-Filling Design
+   No scroll, no overflow → no zoom possible
    ============================================ */
 
 :root {
-    /* --- palette --- */
-    --color-bg:        #0a0a0a;
-    --color-surface:   #141414;
-    --color-display:   #0d0d0d;
-    --color-key-num:   #2a2a2a;
-    --color-key-num-h: #3d3d3d;
-    --color-key-op:    #f59e0b;
-    --color-key-op-h:  #fbbf24;
-    --color-key-func:  #1f1f1f;
-    --color-key-func-h:#333333;
-    --color-key-eq:    #f59e0b;
-    --color-key-eq-h:  #fbbf24;
-    --color-text:      #fafafa;
-    --color-text-dim:  #6b6b6b;
-    --color-text-info: #404040;
-
-    /* --- spacing --- */
-    --space-xs: 4px;
-    --space-sm: 8px;
-    --space-md: 12px;
-    --space-lg: 20px;
-    --space-xl: 24px;
-
-    /* --- radius --- */
-    --radius-sm: 12px;
-    --radius-md: 18px;
-    --radius-full: 999px;
-
-    /* --- typography --- */
-    --font-mono: 'Roboto Mono', 'SF Mono', 'Consolas', monospace;
-    --font-xs:  clamp(10px, 2.6vw, 11px);
-    --font-sm:  clamp(12px, 3.2vw, 14px);
-    --font-md:  clamp(18px, 4.8vw, 22px);
-    --font-lg:  clamp(22px, 5.6vw, 26px);
-    --font-xl:  clamp(28px, 7.5vw, 44px);
-
-    /* --- motion --- */
-    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-    --duration-fast: 120ms;
-    --duration-normal: 200ms;
+    --c-bg:       #0a0a0a;
+    --c-display:  #0d0d0d;
+    --c-num:      #2a2a2a;
+    --c-num-a:    #555;
+    --c-op:       #f59e0b;
+    --c-op-a:     #fff;
+    --c-func:     #1f1f1f;
+    --c-func-a:   #444;
+    --c-text:     #fafafa;
+    --c-dim:      #6b6b6b;
+    --c-info:     #3a3a3a;
+    --font:       'Roboto Mono', monospace;
 }
 
-/* --- reset --- */
-*, *::before, *::after {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 html {
-    -webkit-text-size-adjust: 100%;
-    touch-action: pan-x pan-y;
-    overflow-x: hidden;
+    height: 100%;
+    overflow: hidden;
 }
 
 body {
-    font-family: var(--font-mono);
-    background: var(--color-bg);
-    min-height: 100vh;
-    min-height: 100dvh;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding: var(--space-md);
-    padding-top: max(24px, 4dvh);
-    -webkit-tap-highlight-color: transparent;
+    font-family: var(--font);
+    background: var(--c-bg);
+    height: 100vh;
+    height: 100dvh;
+    width: 100vw;
+    overflow: hidden;
     -webkit-user-select: none;
     user-select: none;
-    touch-action: manipulation;
-    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    justify-content: center;
 }
 
-/* --- layout --- */
+/* ===== Calculator ===== */
 .calculator {
     width: 100%;
-    max-width: 360px;
+    max-width: 420px;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    gap: var(--space-md);
+    padding: 2.5vw 3vw;
+    gap: 1.5vh;
 }
 
-/* --- display --- */
+/* ===== Display ===== */
 .display {
-    background: var(--color-display);
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: var(--radius-md);
-    padding: var(--space-lg) var(--space-xl);
-    min-height: 110px;
+    background: var(--c-display);
+    border-radius: 4vw;
+    padding: 4vw 5vw 3vw;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     align-items: flex-end;
+    min-height: 18vh;
     overflow: hidden;
 }
 
 .expression {
-    color: var(--color-text-dim);
-    font-family: var(--font-mono);
-    font-size: var(--font-sm);
+    color: var(--c-dim);
+    font-family: var(--font);
+    font-size: clamp(13px, 3.4vw, 16px);
     font-weight: 300;
     word-break: break-all;
     text-align: right;
     width: 100%;
-    line-height: 1.5;
-    min-height: 1.5em;
-    margin-bottom: var(--space-xs);
-    letter-spacing: -0.01em;
+    min-height: 1.4em;
+    margin-bottom: 1vh;
 }
 
 .result {
-    color: var(--color-text);
-    font-family: var(--font-mono);
-    font-size: var(--font-xl);
+    color: var(--c-text);
+    font-family: var(--font);
+    font-size: clamp(28px, 9vw, 52px);
     font-weight: 200;
     word-break: break-all;
     text-align: right;
     width: 100%;
-    line-height: 1.15;
-    transition: font-size var(--duration-normal) var(--ease-out);
+    line-height: 1.1;
     letter-spacing: -0.02em;
 }
 
-.result.small {
-    font-size: var(--font-lg);
-}
-
-/* --- keypad grid --- */
+/* ===== Keypad — fills remaining height ===== */
 .keypad {
+    flex: 1 1 auto;
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: var(--space-sm);
-    touch-action: manipulation;
+    grid-template-rows: repeat(5, 1fr);
+    gap: 1.6vh 2vw;
+    min-height: 0;
 }
 
-/* --- button base --- */
+/* ===== Buttons ===== */
 .btn {
-    aspect-ratio: 1;
     border: none;
-    border-radius: var(--radius-full);
-    font-family: var(--font-mono);
-    font-size: var(--font-md);
+    border-radius: 50%;
+    font-family: var(--font);
     font-weight: 350;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background var(--duration-fast) var(--ease-out),
-                transform var(--duration-fast) var(--ease-out);
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
     outline: none;
     line-height: 1;
-    letter-spacing: -0.01em;
+    -webkit-tap-highlight-color: transparent;
 }
 
-.btn:active {
-    transform: scale(0.94);
-}
-
-/* --- numeric keys --- */
 .btn.num {
-    background: var(--color-key-num);
-    color: var(--color-text);
+    background: var(--c-num);
+    color: var(--c-text);
+    font-size: clamp(20px, 5.5vw, 28px);
 }
-.btn.num:active { background: #555; }
+.btn.num:active { background: var(--c-num-a); }
 
 .btn.num.zero {
     grid-column: span 2;
-    aspect-ratio: auto;
-    border-radius: var(--radius-full);
-    padding-left: 26px;
+    border-radius: 50vw;
+    padding-left: 9%;
     justify-content: flex-start;
 }
 
-/* --- operator keys --- */
 .btn.op {
-    background: var(--color-key-op);
+    background: var(--c-op);
     color: #fff;
-    font-size: var(--font-lg);
+    font-size: clamp(22px, 6vw, 30px);
     font-weight: 450;
 }
-.btn.op.active { background: #fff; color: var(--color-key-op); }
+.btn.op:active { background: #fff; color: var(--c-op); }
 
-/* --- function keys --- */
 .btn.func {
-    background: var(--color-key-func);
-    color: var(--color-text);
-    font-size: var(--font-sm);
+    background: var(--c-func);
+    color: var(--c-text);
+    font-size: clamp(16px, 4.4vw, 22px);
 }
-.btn.func:active { background: #444; }
+.btn.func:active { background: var(--c-func-a); }
 
-/* --- equals key --- */
 .btn.eq {
-    background: var(--color-key-eq);
+    background: var(--c-op);
     color: #fff;
-    font-size: var(--font-lg);
+    font-size: clamp(24px, 6.5vw, 32px);
     font-weight: 450;
 }
 .btn.eq:active { background: #fcd34d; }
 
-/* --- footer --- */
+/* ===== Footer ===== */
 .footer {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--space-sm);
+    gap: 6px;
+    flex: 0 0 auto;
 }
 
 .info {
-    color: var(--color-text-info);
-    font-family: var(--font-mono);
-    font-size: var(--font-xs);
+    color: var(--c-info);
+    font-family: var(--font);
+    font-size: clamp(9px, 2.3vw, 11px);
     font-weight: 300;
-    letter-spacing: 0.04em;
     text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .mute-toggle {
     background: none;
     border: none;
-    font-size: 14px;
+    font-size: clamp(12px, 3vw, 15px);
     cursor: pointer;
     opacity: 0.3;
-    transition: opacity var(--duration-fast) var(--ease-out);
     padding: 2px;
     line-height: 1;
 }
-.mute-toggle.muted  { opacity: 0.15; }
+.mute-toggle:active { opacity: 0.7; }
+.mute-toggle.muted  { opacity: 0.1; }
 
-/* --- responsive --- */
+/* ===== Hover — desktop only ===== */
 @media (hover: hover) {
-    .btn.num:hover  { background: var(--color-key-num-h); }
-    .btn.op:hover   { background: var(--color-key-op-h); }
-    .btn.func:hover { background: var(--color-key-func-h); }
-    .btn.eq:hover   { background: var(--color-key-eq-h); }
+    .btn.num:hover  { background: #3d3d3d; }
+    .btn.op:hover   { background: #fbbf24; }
+    .btn.func:hover { background: #333; }
+    .btn.eq:hover   { background: #fbbf24; }
     .mute-toggle:hover { opacity: 0.7; }
-}
-
-@media (max-width: 380px) {
-    .keypad { gap: 6px; }
-    .display {
-        padding: 16px 18px;
-        min-height: 96px;
-        border-radius: var(--radius-sm);
-    }
-    .btn.num.zero { padding-left: 22px; }
-}
-
-@media (min-width: 400px) {
-    .calculator { max-width: 380px; }
 }

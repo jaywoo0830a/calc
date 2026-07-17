@@ -5,11 +5,6 @@
 
 Decimal.set({ precision: 32, rounding: Decimal.ROUND_DOWN });
 
-// Block all multi-touch zoom gestures at the document level
-document.addEventListener('touchmove', e => {
-    if (e.touches.length > 1) e.preventDefault();
-}, { passive: false });
-
 // ============================================================
 //  Sound engine — Web Audio API, zero-dependency
 // ============================================================
@@ -91,10 +86,9 @@ function fmt(d) {
     return s;
 }
 
-/** Update result line; shrink font when text is long */
+/** Update result line */
 function updateResult(text) {
     resultEl.textContent = text;
-    resultEl.classList.toggle('small', text.length > 15);
 }
 
 /** Update expression line (formula preview) */
