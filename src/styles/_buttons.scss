@@ -45,12 +45,12 @@
       var(--color-text),
       var(--color-key-num-active)
     );
-    font-size: clamp($text-xl, 5.5vw, $text-3xl);
+    font-size: $text-2xl;
 
     &.zero {
       grid-column: span 2;
       border-radius: $radius-pill;
-      padding-inline-start: 9%;
+      padding-inline-start: 10%;
       justify-content: flex-start;
     }
   }
@@ -63,7 +63,7 @@
       #fff,
       var(--color-key-op)
     );
-    font-size: clamp($text-2xl, 6vw, $text-4xl);
+    font-size: $text-3xl;
     font-weight: $weight-medium;
   }
 
@@ -74,7 +74,7 @@
       var(--color-text),
       var(--color-key-func-active)
     );
-    font-size: clamp($text-md, 4.4vw, $text-xl);
+    font-size: $text-lg;
   }
 
   // Equals key
@@ -84,7 +84,7 @@
       #fff,
       #fcd34d
     );
-    font-size: clamp($text-2xl, 6.5vw, $text-4xl);
+    font-size: $text-3xl;
     font-weight: $weight-medium;
   }
 
@@ -92,7 +92,7 @@
   .mute-toggle {
     background: none;
     border: none;
-    font-size: clamp($text-sm, 3vw, $text-base);
+    font-size: $text-sm;
     cursor: pointer;
     opacity: 0.3;
     padding: $space-1;

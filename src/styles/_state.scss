@@ -19,8 +19,3 @@
 @media (prefers-reduced-motion: reduce) {
   .btn { transition: none; }
 }
-
-// Desktop: constrain calculator width
-@media (width >= $bp-desktop) {
-  .calculator { max-width: 26.25rem; } // 420px
-}
