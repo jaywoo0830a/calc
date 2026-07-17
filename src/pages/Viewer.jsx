@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { marked } from 'marked';
 import katex from 'katex';
 import JSZip from 'jszip';
@@ -61,6 +61,15 @@ export default function Viewer() {
   const [selectedPath, setSelectedPath] = useState('');
   const [imageBlobs, setImageBlobs] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  // Escape key → exit fullscreen
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setFullscreen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
 
   const indexImages = useCallback(async (zip) => {
     const blobs = {};
@@ -115,20 +124,24 @@ export default function Viewer() {
   }, [imageBlobs]);
 
   return (
-    <div className="viewer">
-      <nav className="calculator__nav">
-        <a href="/" className="calculator__nav-tab">Calc</a>
-        <span className="calculator__nav-tab calculator__nav-tab--active">Viewer</span>
-      </nav>
-      <div className="viewer__upload"
-        onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && f.name.endsWith('.zip')) loadZip(f); }}
-        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-        onClick={() => document.getElementById('zipInput').click()}>
-        <input id="zipInput" type="file" accept=".zip" onChange={(e) => { const f = e.target.files[0]; if (f) loadZip(f); }} hidden />
-        {fileName
-          ? <span><strong>{fileName}</strong> &mdash; drop another ZIP</span>
-          : <span>Drop a <strong>ZIP</strong> archive here, or click to browse</span>}
-      </div>
+    <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')}>
+      {!fullscreen && (
+        <nav className="calculator__nav">
+          <a href="/" className="calculator__nav-tab">Calc</a>
+          <span className="calculator__nav-tab calculator__nav-tab--active">Viewer</span>
+        </nav>
+      )}
+      {!fullscreen && (
+        <div className="viewer__upload"
+          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && f.name.endsWith('.zip')) loadZip(f); }}
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onClick={() => document.getElementById('zipInput').click()}>
+          <input id="zipInput" type="file" accept=".zip" onChange={(e) => { const f = e.target.files[0]; if (f) loadZip(f); }} hidden />
+          {fileName
+            ? <span><strong>{fileName}</strong> &mdash; drop another ZIP</span>
+            : <span>Drop a <strong>ZIP</strong> archive here, or click to browse</span>}
+        </div>
+      )}
       <div className="viewer__panes">
         {zipTree && (<>
           <div className={'viewer__sidebar' + (sidebarOpen ? ' viewer__sidebar--open' : '')}>
@@ -145,6 +158,16 @@ export default function Viewer() {
             : <div className="viewer__empty">Upload a ZIP archive to get started</div>}
         </div>
       </div>
+      {rendered && (
+        <button
+          className="viewer__fullscreen-btn"
+          onClick={() => setFullscreen(!fullscreen)}
+          aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+        >
+          {fullscreen ? '⊠' : '⛶'}
+        </button>
+      )}
     </div>
   );
 }

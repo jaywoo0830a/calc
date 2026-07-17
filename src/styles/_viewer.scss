@@ -10,6 +10,25 @@
   height: 100%;
   min-height: 0;
 
+  // ---- Fullscreen modifier ---------------------------------
+  &--fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: $c-page;
+    height: 100dvh;
+    max-height: none;
+
+    .viewer__panes {
+      border: none;
+      border-radius: 0;
+    }
+
+    .viewer__preview {
+      padding: $sp-5 $sp-6;
+    }
+  }
+
   // ---- Upload drop zone — dashed paper area ----------------
   &__upload {
     padding: $sp-4 $sp-5;
@@ -136,5 +155,32 @@
     font-size: $fs-step-1;
     font-style: italic;
     color: $c-ink-faint;
+  }
+
+  // ---- Fullscreen toggle button ----------------------------
+  &__fullscreen-btn {
+    position: fixed;
+    bottom: $sp-4;
+    right: $sp-4;
+    z-index: 120;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink-soft;
+    font-size: $fs-step-1;
+    box-shadow: $shadow-md;
+    transition: all $transition-fast;
+    opacity: 0.7;
+
+    &:hover {
+      opacity: 1;
+      color: $c-ink;
+      background: $c-page-dark;
+    }
   }
 }
