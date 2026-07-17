@@ -219,14 +219,20 @@ document.querySelector('.keypad').addEventListener('click', (e) => {
 });
 
 // --- prevent double-tap zoom on keypad ---
-let lastTouchEnd = 0;
-document.querySelector('.keypad').addEventListener('touchend', (e) => {
-    const now = Date.now();
-    if (now - lastTouchEnd <= 300) {
-        e.preventDefault();
-    }
-    lastTouchEnd = now;
-}, { passive: false });
+(function preventZoom(el) {
+    // Block iOS gesture events entirely on the keypad
+    el.addEventListener('gesturestart', e => e.preventDefault());
+    el.addEventListener('gesturechange', e => e.preventDefault());
+    el.addEventListener('gestureend', e => e.preventDefault());
+
+    // Aggressive: treat any rapid (<500ms) successive touchend as double-tap, block it
+    let lastEnd = 0;
+    el.addEventListener('touchend', e => {
+        const now = Date.now();
+        if (now - lastEnd < 500) e.preventDefault();
+        lastEnd = now;
+    }, { passive: false });
+})(document.querySelector('.keypad'));
 
 // --- keyboard support ---
 document.addEventListener('keydown', (e) => {
