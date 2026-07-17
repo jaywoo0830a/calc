@@ -160,7 +160,6 @@ body {
     background: var(--color-key-num);
     color: var(--color-text);
 }
-.btn.num:hover  { background: var(--color-key-num-h); }
 .btn.num:active { background: #555; }
 
 .btn.num.zero {
@@ -178,7 +177,6 @@ body {
     font-size: var(--font-lg);
     font-weight: 450;
 }
-.btn.op:hover  { background: var(--color-key-op-h); }
 .btn.op.active { background: #fff; color: var(--color-key-op); }
 
 /* --- function keys --- */
@@ -187,7 +185,6 @@ body {
     color: var(--color-text);
     font-size: var(--font-sm);
 }
-.btn.func:hover  { background: var(--color-key-func-h); }
 .btn.func:active { background: #444; }
 
 /* --- equals key --- */
@@ -197,7 +194,6 @@ body {
     font-size: var(--font-lg);
     font-weight: 450;
 }
-.btn.eq:hover  { background: var(--color-key-eq-h); }
 .btn.eq:active { background: #fcd34d; }
 
 /* --- footer --- */
@@ -227,10 +223,17 @@ body {
     padding: 2px;
     line-height: 1;
 }
-.mute-toggle:hover { opacity: 0.7; }
 .mute-toggle.muted  { opacity: 0.15; }
 
 /* --- responsive --- */
+@media (hover: hover) {
+    .btn.num:hover  { background: var(--color-key-num-h); }
+    .btn.op:hover   { background: var(--color-key-op-h); }
+    .btn.func:hover { background: var(--color-key-func-h); }
+    .btn.eq:hover   { background: var(--color-key-eq-h); }
+    .mute-toggle:hover { opacity: 0.7; }
+}
+
 @media (max-width: 380px) {
     .keypad { gap: 6px; }
     .display {
