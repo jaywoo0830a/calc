@@ -1,0 +1,221 @@
+// ============================================================
+// Viewer — Markdown + KaTeX
+// ============================================================
+
+.viewer {
+  width: 100%;
+  max-width: 1200px;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+}
+
+// Navigation bar
+.viewer-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #222;
+  flex-shrink: 0;
+}
+
+.viewer-back {
+  color: var(--color-key-op);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.viewer-title {
+  color: var(--color-text-dim);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+// Upload zone
+.upload-zone {
+  margin-top: 10px;
+  padding: 14px;
+  border: 2px dashed #333;
+  border-radius: 10px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--color-text-dim);
+  font-size: 13px;
+  transition: border-color 0.15s;
+  flex-shrink: 0;
+
+  &:hover {
+    border-color: var(--color-key-op);
+  }
+
+  strong {
+    color: var(--color-key-op);
+  }
+}
+
+// Toolbar
+.viewer-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+  flex-shrink: 0;
+}
+
+.viewer-btn {
+  background: var(--color-key-func);
+  color: var(--color-text);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  transition: background 0.12s;
+
+  &:hover {
+    background: #333;
+  }
+
+  &.active {
+    background: var(--color-key-op);
+    color: #000;
+  }
+}
+
+// Panes: editor + preview
+.viewer-panes {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  min-height: 0;
+  margin-top: 4px;
+}
+
+.viewer-pane {
+  overflow-y: auto;
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.viewer-editor {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 16px;
+  resize: none;
+  outline: none;
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+}
+
+.viewer-preview {
+  padding: 16px 20px;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+// Markdown content styling
+.markdown-body {
+  h1, h2, h3 {
+    color: var(--color-key-op);
+    margin-top: 1.2em;
+    margin-bottom: 0.4em;
+  }
+  h1 { font-size: 1.5em; }
+  h2 { font-size: 1.25em; }
+  h3 { font-size: 1.1em; }
+
+  p { margin: 0.6em 0; }
+
+  code {
+    background: #1a1a1a;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+
+  pre {
+    background: #111;
+    padding: 14px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.8em 0;
+
+    code {
+      background: none;
+      padding: 0;
+    }
+  }
+
+  blockquote {
+    border-left: 3px solid var(--color-key-op);
+    margin: 0.8em 0;
+    padding: 4px 14px;
+    color: var(--color-text-dim);
+  }
+
+  a { color: var(--color-key-op); }
+
+  ul, ol {
+    padding-left: 1.4em;
+    margin: 0.4em 0;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.8em 0;
+  }
+
+  th, td {
+    border: 1px solid #333;
+    padding: 6px 10px;
+    text-align: left;
+  }
+
+  th { background: #1a1a1a; }
+
+  // KaTeX overrides for dark theme
+  .katex {
+    font-size: 1.05em;
+  }
+
+  .katex-display {
+    margin: 1em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+}
+
+// Responsive: stack panes on mobile
+@media (width < 768px) {
+  .viewer-panes {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  .viewer-nav {
+    gap: 10px;
+  }
+
+  .viewer-title {
+    font-size: 12px;
+  }
+}

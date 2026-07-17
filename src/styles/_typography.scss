@@ -1,0 +1,26 @@
+// ============================================================
+// Typography & Footer
+// ============================================================
+
+@layer layout {
+  .info {
+    color: var(--color-text-muted);
+    font-size: clamp(9px, 2.3vw, 11px);
+    font-weight: 300;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .footer-link {
+    color: var(--color-key-op);
+    text-decoration: none;
+    font-size: clamp(10px, 2.5vw, 12px);
+    font-weight: 400;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}

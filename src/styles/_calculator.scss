@@ -1,0 +1,67 @@
+// ============================================================
+// Calculator Layout
+// ============================================================
+
+@layer layout {
+  .calculator {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: var(--pad-block) var(--pad-inline);
+    gap: var(--gap-row);
+    outline: none;
+  }
+
+  .display {
+    background: var(--color-surface);
+    border-radius: 4vw;
+    padding: 4vw 5vw 3vw;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-end;
+    min-height: 18vh;
+    overflow: hidden;
+  }
+
+  .expression {
+    color: var(--color-text-dim);
+    font-size: clamp(13px, 3.4vw, 16px);
+    font-weight: 300;
+    word-break: break-all;
+    text-align: right;
+    width: 100%;
+    min-height: 1.4em;
+    margin-bottom: 1vh;
+  }
+
+  .result {
+    font-size: clamp(28px, 9vw, 52px);
+    font-weight: 200;
+    word-break: break-all;
+    text-align: right;
+    width: 100%;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  .keypad {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    gap: var(--gap-row) var(--gap-col);
+    min-height: 0;
+  }
+
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+}

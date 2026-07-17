@@ -1,0 +1,97 @@
+// ============================================================
+// Buttons
+// ============================================================
+
+@layer buttons {
+  .btn {
+    border: none;
+    border-radius: 50%;
+    font-family: var(--font-mono);
+    font-weight: 350;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 100ms var(--ease-out);
+
+    &:focus-visible {
+      box-shadow: var(--focus-ring);
+    }
+  }
+
+  // Numeric keys
+  .btn.num {
+    background: var(--color-key-num);
+    color: var(--color-text);
+    font-size: clamp(20px, 5.5vw, 28px);
+
+    &:active {
+      background: var(--color-key-num-active);
+    }
+
+    &.zero {
+      grid-column: span 2;
+      border-radius: 50vw;
+      padding-inline-start: 9%;
+      justify-content: flex-start;
+    }
+  }
+
+  // Operator keys
+  .btn.op {
+    background: var(--color-key-op);
+    color: #fff;
+    font-size: clamp(22px, 6vw, 30px);
+    font-weight: 450;
+
+    &:active {
+      background: #fff;
+      color: var(--color-key-op);
+    }
+  }
+
+  // Function keys
+  .btn.func {
+    background: var(--color-key-func);
+    color: var(--color-text);
+    font-size: clamp(16px, 4.4vw, 22px);
+
+    &:active {
+      background: var(--color-key-func-active);
+    }
+  }
+
+  // Equals key
+  .btn.eq {
+    background: var(--color-key-op);
+    color: #fff;
+    font-size: clamp(24px, 6.5vw, 32px);
+    font-weight: 450;
+
+    &:active {
+      background: #fcd34d;
+    }
+  }
+
+  // Mute toggle
+  .mute-toggle {
+    background: none;
+    border: none;
+    font-size: clamp(12px, 3vw, 15px);
+    cursor: pointer;
+    opacity: 0.3;
+    padding: 2px;
+    line-height: 1;
+
+    &:active {
+      opacity: 0.7;
+    }
+
+    &.muted {
+      opacity: 0.1;
+    }
+  }
+}

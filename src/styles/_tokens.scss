@@ -1,0 +1,32 @@
+// ============================================================
+// Design Tokens
+// ============================================================
+
+:root {
+  // palette
+  --color-bg:               #0a0a0a;
+  --color-surface:          #0d0d0d;
+  --color-key-num:          #2a2a2a;
+  --color-key-num-active:   #555;
+  --color-key-op:           #f59e0b;
+  --color-key-func:         #1f1f1f;
+  --color-key-func-active:  #444;
+  --color-text:             #fafafa;
+  --color-text-dim:         #6b6b6b;
+  --color-text-muted:       #3a3a3a;
+
+  // typography
+  --font-mono: 'Roboto Mono', 'SF Mono', 'Consolas', monospace;
+
+  // spacing (viewport-relative)
+  --pad-inline: 3vw;
+  --pad-block:  2.5vw;
+  --gap-row:    1.6vh;
+  --gap-col:    2vw;
+
+  // motion
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  // focus
+  --focus-ring: 0 0 0 2px var(--color-key-op);
+}
