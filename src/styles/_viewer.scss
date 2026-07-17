@@ -1,276 +1,140 @@
-// ============================================================
-// Viewer — book-like warm theme, fully tokenized
-// ============================================================
+@use 'variables' as *;
 
-@import 'tokens';
+// ============================================================
+// Block: viewer — Academic Paper
+// ============================================================
 
 .viewer {
-  width: 100%;
-  max-width: 75rem;
-  height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: $space-3 $space-4;
-  background: var(--book-bg);
-  color: var(--book-text);
-}
-
-// Upload zone
-.upload-zone {
-  margin-top: $space-2;
-  padding: $space-3 $space-4;
-  border: 2px dashed var(--book-border);
-  border-radius: $radius-md;
-  text-align: center;
-  cursor: pointer;
-  color: var(--book-text-dim);
-  font-size: $text-xs;
-  flex-shrink: 0;
-  transition: border-color $duration-normal $ease-out;
-  &:hover { border-color: var(--book-accent); }
-  strong { color: var(--book-accent); }
-}
-
-// Toolbar
-.viewer-toolbar {
-  display: flex;
-  gap: $space-2;
-  padding: $space-2 0;
-  flex-shrink: 0;
-}
-
-.viewer-btn {
-  background: var(--book-surface);
-  color: var(--book-text);
-  border: 1px solid var(--book-border);
-  border-radius: $radius-sm;
-  padding: $space-1 $space-3;
-  font-size: $text-sm;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  transition: background $duration-fast $ease-out;
-  &:hover { background: var(--book-code-bg); }
-  &.active {
-    background: var(--book-accent);
-    color: var(--color-white);
-    border-color: var(--book-accent);
-  }
-}
-
-// Panes — tree sidebar + preview
-.viewer-panes {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 15rem 1fr;
-  gap: $space-2;
-  min-height: 0;
-  margin-top: $space-1;
-}
-
-.viewer-pane {
-  overflow-y: auto;
-  border-radius: $radius-md;
-  background: var(--book-surface);
-  border: 1px solid var(--book-border);
-
-  &.full {
-    grid-column: 1 / -1;
-  }
-}
-
-// ZIP tree sidebar
-.viewer-sidebar {
-  padding: $space-2 0;
-  overflow-y: auto;
-}
-
-.sidebar-toggle {
-  display: none;
-  position: absolute;
-  top: 50%;
-  left: 0;
-  z-index: 20;
-  background: var(--book-surface);
-  border: 1px solid var(--book-border);
-  border-left: none;
-  border-radius: 0 $radius-sm $radius-sm 0;
-  color: var(--book-text-dim);
-  font-size: $text-xs;
-  padding: $space-2 $space-1;
-  cursor: pointer;
-  transform: translateY(-50%);
-  transition: background $duration-fast $ease-out;
-  &:hover { background: var(--book-code-bg); }
-}
-
-.sidebar-overlay {
-  display: none;
-}
-
-.zip-tree {
-  font-size: $text-xs;
-}
-
-.zip-tree-item {
-  display: flex;
-  align-items: center;
-  gap: $space-1;
-  padding: 0.2rem $space-2;
-  cursor: default;
-  user-select: none;
-  transition: background $duration-fast $ease-out;
-
-  &.clickable { cursor: pointer; }
-  &:hover { background: var(--book-code-bg); }
-  &.selected { background: var(--book-accent); color: var(--color-white); }
-
-  .zip-tree-icon { flex-shrink: 0; font-size: 0.8em; }
-  .zip-tree-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--book-text);
-    .selected & { color: var(--color-white); }
-  }
-}
-
-.viewer-preview {
-  padding: $space-6 $space-6;
-  color: var(--book-text);
-  font-size: $text-base;
-  line-height: 1.85;
-}
-
-.viewer-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   height: 100%;
-  color: var(--book-text-dim);
-  font-size: $text-lg;
-  font-style: italic;
-}
+  min-height: 0;
 
-// Markdown content
-.markdown-body {
-  h1, h2, h3, h4 {
-    color: var(--book-heading);
-    font-weight: $weight-semibold;
-    margin-top: 1.4em;
-    margin-bottom: 0.5em;
-  }
-  h1 { font-size: 1.6em; }
-  h2 { font-size: 1.3em; }
-  h3 { font-size: 1.1em; }
-
-  p { margin: 0.75em 0; }
-
-  code {
-    background: var(--book-code-bg);
-    padding: $space-1 $space-1;
-    border-radius: $radius-sm;
-    font-size: 0.9em;
-    color: var(--book-code-text);
-  }
-
-  pre {
-    background: var(--book-pre-bg);
-    padding: $space-3 $space-4;
-    border-radius: $radius-sm;
-    overflow-x: auto;
-    margin: 0.9em 0;
-    border: 1px solid var(--book-border);
-    code { background: none; padding: $space-0; color: var(--book-text); }
-  }
-
-  blockquote {
-    border-left: 4px solid var(--book-accent);
-    margin: 0.9em 0;
-    padding: $space-1 $space-4;
-    color: var(--book-text-dim);
+  // ---- Upload drop zone — dashed paper area ----------------
+  &__upload {
+    padding: $sp-4 $sp-5;
+    margin-bottom: $sp-3;
+    border: $border-md dashed $c-rule;
+    border-radius: $radius-md;
+    text-align: center;
+    font-size: $fs-step--1;
     font-style: italic;
-  }
+    color: $c-ink-soft;
+    cursor: pointer;
+    transition: all $transition-normal;
+    background: $c-page;
 
-  a { color: var(--book-accent); }
-
-  ul, ol {
-    padding-left: 1.5em;
-    margin: 0.5em 0;
-    line-height: 1.8;
-  }
-
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 0.9em 0;
-  }
-
-  th, td {
-    border: 1px solid var(--book-border);
-    padding: $space-1 $space-3;
-    text-align: left;
-  }
-
-  th { background: var(--book-code-bg); font-weight: $weight-semibold; }
-
-  hr {
-    border: none;
-    border-top: 1px solid var(--book-border);
-    margin: 1.5em 0;
-  }
-
-  .katex { font-size: 1.05em; }
-  .katex-display {
-    margin: 1em 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
-}
-
-// Nav bar override in viewer
-.viewer .nav-bar .nav-tab {
-  color: var(--book-text-dim);
-  &:hover { background: var(--book-code-bg); }
-  &.active {
-    background: var(--book-accent);
-    color: var(--color-white);
-  }
-}
-
-@media (width < $bp-tablet) {
-  .viewer-panes {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr;
-    position: relative;
-  }
-
-  .sidebar-toggle {
-    display: block;
-    left: 0;
-  }
-
-  .viewer-sidebar {
-    position: fixed;
-    inset: 0 auto 0 0;
-    width: 16rem;
-    max-width: 80vw;
-    z-index: 30;
-    background: var(--book-surface);
-    border-right: 1px solid var(--book-border);
-    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
-    transform: translateX(-100%);
-    transition: transform 250ms $ease-out;
-
-    &.open {
-      transform: translateX(0);
+    &:hover {
+      border-color: $c-accent;
+      color: $c-ink;
+      background: $c-page-dark;
     }
   }
 
-  .sidebar-overlay {
-    display: block;
+  // ---- Panes container (preview only — sidebar is fixed) ---
+  &__panes {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+  }
+
+  // ---- Sidebar — fixed overlay from viewport left ----------
+  &__sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    width: $sidebar-width;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: $sp-3;
+    padding-top: $sp-10;         // toggle button 아래 공간 확보
+    border-right: $border-thin solid $c-rule;
+    background: $c-page;
+    z-index: 100;
+    transform: translateX(0);
+    transition: transform $transition-normal;
+    box-shadow: $shadow-lg;
+
+    &:not(.viewer__sidebar--open) {
+      transform: translateX(-100%);
+      box-shadow: none;
+    }
+  }
+
+  // ---- Sidebar toggle — fixed, always visible --------------
+  &__sidebar-toggle {
+    position: fixed;
+    top: $sp-3;
+    left: $sp-2;
+    z-index: 110;
+    width: $sidebar-toggle;
+    height: $sidebar-toggle;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    background: $c-page-dark;
+    color: $c-ink-soft;
+    font-size: $fs-step--2;
+    box-shadow: $shadow-xs;
+    transition: left $transition-normal, background $transition-fast, color $transition-fast;
+
+    &:hover {
+      color: $c-ink-inverse;
+      background: $c-accent;
+      border-color: $c-accent;
+    }
+  }
+
+  // 사이드바 열리면 토글 버튼도 함께 오른쪽으로 이동
+  &__sidebar--open ~ &__sidebar-toggle {
+    left: calc($sidebar-width + $sp-2);
+  }
+
+  // ---- Backdrop overlay (sidebar 열렸을 때) -----------------
+  &__overlay {
     position: fixed;
     inset: 0;
-    z-index: 25;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.25);
+    z-index: 99;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity $transition-normal;
+
+    // sidebar--open 다음에 overlay가 있으면 표시
+    @at-root .viewer__sidebar--open ~ .viewer__overlay {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  // ---- Preview — paper page --------------------------------
+  &__preview {
+    flex: 1;
+    overflow-y: auto;
+    padding: $sp-5 $sp-6;
+  }
+
+  &__content {
+    font-size: $fs-step-0;
+    line-height: 1.75;
+    color: $c-ink;
+  }
+
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: $fs-step-1;
+    font-style: italic;
+    color: $c-ink-faint;
   }
 }

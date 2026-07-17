@@ -1,11 +1,13 @@
 // ============================================================
-// Calc — Main Stylesheet
+// BEM SCSS Entry Point
 // ============================================================
 
-@import 'styles/tokens';
-@import 'styles/reset';
-@import 'styles/calculator';
-@import 'styles/buttons';
-@import 'styles/state';
-@import 'styles/viewer';
-@import 'styles/ios-hint';
+// ---- 1. Variables & Base ----------------------------------
+@use 'styles/variables';
+@use 'styles/base';
+
+// ---- 2. Blocks --------------------------------------------
+@use 'styles/calculator';
+@use 'styles/viewer';
+@use 'styles/tree';
+@use 'styles/markdown';

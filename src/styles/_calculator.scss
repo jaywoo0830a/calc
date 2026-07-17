@@ -1,93 +1,274 @@
+@use 'variables' as *;
+
 // ============================================================
-// Calculator — minimal flex layout
+// Block: calculator — Academic Paper
 // ============================================================
 
-@import 'tokens';
+.calculator {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  outline: none;
 
-@layer layout {
-  .calculator {
-    width: 100%;
-    max-width: 26rem;
-    height: 100%;
+  // ---- Navigation — ruled tabs ----------------------------
+  &__nav {
     display: flex;
-    flex-direction: column;
-    padding:
-      max(env(safe-area-inset-top, 0), $calc-padding)
-      max(env(safe-area-inset-right, 0), $calc-padding)
-      max(env(safe-area-inset-bottom, 0), $calc-padding)
-      max(env(safe-area-inset-left, 0), $calc-padding);
-    gap: $calc-gap;
-    outline: none;
+    gap: $sp-1;
+    margin-bottom: $sp-4;
+    padding: $sp-1;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
   }
 
-  .nav-bar { display: flex; gap: $space-1; }
-
-  .nav-tab {
-    background: none; border: none;
-    color: var(--color-text-dim);
-    font-family: var(--font-mono);
-    font-size: $text-xs;
-    cursor: pointer;
-    padding: $space-1 $space-3;
+  &__nav-tab {
+    flex: 1;
+    padding: $sp-2 $sp-4;
     border-radius: $radius-sm;
-    text-decoration: none;
-    transition: background $duration-fast $ease-out, color $duration-fast $ease-out;
-    &:hover { background: var(--color-nav-hover); }
-    &.active { background: var(--color-key-op); color: #000; font-weight: $weight-semibold; }
+    text-align: center;
+    font-size: $fs-step--1;
+    font-weight: $fw-medium;
+    color: $c-ink-soft;
+    transition: all $transition-fast;
+
+    &:hover {
+      color: $c-ink;
+      background: $c-page-dark;
+    }
+
+    &--active {
+      color: $c-ink;
+      font-weight: $fw-semibold;
+      background: $c-page-dark;
+      box-shadow: $shadow-xs;
+    }
   }
 
-  .display {
-    background: var(--color-surface);
-    border-radius: $display-radius;
-    padding: $display-padding;
+  // ---- Display — like a paper readout ----------------------
+  &__display {
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-xl;
+    padding: $sp-5 $sp-6;
+    margin-bottom: $sp-4;
+    text-align: right;
+    min-height: 6.25rem;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    align-items: flex-end;
+    box-shadow: $shadow-inset;
+    overflow: hidden;
   }
 
-  .expression {
-    color: var(--color-text-dim);
-    font-size: $text-xs;
-    font-weight: $weight-light;
-    word-break: break-all;
-    text-align: right;
-    width: 100%;
+  &__expression {
+    font-family: $ff;
+    font-size: $fs-step-0;
+    font-weight: $fw-light;
+    color: $c-ink-soft;
     min-height: 1.4em;
-    margin-bottom: $space-1;
-  }
-
-  .result {
-    font-size: $text-5xl;
-    font-weight: $weight-thin;
     word-break: break-all;
-    text-align: right;
-    width: 100%;
-    line-height: 1.1;
-    letter-spacing: -0.02em;
+    line-height: 1.4;
+    font-style: italic;
   }
 
-  .keypad {
-    flex: 1;
+  &__result {
+    font-family: $ff;
+    font-size: $fs-step-4;
+    font-weight: $fw-bold;
+    color: $c-ink;
+    line-height: 1.2;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  // ---- Keypad — grid of paper buttons ----------------------
+  &__keypad {
     display: grid;
-    grid-template-columns: repeat($keypad-cols, 1fr);
-    grid-template-rows: repeat($keypad-rows, 1fr);
-    gap: $keypad-gap;
-    min-height: 0;
+    grid-template-columns: repeat(4, 1fr);
+    gap: $sp-2;
+    flex: 1;
   }
 
-  .footer {
+  &__btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: $space-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    font-size: $fs-step-2;
+    font-weight: $fw-medium;
+    font-family: $ff;
+    user-select: none;
+    cursor: pointer;
+    transition: all $transition-fast;
+    aspect-ratio: 1;
+    position: relative;
+    overflow: hidden;
+    background: $c-page;
+    color: $c-ink;
+
+    // ink-press ripple
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle, $c-accent-light 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity $transition-normal;
+    }
+
+    &:active::after {
+      opacity: 1;
+      transition: opacity 0s;
+    }
+
+    &:hover {
+      background: $c-page-dark;
+      box-shadow: $shadow-xs;
+    }
+
+    &:active {
+      background: $c-page-darker;
+      box-shadow: $shadow-inset;
+    }
+
+    // -- number keys
+    &--num {
+      background: $c-page;
+      color: $c-ink;
+      font-size: $fs-step-3;
+      font-weight: $fw-semibold;
+    }
+
+    // -- zero key
+    &--zero {
+      grid-column: span 2;
+      aspect-ratio: auto;
+      border-radius: $radius-lg;
+    }
+
+    // -- function keys (C, ±, ⌫)
+    &--func {
+      background: $c-page-dark;
+      color: $c-accent;
+      font-size: $fs-step-1;
+      font-weight: $fw-semibold;
+
+      &:hover {
+        background: $c-page-darker;
+        color: $c-accent-hover;
+      }
+    }
+
+    // -- operator keys (+, −, ×, ÷)
+    &--op {
+      background: $c-accent;
+      color: $c-ink-inverse;
+      font-size: $fs-step-3;
+      font-weight: $fw-bold;
+      border-color: $c-accent;
+
+      &:hover {
+        background: $c-accent-hover;
+        border-color: $c-accent-hover;
+        box-shadow: $shadow-md;
+      }
+    }
+
+    // -- equals key
+    &--eq {
+      background: $c-equals;
+      color: $c-ink-inverse;
+      font-size: $fs-step-3;
+      font-weight: $fw-bold;
+      border-color: $c-equals;
+
+      &:hover {
+        background: $c-equals-hover;
+        border-color: $c-equals-hover;
+        box-shadow: $shadow-md;
+      }
+    }
   }
 
-  .info {
-    color: var(--color-text-muted);
-    font-size: 0.5rem;
-    font-weight: $weight-light;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+  // ---- Footer ----------------------------------------------
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: $sp-4;
+    padding: $sp-2 0;
   }
+
+  &__info {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-style: italic;
+  }
+
+  &__mute {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    font-style: italic;
+    padding: $sp-1 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    color: $c-ink-soft;
+    background: $c-page;
+    transition: all $transition-fast;
+
+    &:hover {
+      color: $c-ink;
+      background: $c-page-dark;
+    }
+
+    &--muted {
+      color: $c-error;
+      background: $c-error-light;
+      border-color: $c-error;
+
+      &:hover {
+        color: $c-error;
+        background: $c-error-soft;
+      }
+    }
+  }
+
+  // ---- Hint — paper slip -----------------------------------
+  &__hint {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: $sp-3;
+    padding: $sp-3 $sp-5;
+    background: $c-page;
+    color: $c-ink;
+    font-size: $fs-step--1;
+    border-top: $border-thin solid $c-rule;
+    box-shadow: 0 -0.125rem 0.75rem rgba(0, 0, 0, 0.08);
+    z-index: 100;
+    animation: slideUp 0.3s ease;
+  }
+
+  &__hint-close {
+    font-size: $fs-step-2;
+    color: $c-ink-faint;
+    line-height: 1;
+    padding: 0 $sp-1;
+
+    &:hover {
+      color: $c-ink;
+    }
+  }
+}
+
+// ---- Keyframes ---------------------------------------------
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
 }

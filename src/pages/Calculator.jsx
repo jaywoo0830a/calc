@@ -12,28 +12,20 @@ export default function Calculator() {
   const handleAction = useCallback((action, value) => {
     sound.unlock();
     if (document.activeElement) document.activeElement.blur();
-
     switch (action) {
-      case 'digit':    sound.play('digit');    calc.inputDigit(value); break;
-      case 'decimal':  sound.play('decimal');  calc.inputDigit('.'); break;
-      case 'operator': sound.play('operator'); calc.inputOperator(value); break;
+      case 'digit':     sound.play('digit');    calc.inputDigit(value); break;
+      case 'decimal':   sound.play('decimal');  calc.inputDigit('.'); break;
+      case 'operator':  sound.play('operator'); calc.inputOperator(value); break;
       case 'equals':
-        if (calc.operator && calc.current !== '' && !calc.shouldReset) {
-          sound.play('equals');
-          calc.compute();
-        }
+        if (calc.operator && calc.current !== '' && !calc.shouldReset) { sound.play('equals'); calc.compute(); }
         break;
-      case 'clear':    sound.play('clear');    calc.clearAll(); break;
-      case 'negate':   sound.play('func');     calc.negate(); break;
-      case 'backspace':sound.play('func');     calc.backspace(); break;
+      case 'clear':     sound.play('clear');  calc.clearAll(); break;
+      case 'negate':    sound.play('func');   calc.negate(); break;
+      case 'backspace': sound.play('func');   calc.backspace(); break;
     }
   }, [sound, calc]);
 
-  const toggleMute = () => {
-    sound.unlock();
-    const isMuted = sound.toggle();
-    setMuted(isMuted);
-  };
+  const toggleMute = () => { sound.unlock(); setMuted(sound.toggle()); };
 
   const handleKeyDown = useCallback((e) => {
     sound.unlock();
@@ -45,10 +37,7 @@ export default function Calculator() {
     if (e.key === '/')  { e.preventDefault(); sound.play('operator'); calc.inputOperator('div'); return; }
     if (e.key === 'Enter' || e.key === '=') {
       e.preventDefault();
-      if (calc.operator && calc.current !== '' && !calc.shouldReset) {
-        sound.play('equals');
-        calc.compute();
-      }
+      if (calc.operator && calc.current !== '' && !calc.shouldReset) { sound.play('equals'); calc.compute(); }
       return;
     }
     if (e.key === 'Escape')    { sound.play('clear'); calc.clearAll(); return; }
@@ -58,25 +47,25 @@ export default function Calculator() {
   const [hintVisible, setHintVisible] = useState(() => !navigator.standalone);
 
   return (
-    <div className="calculator" onKeyDown={handleKeyDown} tabIndex={-1}>
-      <nav className="nav-bar">
-        <span className="nav-tab active">Calc</span>
-        <a href="/viewer" className="nav-tab">Viewer</a>
+    <main className="calculator" onKeyDown={handleKeyDown} tabIndex={-1}>
+      <nav className="calculator__nav">
+        <span className="calculator__nav-tab calculator__nav-tab--active">Calc</span>
+        <a href="/viewer" className="calculator__nav-tab">Viewer</a>
       </nav>
       <Display expression={calc.expression} result={calc.result} />
       <Keypad onAction={handleAction} />
-      <div className="footer">
-        <p className="info">32-digit precision &middot; truncated (PHP BCMATH style)</p>
-        <button className={`mute-toggle${muted ? ' muted' : ''}`} onClick={toggleMute} aria-label="Toggle sound">
+      <footer className="calculator__footer">
+        <p className="calculator__info">32-digit precision &middot; truncated (PHP BCMATH style)</p>
+        <button className={'calculator__mute' + (muted ? ' calculator__mute--muted' : '')} onClick={toggleMute} aria-label="Toggle sound">
           {muted ? '🔇' : '🔊'}
         </button>
-      </div>
+      </footer>
       {hintVisible && (
-        <div className="ios-hint">
-          <span>📲 Tap <strong>Share</strong> → <strong>Add to Home Screen</strong> for the best experience</span>
-          <button className="ios-hint-close" onClick={() => setHintVisible(false)}>&times;</button>
+        <div className="calculator__hint">
+          <span>Tap <strong>Share</strong> &rarr; <strong>Add to Home Screen</strong></span>
+          <button className="calculator__hint-close" onClick={() => setHintVisible(false)}>&times;</button>
         </div>
       )}
-    </div>
+    </main>
   );
 }

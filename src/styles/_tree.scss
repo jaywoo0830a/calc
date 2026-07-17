@@ -1,0 +1,68 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: tree — Academic Paper (ZIP file tree)
+// ============================================================
+
+.tree {
+  font-family: $ff;
+  font-size: $fs-step--1;
+  user-select: none;
+
+  // ---- Tree item -------------------------------------------
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: $sp-1;
+    padding: 0.1875rem $sp-2;
+    margin: 0.0625rem 0;
+    border-radius: $radius-sm;
+    cursor: pointer;
+    transition: all $transition-fast;
+    color: $c-ink-soft;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &:hover {
+      background: $c-page-dark;
+      color: $c-ink;
+    }
+
+    // -- Selected
+    &--selected {
+      background: $c-accent-soft;
+      color: $c-accent;
+      font-weight: $fw-semibold;
+
+      &:hover {
+        background: rgba(92, 61, 46, 0.18);
+        color: $c-accent;
+      }
+    }
+
+    // -- Clickable (markdown / image files)
+    &--clickable {
+      cursor: pointer;
+
+      &:hover {
+        color: $c-link;
+      }
+    }
+  }
+
+  // ---- Tree icon -------------------------------------------
+  &__icon {
+    flex-shrink: 0;
+    width: 1.2em;
+    text-align: center;
+    color: $c-ink-faint;
+  }
+
+  // ---- Tree name -------------------------------------------
+  &__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

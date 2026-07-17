@@ -1,0 +1,168 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: markdown-body — Academic Paper
+// ============================================================
+
+.markdown-body {
+  font-family: $ff;
+  word-wrap: break-word;
+
+  // ---- Headings — academic hierarchy -----------------------
+  h1, h2, h3, h4, h5, h6 {
+    margin-top: $sp-6;
+    margin-bottom: $sp-3;
+    font-weight: $fw-bold;
+    line-height: 1.3;
+    color: $c-ink;
+  }
+
+  h1 {
+    font-size: $fs-step-4;
+    border-bottom: $border-thick solid $c-rule;
+    padding-bottom: $sp-2;
+    font-weight: $fw-bold;
+  }
+
+  h2 {
+    font-size: $fs-step-3;
+    border-bottom: $border-thin solid $c-rule;
+    padding-bottom: $sp-1;
+  }
+
+  h3 { font-size: $fs-step-2; }
+  h4 { font-size: $fs-step-1; font-style: italic; }
+
+  // ---- Paragraphs & Text -----------------------------------
+  p {
+    margin-bottom: $sp-3;
+    line-height: 1.75;
+    text-align: justify;
+  }
+
+  strong { color: $c-ink; font-weight: $fw-bold; }
+
+  // ---- Links — ink-blue underline --------------------------
+  a {
+    color: $c-link;
+    text-decoration: none;
+    border-bottom: $border-thin solid transparent;
+    transition: border-color $transition-fast;
+
+    &:hover {
+      border-bottom-color: $c-link;
+    }
+  }
+
+  // ---- Inline code — like a typewriter annotation ----------
+  code {
+    font-family: $ff;
+    font-size: 0.85em;
+    font-style: italic;
+    padding: 0.15em 0.4em;
+    background: $c-page-dark;
+    border-radius: $radius-sm;
+    color: $c-accent;
+  }
+
+  pre {
+    margin-bottom: $sp-4;
+    padding: $sp-4;
+    background: $c-paper;
+    border: $border-thin solid $c-rule;
+    border-left: $border-thick solid $c-accent;
+    border-radius: 0 $radius-md $radius-md 0;
+    overflow-x: auto;
+
+    code {
+      padding: 0;
+      background: none;
+      color: $c-ink;
+      font-size: $fs-step--1;
+      font-style: normal;
+      line-height: 1.6;
+    }
+  }
+
+  // ---- Lists -----------------------------------------------
+  ul, ol {
+    margin-bottom: $sp-3;
+    padding-left: $sp-6;
+    line-height: 1.75;
+  }
+
+  li {
+    margin-bottom: $sp-1;
+  }
+
+  // ---- Blockquotes — margin note style ---------------------
+  blockquote {
+    margin: $sp-3 0;
+    padding: $sp-2 $sp-4;
+    border-left: $border-thick solid $c-accent;
+    background: $c-accent-light;
+    border-radius: 0 $radius-sm $radius-sm 0;
+    color: $c-ink-soft;
+    font-style: italic;
+
+    p:last-child { margin-bottom: 0; }
+  }
+
+  // ---- Tables — ledger style -------------------------------
+  table {
+    width: 100%;
+    margin-bottom: $sp-4;
+    border-collapse: collapse;
+    font-size: $fs-step--1;
+  }
+
+  th, td {
+    padding: $sp-2 $sp-3;
+    border: $border-thin solid $c-rule;
+    text-align: left;
+  }
+
+  th {
+    background: $c-page-dark;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+    border-bottom: $border-md solid $c-rule;
+  }
+
+  tr:nth-child(even) td {
+    background: rgba(0, 0, 0, 0.015);
+  }
+
+  // ---- Horizontal rules — section break --------------------
+  hr {
+    margin: $sp-6 0;
+    border: none;
+    border-top: $border-thin solid $c-rule;
+  }
+
+  // ---- Images — framed -------------------------------------
+  img {
+    max-width: 100%;
+    height: auto;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    margin: $sp-2 0;
+  }
+
+  // ---- Task lists ------------------------------------------
+  input[type="checkbox"] {
+    margin-right: $sp-2;
+    accent-color: $c-accent;
+  }
+
+  // ---- KaTeX / Math ----------------------------------------
+  .katex-display {
+    margin: $sp-4 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .katex {
+    font-size: 1.1em;
+  }
+}

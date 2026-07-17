@@ -15,5 +15,6 @@ services:
 
   # No Caddy in dev
   caddy:
+    image: caddy:alpine
     deploy:
       replicas: 0

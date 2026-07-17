@@ -1,0 +1,124 @@
+// ============================================================
+// Design Tokens — Academic Paper Theme
+// ─────────────────────────────────────────────
+// 단일 폰트: Noto Serif. 모든 단위는 rem.
+// 스케일 기반 토큰: typography · spacing · color · radius · shadow
+// ============================================================
+
+// ============================================================
+// 1. FONT — Noto Serif only
+// ============================================================
+$ff: 'Noto Serif', 'Times New Roman', Georgia, serif;
+
+// Modular typographic scale — ratio 1.25 (major third)
+$fs-step--2: 0.64rem;    // caption, fine print
+$fs-step--1: 0.8rem;     // small body, labels
+$fs-step-0:  1rem;       // base body
+$fs-step-1:  1.25rem;    // h4, emphasis
+$fs-step-2:  1.563rem;   // h3, button
+$fs-step-3:  1.953rem;   // h2, display expression
+$fs-step-4:  2.441rem;   // h1, result
+$fs-step-5:  3.052rem;   // hero
+
+// Font weights — Noto Serif supports 100..900
+$fw-light:  300;
+$fw-normal: 400;
+$fw-medium: 500;
+$fw-semibold: 600;
+$fw-bold:   700;
+
+// ============================================================
+// 2. SPACING — 0.25rem base modular scale
+// ============================================================
+$sp-0:  0rem;
+$sp-1:  0.25rem;
+$sp-2:  0.5rem;
+$sp-3:  0.75rem;
+$sp-4:  1rem;
+$sp-5:  1.25rem;
+$sp-6:  1.5rem;
+$sp-8:  2rem;
+$sp-10: 2.5rem;
+$sp-12: 3rem;
+$sp-16: 4rem;
+
+// ============================================================
+// 3. COLORS — neutral paper & sepia ink
+// ============================================================
+// Paper surfaces
+$c-paper:        #f8f4eb;   // warm aged paper (main bg)
+$c-page:         #fffef7;   // bright page (cards)
+$c-page-dark:    #f0ebe0;   // shaded paper (elevated)
+$c-page-darker:  #e5ddcc;   // deeper shade (hover)
+
+// Ink
+$c-ink:          #2c2416;   // dark sepia — primary text
+$c-ink-soft:     #6b6050;   // muted text
+$c-ink-faint:    #9b907e;   // dim / placeholder
+$c-ink-inverse:  #f8f4eb;   // on dark backgrounds
+
+// Accent — warm mahogany
+$c-accent:       #5c3d2e;
+$c-accent-hover: #7a5240;
+$c-accent-light: rgba(92, 61, 46, 0.08);
+$c-accent-soft:  rgba(92, 61, 46, 0.14);
+
+// Functional
+$c-equals:       #3d5a40;   // academic green
+$c-equals-hover: #4f7255;
+$c-link:         #3d5a80;   // ink blue
+$c-error:        #b5433a;   // muted red
+$c-error-light:  rgba(181, 67, 58, 0.1);
+$c-error-soft:   rgba(181, 67, 58, 0.18);
+
+// Lines & rules
+$c-rule:         #d4c9b5;
+$c-rule-light:   #e5ddcc;
+
+// ============================================================
+// 4. BORDER RADIUS — geometric scale
+// ============================================================
+$radius-none: 0;
+$radius-sm:   0.125rem;   //  2px
+$radius-md:   0.25rem;    //  4px
+$radius-lg:   0.5rem;     //  8px
+$radius-xl:   0.75rem;    // 12px
+$radius-2xl:  1rem;       // 16px
+
+// ============================================================
+// 5. BORDER WIDTH
+// ============================================================
+$border-thin:  0.0625rem;  // 1px
+$border-md:    0.125rem;   // 2px
+$border-thick: 0.1875rem;  // 3px
+
+// ============================================================
+// 6. SHADOWS — subtle paper depth
+// ============================================================
+$shadow-xs:   0 0.0625rem 0.125rem  rgba(0,0,0,0.05);
+$shadow-sm:   0 0.125rem 0.25rem   rgba(0,0,0,0.07);
+$shadow-md:   0 0.25rem  0.5rem    rgba(0,0,0,0.09);
+$shadow-lg:   0 0.5rem  1rem      rgba(0,0,0,0.11);
+$shadow-xl:   0 0.75rem 1.5rem    rgba(0,0,0,0.13);
+$shadow-inset: inset 0 0.0625rem 0.1875rem rgba(0,0,0,0.05);
+
+// ============================================================
+// 7. TRANSITIONS
+// ============================================================
+$transition-fast:   0.15s ease;
+$transition-normal: 0.25s ease;
+$transition-slow:   0.35s ease;
+
+// ============================================================
+// 8. BREAKPOINTS
+// ============================================================
+$bp-sm: 30rem;    // 480px
+$bp-md: 48rem;    // 768px
+$bp-lg: 64rem;    // 1024px
+
+// ============================================================
+// 9. LAYOUT
+// ============================================================
+$max-width:      26.25rem;   // 420px
+$sidebar-width:  16.25rem;   // 260px
+$sidebar-toggle: 1.75rem;    //  28px
