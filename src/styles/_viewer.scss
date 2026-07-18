@@ -5,6 +5,13 @@
 // ============================================================
 
 .viewer {
+  // ── 가독성 CSS 커스텀 프로퍼티 기본값 (React inline style 로 오버라이드) ──
+  --md-font-scale:   1;
+  --md-lh-scale:     1;
+  --md-ls-scale:     1;
+  --md-para-scale:   1;
+  --md-heading-scale: 1;
+
   display: flex;
   flex-direction: column;
   height: 100%;

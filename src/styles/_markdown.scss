@@ -5,19 +5,13 @@
 // ============================================================
 
 .markdown-body {
-  // ── CSS 커스텀 프로퍼티 (개발자 도구 / 가독성 모드에서 조정) ──
+  // ── 가독성 커스텀 프로퍼티 (기본값은 .viewer 에서 상속) ──
   --md-lh-body:    1.9;
   --md-lh-heading: 1.35;
   --md-lh-code:    1.55;
   --md-para-gap:   1.25rem;
   --md-heading-gap: 2.5rem;
   --md-letter-spacing: 0.01em;
-  // 가독성 스케일 (기본값 1 = 배율 없음)
-  --md-font-scale:   1;
-  --md-lh-scale:     1;
-  --md-ls-scale:     1;
-  --md-para-scale:   1;
-  --md-heading-scale: 1;
 
   font-family: $ff;
   font-size: calc(#{$fs-step-0} * var(--md-font-scale));
