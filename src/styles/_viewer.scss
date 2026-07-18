@@ -193,8 +193,9 @@
     pointer-events: none;
     transition: opacity $transition-normal;
 
-    // sidebar--open 다음에 overlay가 있으면 표시
-    @at-root .viewer__sidebar--open ~ .viewer__overlay {
+    // sidebar--open 또는 toc-sidebar--open 이 overlay 앞에 있으면 표시
+    @at-root .viewer__sidebar--open ~ .viewer__overlay,
+    .viewer__toc-sidebar--open ~ .viewer__overlay {
       opacity: 1;
       pointer-events: auto;
     }
@@ -220,13 +221,63 @@
     overflow-wrap: anywhere;
   }
 
-  // ---- TOC (Table of Contents) in sidebar -------------------
-  &__toc {
-    margin-top: $sp-4;
-    padding-top: $sp-3;
-    border-top: $border-thin solid $c-rule;
+  // ---- TOC Sidebar — fixed overlay from viewport right ----
+  &__toc-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100dvh;
+    width: $sidebar-width;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: $sp-3;
+    padding-top: $sp-10;
+    border-left: $border-thin solid $c-rule;
+    background: $c-page;
+    z-index: $z-sidebar;
+    transform: translateX(0);
+    transition: transform $transition-normal;
+    box-shadow: $shadow-lg;
+
+    &:not(.viewer__toc-sidebar--open) {
+      transform: translateX(100%);
+      box-shadow: none;
+    }
   }
 
+  &__toc-toggle {
+    position: fixed;
+    top: $sp-3;
+    right: $sp-2;
+    z-index: $z-sidebar-toggle;
+    width: $sidebar-toggle;
+    height: $sidebar-toggle;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    background: $c-page-dark;
+    color: $c-ink-soft;
+    font-size: $fs-step--2;
+    box-shadow: $shadow-xs;
+    transition: right $transition-normal, background $transition-fast, color $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        color: $c-ink-inverse;
+        background: $c-accent;
+        border-color: $c-accent;
+      }
+    }
+  }
+
+  // TOC 열리면 토글 버튼도 왼쪽으로 이동
+  @at-root .viewer__toc-sidebar--open ~ .viewer__toc-toggle {
+    right: calc($sidebar-width + $sp-2);
+  }
+
+  // ---- TOC items (shared between sidebar and toc-sidebar) --
   &__toc-title {
     font-size: $fs-step--2;
     font-weight: $fw-semibold;

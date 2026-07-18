@@ -73,10 +73,12 @@ export default function Viewer() {
   const [selectedPath, setSelectedPath] = useState('');
   const [imageBlobs, setImageBlobs] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [tocOpen, setTocOpen] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const [storedZips, setStoredZips] = useState([]);
   const [toc, setToc] = useState([]);
   const previewRef = useRef(null);
+  const scrollPositions = useRef({});   // 파일별 스크롤 위치 저장
 
   // 마운트 시 저장된 ZIP 목록 불러오기
   useEffect(() => { listZips().then(setStoredZips).catch(() => {}); }, []);
@@ -92,6 +94,19 @@ export default function Viewer() {
     setRendered(withIds);
     setToc(headings);
   }, []);
+
+  // 문서 전환 시 이전 스크롤 위치 저장 + 새 문서 스크롤 복원
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const saved = scrollPositions.current[selectedPath];
+    if (saved != null) {
+      // requestAnimationFrame 으로 DOM 렌더 후 복원
+      requestAnimationFrame(() => { el.scrollTop = saved; });
+    } else {
+      el.scrollTop = 0;
+    }
+  }, [rendered, selectedPath]);
   useEffect(() => {
     if (!fullscreen) return;
     const onKey = (e) => { if (e.key === 'Escape') setFullscreen(false); };
@@ -114,6 +129,7 @@ export default function Viewer() {
 
   const loadZip = useCallback(async (file) => {
     setFileName(file.name);
+    scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
     try {
       const zip = await JSZip.loadAsync(file);
       const blobs = await indexImages(zip);
@@ -150,6 +166,7 @@ export default function Viewer() {
     const stored = await loadZipFromDB(entry.id);
     if (!stored) return;
     setFileName(stored.name);
+    scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
     try {
       const zip = await JSZip.loadAsync(stored.blob);
       const blobs = await indexImages(zip);
@@ -184,6 +201,10 @@ export default function Viewer() {
 
   const openFile = useCallback(async (node) => {
     if (!node || !node.file) return;
+    // 현재 문서의 스크롤 위치 저장
+    if (selectedPath && previewRef.current) {
+      scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
+    }
     setSelectedPath(node.path);
     try {
       const dir = node.path.substring(0, node.path.lastIndexOf('/') + 1);
@@ -191,7 +212,7 @@ export default function Viewer() {
       setContent(processContent(await node.file.async('text'), resolveImg));
     }
     catch (e) { setContent('<p style="color:red">Read error: ' + e.message + '</p>'); }
-  }, [imageBlobs]);
+  }, [imageBlobs, selectedPath]);
 
   return (
     <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')}>
@@ -231,30 +252,35 @@ export default function Viewer() {
         {zipTree && (<>
           <div className={'viewer__sidebar' + (sidebarOpen ? ' viewer__sidebar--open' : '')}>
             <ZipTree tree={zipTree} selectedPath={selectedPath} onSelect={openFile} />
-            {toc.length > 0 && (
-              <div className="viewer__toc">
-                <div className="viewer__toc-title">📑 On this page</div>
-                {toc.map((h) => (
-                  <div
-                    key={h.id}
-                    className={`viewer__toc-item viewer__toc-item--${h.tag}`}
-                    onClick={() => {
-                      const el = document.getElementById(h.id);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }}
-                  >
-                    {h.text}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
-          <button className="viewer__sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle sidebar">
+          <button className="viewer__sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle file tree">
             {sidebarOpen ? '\u25c0' : '\u25b6'}
           </button>
-          <div className="viewer__overlay" onClick={() => setSidebarOpen(false)} />
+          <div className="viewer__overlay" onClick={() => { setSidebarOpen(false); setTocOpen(false); }} />
         </>)}
-        <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')}>
+        {toc.length > 0 && (
+          <div className={'viewer__toc-sidebar' + (tocOpen ? ' viewer__toc-sidebar--open' : '')}>
+            <div className="viewer__toc-title">📑 On this page</div>
+            {toc.map((h) => (
+              <div
+                key={h.id}
+                className={`viewer__toc-item viewer__toc-item--${h.tag}`}
+                onClick={() => {
+                  const el = document.getElementById(h.id);
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+              >
+                {h.text}
+              </div>
+            ))}
+          </div>
+        )}
+        {toc.length > 0 && (
+          <button className="viewer__toc-toggle" onClick={() => setTocOpen(!tocOpen)} aria-label="Toggle outline">
+            {tocOpen ? '\u25b6' : '\u25c0'}
+          </button>
+        )}
+        <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
           {rendered
             ? <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} />
             : <div className="viewer__empty">Upload a ZIP archive to get started</div>}
