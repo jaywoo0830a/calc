@@ -216,7 +216,9 @@
     font-size: $fs-step-0;
     line-height: $lh-body;
     color: $c-ink;
-    // 자식 요소가 preview 너비를 넘지 못하게
+    // CSS 커스텀 프로퍼티로 오버라이드 가능
+    --viewer-content-lh: #{$lh-body};
+    line-height: var(--viewer-content-lh, $lh-body);
     max-width: 100%;
     overflow-wrap: anywhere;
   }
@@ -343,6 +345,35 @@
     background: $c-page;
     color: $c-ink-soft;
     font-size: $fs-step-1;
+    box-shadow: $shadow-md;
+    transition: all $transition-fast;
+    opacity: $opacity-subtle;
+
+    @media (hover: hover) {
+      &:hover {
+        opacity: $opacity-full;
+        color: $c-ink;
+        background: $c-page-dark;
+      }
+    }
+  }
+
+  // ---- Readability toggle button --------------------------
+  &__readability-btn {
+    position: fixed;
+    bottom: calc($sp-4 + $fullscreen-btn + $sp-2);
+    right: $sp-4;
+    z-index: $z-fullscreen-btn;
+    width: $fullscreen-btn;
+    height: $fullscreen-btn;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink-soft;
+    font-size: $fs-step-0;
     box-shadow: $shadow-md;
     transition: all $transition-fast;
     opacity: $opacity-subtle;

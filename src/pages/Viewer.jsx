@@ -72,13 +72,32 @@ export default function Viewer() {
   const [zipTree, setZipTree] = useState(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [imageBlobs, setImageBlobs] = useState({});
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [tocOpen, setTocOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [tocOpen, setTocOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [storedZips, setStoredZips] = useState([]);
   const [toc, setToc] = useState([]);
   const previewRef = useRef(null);
-  const scrollPositions = useRef({});   // 파일별 스크롤 위치 저장
+  const scrollPositions = useRef({});
+  const [readability, setReadability] = useState(0);  // 0~5 가독성 단계
+
+  // 가독성 스케일: [font, line-height, letter-spacing, paragraph-gap] 승수
+  const READABILITY_SCALES = [
+    [1,    1,    1,    1    ],  // 0: 기본
+    [1.1,  1.08, 1.5,  1.2  ],  // 1
+    [1.2,  1.16, 2.0,  1.4  ],  // 2
+    [1.35, 1.25, 2.5,  1.7  ],  // 3
+    [1.55, 1.38, 3.2,  2.0  ],  // 4
+    [1.8,  1.55, 4.0,  2.5  ],  // 5: 최대
+  ];
+
+  const readabilityVars = {
+    '--md-font-scale':   READABILITY_SCALES[readability][0],
+    '--md-lh-scale':     READABILITY_SCALES[readability][1],
+    '--md-ls-scale':     READABILITY_SCALES[readability][2],
+    '--md-para-scale':   READABILITY_SCALES[readability][3],
+    '--md-heading-scale': Math.min(READABILITY_SCALES[readability][0] * 0.85, 1.5),
+  };   // 파일별 스크롤 위치 저장
 
   // 마운트 시 저장된 ZIP 목록 불러오기
   useEffect(() => { listZips().then(setStoredZips).catch(() => {}); }, []);
@@ -215,7 +234,7 @@ export default function Viewer() {
   }, [imageBlobs, selectedPath]);
 
   return (
-    <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')}>
+    <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')} style={readabilityVars}>
       {!fullscreen && (
         <nav className="calculator__nav">
           <a href="/" className="calculator__nav-tab">Calc</a>
@@ -294,6 +313,16 @@ export default function Viewer() {
           title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         >
           {fullscreen ? '⊠' : '⛶'}
+        </button>
+      )}
+      {rendered && (
+        <button
+          className="viewer__readability-btn"
+          onClick={() => setReadability((readability + 1) % 6)}
+          aria-label={`Readability level ${readability}`}
+          title={`가독성 ${readability === 0 ? 'OFF' : 'Lv.' + readability}`}
+        >
+          {readability === 0 ? '👁️' : `A${'⁺'.repeat(readability)}`}
         </button>
       )}
     </div>
