@@ -14,7 +14,7 @@
   &--fullscreen {
     position: fixed;
     inset: 0;
-    z-index: 200;
+    z-index: $z-fullscreen;
     background: $c-page;
     height: 100dvh;
     max-height: none;
@@ -62,7 +62,7 @@
     font-weight: $fw-semibold;
     color: $c-ink-faint;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: $ls-wide;
     margin-bottom: $sp-1;
     padding: 0 $sp-1;
   }
@@ -95,11 +95,11 @@
     font-size: $fs-step--1;
     padding: $sp-1;
     border-radius: $radius-sm;
-    opacity: 0.5;
+    opacity: $opacity-dim;
     transition: opacity $transition-fast;
 
     &:hover {
-      opacity: 1;
+      opacity: $opacity-full;
       background: $c-error-light;
     }
   }
@@ -114,6 +114,8 @@
     border: $border-thin solid $c-rule;
     border-radius: $radius-md;
     background: $c-page;
+    touch-action: manipulation;
+    overscroll-behavior: contain;
   }
 
   // ---- Sidebar — fixed overlay from viewport left ----------
@@ -129,7 +131,7 @@
     padding-top: $sp-10;         // toggle button 아래 공간 확보
     border-right: $border-thin solid $c-rule;
     background: $c-page;
-    z-index: 100;
+    z-index: $z-sidebar;
     transform: translateX(0);
     transition: transform $transition-normal;
     box-shadow: $shadow-lg;
@@ -145,7 +147,7 @@
     position: fixed;
     top: $sp-3;
     left: $sp-2;
-    z-index: 110;
+    z-index: $z-sidebar-toggle;
     width: $sidebar-toggle;
     height: $sidebar-toggle;
     display: flex;
@@ -175,8 +177,8 @@
   &__overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.25);
-    z-index: 99;
+    background: $c-overlay;
+    z-index: $z-overlay;
     opacity: 0;
     pointer-events: none;
     transition: opacity $transition-normal;
@@ -193,12 +195,59 @@
     flex: 1;
     overflow-y: auto;
     padding: $sp-5 $sp-6;
+    touch-action: manipulation;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
   }
 
   &__content {
     font-size: $fs-step-0;
-    line-height: 1.75;
+    line-height: $lh-body;
     color: $c-ink;
+  }
+
+  // ---- TOC (Table of Contents) in sidebar -------------------
+  &__toc {
+    margin-top: $sp-4;
+    padding-top: $sp-3;
+    border-top: $border-thin solid $c-rule;
+  }
+
+  &__toc-title {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-faint;
+    text-transform: uppercase;
+    letter-spacing: $ls-wide;
+    margin-bottom: $sp-2;
+    padding: 0 $sp-1;
+  }
+
+  &__toc-item {
+    padding: $border-thick $sp-2;
+    margin: $border-thin 0;
+    border-radius: $radius-sm;
+    cursor: pointer;
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: all $transition-fast;
+
+    &:hover {
+      background: $c-page-dark;
+      color: $c-ink;
+    }
+
+    &--h2 {
+      padding-left: $sp-4;
+    }
+
+    &--h3 {
+      padding-left: $sp-6;
+      font-size: $fs-step--2;
+    }
   }
 
   &__empty {
@@ -216,9 +265,9 @@
     position: fixed;
     bottom: $sp-4;
     right: $sp-4;
-    z-index: 120;
-    width: 2.25rem;
-    height: 2.25rem;
+    z-index: $z-fullscreen-btn;
+    width: $fullscreen-btn;
+    height: $fullscreen-btn;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -229,10 +278,10 @@
     font-size: $fs-step-1;
     box-shadow: $shadow-md;
     transition: all $transition-fast;
-    opacity: 0.7;
+    opacity: $opacity-subtle;
 
     &:hover {
-      opacity: 1;
+      opacity: $opacity-full;
       color: $c-ink;
       background: $c-page-dark;
     }

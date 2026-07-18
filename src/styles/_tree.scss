@@ -14,8 +14,8 @@
     display: flex;
     align-items: center;
     gap: $sp-1;
-    padding: 0.1875rem $sp-2;
-    margin: 0.0625rem 0;
+    padding: $border-thick $sp-2;
+    margin: $border-thin 0;
     border-radius: $radius-sm;
     cursor: pointer;
     transition: all $transition-fast;

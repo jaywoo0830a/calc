@@ -6,14 +6,14 @@
 
 .markdown-body {
   font-family: $ff;
-  word-wrap: break-word;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
 
   // ---- Headings — academic hierarchy -----------------------
-  h1, h2, h3, h4, h5, h6 {
-    margin-top: $sp-6;
-    margin-bottom: $sp-3;
+  :is(h1, h2, h3, h4, h5, h6) {
+    margin-block: $sp-6 $sp-3;
     font-weight: $fw-bold;
-    line-height: 1.3;
+    line-height: $lh-heading;
     color: $c-ink;
   }
 
@@ -21,7 +21,6 @@
     font-size: $fs-step-4;
     border-bottom: $border-thick solid $c-rule;
     padding-bottom: $sp-2;
-    font-weight: $fw-bold;
   }
 
   h2 {
@@ -36,11 +35,11 @@
   // ---- Paragraphs & Text -----------------------------------
   p {
     margin-bottom: $sp-3;
-    line-height: 1.75;
+    line-height: $lh-body;
     text-align: justify;
   }
 
-  strong { color: $c-ink; font-weight: $fw-bold; }
+  strong { color: $c-ink; }
 
   // ---- Links — ink-blue underline --------------------------
   a {
@@ -54,7 +53,7 @@
     }
   }
 
-  // ---- Inline code — like a typewriter annotation ----------
+  // ---- Inline code — typewriter annotation -----------------
   code {
     font-family: $ff;
     font-size: 0.85em;
@@ -70,7 +69,7 @@
     padding: $sp-4;
     background: $c-paper;
     border: $border-thin solid $c-rule;
-    border-left: $border-thick solid $c-accent;
+    border-inline-start: $border-thick solid $c-accent;
     border-radius: 0 $radius-md $radius-md 0;
     overflow-x: auto;
 
@@ -80,15 +79,15 @@
       color: $c-ink;
       font-size: $fs-step--1;
       font-style: normal;
-      line-height: 1.6;
+      line-height: $lh-base;
     }
   }
 
   // ---- Lists -----------------------------------------------
-  ul, ol {
+  :is(ul, ol) {
     margin-bottom: $sp-3;
-    padding-left: $sp-6;
-    line-height: 1.75;
+    padding-inline-start: $sp-6;
+    line-height: $lh-body;
   }
 
   li {
@@ -99,21 +98,25 @@
   blockquote {
     margin: $sp-3 0;
     padding: $sp-2 $sp-4;
-    border-left: $border-thick solid $c-accent;
+    border-inline-start: $border-thick solid $c-accent;
     background: $c-accent-light;
     border-radius: 0 $radius-sm $radius-sm 0;
     color: $c-ink-soft;
     font-style: italic;
 
-    p:last-child { margin-bottom: 0; }
+    :last-child { margin-bottom: 0; }
   }
 
-  // ---- Tables — ledger style -------------------------------
+  // ---- Tables — ledger style (with overflow wrapper) ------
   table {
+    display: block;
     width: 100%;
+    max-width: 100%;
     margin-bottom: $sp-4;
     border-collapse: collapse;
     font-size: $fs-step--1;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   th, td {
@@ -130,7 +133,7 @@
   }
 
   tr:nth-child(even) td {
-    background: rgba(0, 0, 0, 0.015);
+    background: $c-table-stripe;
   }
 
   // ---- Horizontal rules — section break --------------------
@@ -151,18 +154,21 @@
 
   // ---- Task lists ------------------------------------------
   input[type="checkbox"] {
-    margin-right: $sp-2;
-    accent-color: $c-accent;
+    margin-inline-end: $sp-2;
   }
 
-  // ---- KaTeX / Math ----------------------------------------
+  // ---- KaTeX / Math (overflow prevention) ---------------
   .katex-display {
+    display: block;
     margin: $sp-4 0;
     overflow-x: auto;
     overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   .katex {
     font-size: 1.1em;
+    max-width: 100%;
+    overflow-x: auto;
   }
 }

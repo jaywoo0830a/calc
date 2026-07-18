@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { marked } from 'marked';
 import katex from 'katex';
 import JSZip from 'jszip';
@@ -33,7 +33,18 @@ function processContent(markdown, resolveImage) {
   return html;
 }
 
-/** src 를 마크다운 파일의 디렉토리(dir) 기준으로 절대경로화하여 blob map 에서 찾는다 */
+/** 렌더링된 HTML에서 h1~h3 제목을 추출하여 TOC 배열과 ID 주입된 HTML 반환 */
+function extractToc(html) {
+  const toc = [];
+  let counter = 0;
+  const withIds = html.replace(/<(h[123])([^>]*)>([^<]*)<\/\1>/gi, (match, tag, attrs, text) => {
+    const id = `hd-${counter++}`;
+    const clean = text.replace(/<[^>]+>/g, '').trim();
+    toc.push({ id, tag: tag.toLowerCase(), text: clean || '(empty)' });
+    return `<${tag}${attrs} id="${id}">${text}</${tag}>`;
+  });
+  return { html: withIds, toc };
+}
 function resolveImagePath(src, dir, blobMap) {
   // 이미 절대 URL 이면 그대로
   if (/^(https?:|data:|blob:|\/)/.test(src)) return blobMap[src] || null;
@@ -64,6 +75,8 @@ export default function Viewer() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const [storedZips, setStoredZips] = useState([]);
+  const [toc, setToc] = useState([]);
+  const previewRef = useRef(null);
 
   // 마운트 시 저장된 ZIP 목록 불러오기
   useEffect(() => { listZips().then(setStoredZips).catch(() => {}); }, []);
@@ -73,7 +86,12 @@ export default function Viewer() {
     try { setStoredZips(await listZips()); } catch {}
   }, []);
 
-  // Escape key → exit fullscreen
+  // HTML 렌더링 + TOC 추출
+  const setContent = useCallback((html) => {
+    const { html: withIds, toc: headings } = extractToc(html);
+    setRendered(withIds);
+    setToc(headings);
+  }, []);
   useEffect(() => {
     if (!fullscreen) return;
     const onKey = (e) => { if (e.key === 'Escape') setFullscreen(false); };
@@ -122,9 +140,9 @@ export default function Viewer() {
         setSelectedPath(first);
         const dir = first.substring(0, first.lastIndexOf('/') + 1);
         const resolveImg = (src) => resolveImagePath(src, dir, blobs);
-        setRendered(processContent(await zip.files[first].async('text'), resolveImg));
+        setContent(processContent(await zip.files[first].async('text'), resolveImg));
       }
-    } catch (e) { setRendered('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
+    } catch (e) { setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
   }, [indexImages, refreshStored]);
 
   // IndexedDB에서 저장된 ZIP 불러오기
@@ -152,9 +170,9 @@ export default function Viewer() {
         setSelectedPath(first);
         const dir = first.substring(0, first.lastIndexOf('/') + 1);
         const resolveImg = (src) => resolveImagePath(src, dir, blobs);
-        setRendered(processContent(await zip.files[first].async('text'), resolveImg));
+        setContent(processContent(await zip.files[first].async('text'), resolveImg));
       }
-    } catch (e) { setRendered('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
+    } catch (e) { setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
   }, [indexImages]);
 
   // 저장된 ZIP 삭제
@@ -170,9 +188,9 @@ export default function Viewer() {
     try {
       const dir = node.path.substring(0, node.path.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
-      setRendered(processContent(await node.file.async('text'), resolveImg));
+      setContent(processContent(await node.file.async('text'), resolveImg));
     }
-    catch (e) { setRendered('<p style="color:red">Read error: ' + e.message + '</p>'); }
+    catch (e) { setContent('<p style="color:red">Read error: ' + e.message + '</p>'); }
   }, [imageBlobs]);
 
   return (
@@ -213,6 +231,23 @@ export default function Viewer() {
         {zipTree && (<>
           <div className={'viewer__sidebar' + (sidebarOpen ? ' viewer__sidebar--open' : '')}>
             <ZipTree tree={zipTree} selectedPath={selectedPath} onSelect={openFile} />
+            {toc.length > 0 && (
+              <div className="viewer__toc">
+                <div className="viewer__toc-title">📑 On this page</div>
+                {toc.map((h) => (
+                  <div
+                    key={h.id}
+                    className={`viewer__toc-item viewer__toc-item--${h.tag}`}
+                    onClick={() => {
+                      const el = document.getElementById(h.id);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                  >
+                    {h.text}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <button className="viewer__sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle sidebar">
             {sidebarOpen ? '\u25c0' : '\u25b6'}
