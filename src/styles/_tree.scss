@@ -24,9 +24,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
 
-    &:hover {
-      background: $c-page-dark;
-      color: $c-ink;
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+        color: $c-ink;
+      }
     }
 
     // -- Selected
@@ -35,9 +37,11 @@
       color: $c-accent;
       font-weight: $fw-semibold;
 
-      &:hover {
-        background: rgba(92, 61, 46, 0.18);
-        color: $c-accent;
+      @media (hover: hover) {
+        &:hover {
+          background: rgba(92, 61, 46, 0.18);
+          color: $c-accent;
+        }
       }
     }
 
@@ -45,8 +49,10 @@
     &--clickable {
       cursor: pointer;
 
-      &:hover {
-        color: $c-link;
+      @media (hover: hover) {
+        &:hover {
+          color: $c-link;
+        }
       }
     }
   }

@@ -45,10 +45,12 @@
     transition: all $transition-normal;
     background: $c-page;
 
-    &:hover {
-      border-color: $c-accent;
-      color: $c-ink;
-      background: $c-page-dark;
+    @media (hover: hover) {
+      &:hover {
+        border-color: $c-accent;
+        color: $c-ink;
+        background: $c-page-dark;
+      }
     }
   }
 
@@ -79,8 +81,10 @@
     cursor: pointer;
     transition: background $transition-fast;
 
-    &:hover {
-      background: $c-page-dark;
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+      }
     }
   }
 
@@ -100,9 +104,11 @@
     opacity: $opacity-dim;
     transition: opacity $transition-fast;
 
-    &:hover {
-      opacity: $opacity-full;
-      background: $c-error-light;
+    @media (hover: hover) {
+      &:hover {
+        opacity: $opacity-full;
+        background: $c-error-light;
+      }
     }
   }
 
@@ -163,10 +169,12 @@
     box-shadow: $shadow-xs;
     transition: left $transition-normal, background $transition-fast, color $transition-fast;
 
-    &:hover {
-      color: $c-ink-inverse;
-      background: $c-accent;
-      border-color: $c-accent;
+    @media (hover: hover) {
+      &:hover {
+        color: $c-ink-inverse;
+        background: $c-accent;
+        border-color: $c-accent;
+      }
     }
   }
 
@@ -241,9 +249,11 @@
     text-overflow: ellipsis;
     transition: all $transition-fast;
 
-    &:hover {
-      background: $c-page-dark;
-      color: $c-ink;
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+        color: $c-ink;
+      }
     }
 
     &--h2 {
@@ -286,10 +296,12 @@
     transition: all $transition-fast;
     opacity: $opacity-subtle;
 
-    &:hover {
-      opacity: $opacity-full;
-      color: $c-ink;
-      background: $c-page-dark;
+    @media (hover: hover) {
+      &:hover {
+        opacity: $opacity-full;
+        color: $c-ink;
+        background: $c-page-dark;
+      }
     }
   }
 }

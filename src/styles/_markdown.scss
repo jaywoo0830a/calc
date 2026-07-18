@@ -10,17 +10,14 @@
   word-break: break-word;
   text-wrap: pretty;
 
-  // ---- 근본적 오버플로우 차단: 모든 직계 자식에 clamp -----
-  > * {
-    max-width: 100%;
-  }
-
   // ---- Headings — academic hierarchy -----------------------
   :is(h1, h2, h3, h4, h5, h6) {
     margin-block: $sp-6 $sp-3;
     font-weight: $fw-bold;
     line-height: $lh-heading;
     color: $c-ink;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   h1 {
@@ -54,8 +51,10 @@
     border-bottom: $border-thin solid transparent;
     transition: border-color $transition-fast;
 
-    &:hover {
-      border-bottom-color: $c-link;
+    @media (hover: hover) {
+      &:hover {
+        border-bottom-color: $c-link;
+      }
     }
   }
 
@@ -68,25 +67,6 @@
     background: $c-page-dark;
     border-radius: $radius-sm;
     color: $c-accent;
-  }
-
-  pre {
-    margin-bottom: $sp-4;
-    padding: $sp-4;
-    background: $c-paper;
-    border: $border-thin solid $c-rule;
-    border-inline-start: $border-thick solid $c-accent;
-    border-radius: 0 $radius-md $radius-md 0;
-    overflow-x: auto;
-
-    code {
-      padding: 0;
-      background: none;
-      color: $c-ink;
-      font-size: $fs-step--1;
-      font-style: normal;
-      line-height: $lh-base;
-    }
   }
 
   // ---- Lists -----------------------------------------------
@@ -109,34 +89,51 @@
     border-radius: 0 $radius-sm $radius-sm 0;
     color: $c-ink-soft;
     font-style: italic;
+    overflow-x: auto;
 
     :last-child { margin-bottom: 0; }
   }
 
-  // ---- Tables — scrollable wrapper approach ---------------
-  // table을 display:block으로 만들지 않고, overflow-x를 부모에 위임
-  table {
-    display: table;
-    width: max-content;
-    min-width: 100%;
-    max-width: none;
+  // ---- Pre / Code blocks — scrollable ---------------------
+  pre {
     margin-bottom: $sp-4;
-    border-collapse: collapse;
-    font-size: $fs-step--1;
-  }
-
-  // table을 감싸는 암시적 래퍼가 없으므로, 직계 table 자식에 overflow
-  // 대신 overflow 되는 모든 블록 요소에 스크롤 허용
-  :is(pre, table, .katex-display, blockquote, .katex) {
-    max-width: 100%;
+    padding: $sp-4;
+    background: $c-paper;
+    border: $border-thin solid $c-rule;
+    border-inline-start: $border-thick solid $c-accent;
+    border-radius: 0 $radius-md $radius-md 0;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+
+    code {
+      padding: 0;
+      background: none;
+      color: $c-ink;
+      font-size: $fs-step--1;
+      font-style: normal;
+      line-height: $lh-base;
+      white-space: pre;
+    }
+  }
+
+  // ---- Tables — scrollable block approach ------------------
+  table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: $sp-4;
+    font-size: $fs-step--1;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-collapse: collapse;
   }
 
   th, td {
     padding: $sp-2 $sp-3;
     border: $border-thin solid $c-rule;
-    text-align: left;
+    text-align: start;
+    white-space: nowrap;
   }
 
   th {
