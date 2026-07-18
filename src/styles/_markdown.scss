@@ -168,19 +168,30 @@
     margin-inline-end: $sp-2;
   }
 
-  // ---- KaTeX / Math (overflow prevention) ---------------
+  // ---- KaTeX / Math — hidden-scrollbar overflow ---------
   .katex-display {
     display: block;
     margin: $sp-4 0;
+    max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
-    max-width: 100%;
-    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;                // Firefox: 스크롤바 숨김
+    -ms-overflow-style: none;             // IE/Edge
+
+    &::-webkit-scrollbar {
+      display: none;                      // Chrome/Safari: 스크롤바 트랙 숨김
+    }
   }
 
   .katex {
     font-size: 1.1em;
     max-width: 100%;
     overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
   }
 }
