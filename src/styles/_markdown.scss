@@ -154,8 +154,9 @@
     border-top: $border-thin solid $c-rule;
   }
 
-  // ---- Images — framed (clamped) ---------------------------
-  img, svg, video, canvas, iframe {
+  // ---- Images — framed (KaTeX SVG 제외) -------------------
+  // KaTeX 내부 SVG에는 border가 적용되지 않도록 svg 제외
+  img, video, canvas, iframe {
     max-width: 100%;
     height: auto;
     border: $border-thin solid $c-rule;
