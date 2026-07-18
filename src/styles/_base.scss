@@ -50,11 +50,14 @@ body {
   display: flex;
   flex-direction: column;
   padding: $sp-4;
+  overflow: hidden;             // 루트 레벨 오버플로우 차단
+  min-width: 0;
 
   // 모든 라우트 페이지가 flex 컨테이너를 채우도록
   > * {
     flex: 1;
     min-height: 0;
+    min-width: 0;               // flex 자식 오버플로우 방지
   }
 }
 

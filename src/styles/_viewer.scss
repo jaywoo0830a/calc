@@ -18,10 +18,12 @@
     background: $c-page;
     height: 100dvh;
     max-height: none;
+    overflow: hidden;           // 뷰포트 레벨 오버플로우 차단
 
     .viewer__panes {
       border: none;
       border-radius: 0;
+      overflow: hidden;
     }
 
     .viewer__preview {
@@ -190,10 +192,11 @@
     }
   }
 
-  // ---- Preview — paper page --------------------------------
+  // ---- Preview — paper page (root overflow clamp) ---------
   &__preview {
     flex: 1;
-    overflow-y: auto;
+    min-width: 0;
+    overflow: hidden auto;    // x hidden, y scroll — 근본적 오버플로우 차단
     padding: $sp-5 $sp-6;
     touch-action: manipulation;
     overscroll-behavior: contain;
@@ -204,6 +207,9 @@
     font-size: $fs-step-0;
     line-height: $lh-body;
     color: $c-ink;
+    // 자식 요소가 preview 너비를 넘지 못하게
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   // ---- TOC (Table of Contents) in sidebar -------------------
