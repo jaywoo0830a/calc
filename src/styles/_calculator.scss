@@ -31,6 +31,21 @@
     font-weight: $fw-medium;
     color: $c-ink-soft;
     transition: all $transition-fast;
+    position: relative;
+
+    // underline 애니메이션
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0.125rem;
+      left: 50%;
+      width: 0;
+      height: 0.125rem;
+      background: $c-accent;
+      border-radius: 0.0625rem;
+      transition: all $transition-normal;
+      transform: translateX(-50%);
+    }
 
     @media (hover: hover) {
       &:hover {
@@ -44,6 +59,10 @@
       font-weight: $fw-semibold;
       background: $c-page-dark;
       box-shadow: $shadow-xs;
+
+      &::after {
+        width: 60%;
+      }
     }
   }
 
@@ -138,6 +157,7 @@
     &:active {
       background: $c-page-darker;
       box-shadow: $shadow-inset;
+      transform: scale(0.96);
     }
 
     // -- number keys

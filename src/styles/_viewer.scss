@@ -174,10 +174,16 @@
     color: $c-ink-soft;
     font-size: $fs-step--2;
     box-shadow: $shadow-xs;
-    transition: left $transition-normal, background $transition-fast, color $transition-fast;
+    opacity: $opacity-subtle;
+    transition: left $transition-normal, background $transition-fast, color $transition-fast, opacity $transition-fast;
+
+    &:active {
+      transform: scale(0.9);
+    }
 
     @media (hover: hover) {
       &:hover {
+        opacity: $opacity-full;
         color: $c-ink-inverse;
         background: $c-accent;
         border-color: $c-accent;
@@ -199,6 +205,8 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity $transition-normal;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
 
     // sidebar--open 또는 toc-sidebar--open 이 overlay 앞에 있으면 표시
     @at-root .viewer__sidebar--open ~ .viewer__overlay,
@@ -270,10 +278,16 @@
     color: $c-ink-soft;
     font-size: $fs-step--2;
     box-shadow: $shadow-xs;
-    transition: right $transition-normal, background $transition-fast, color $transition-fast;
+    opacity: $opacity-subtle;
+    transition: right $transition-normal, background $transition-fast, color $transition-fast, opacity $transition-fast;
+
+    &:active {
+      transform: scale(0.9);
+    }
 
     @media (hover: hover) {
       &:hover {
+        opacity: $opacity-full;
         color: $c-ink-inverse;
         background: $c-accent;
         border-color: $c-accent;
@@ -308,11 +322,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
     transition: all $transition-fast;
+    border-inline-start: $border-thick solid transparent;
+
+    &:active {
+      transform: scale(0.97);
+    }
 
     @media (hover: hover) {
       &:hover {
         background: $c-page-dark;
         color: $c-ink;
+        border-inline-start-color: $c-accent;
       }
     }
 
@@ -356,6 +376,10 @@
     transition: all $transition-fast;
     opacity: $opacity-subtle;
 
+    &:active {
+      transform: scale(0.9);
+    }
+
     @media (hover: hover) {
       &:hover {
         opacity: $opacity-full;
@@ -385,6 +409,10 @@
     transition: all $transition-fast;
     opacity: $opacity-subtle;
 
+    &:active {
+      transform: scale(0.9);
+    }
+
     @media (hover: hover) {
       &:hover {
         opacity: $opacity-full;
@@ -393,4 +421,15 @@
       }
     }
   }
+}
+
+// ---- Keyframe animations -----------------------------------
+@keyframes uploadPulse {
+  0%, 100% { border-color: $c-rule; }
+  50%      { border-color: $c-accent; }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-0.5rem); }
+  to   { opacity: 1; transform: translateX(0); }
 }
