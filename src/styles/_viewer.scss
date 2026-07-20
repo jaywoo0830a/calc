@@ -157,48 +157,39 @@
     }
   }
 
-  // ---- Sidebar toggle — narrow vertical bar ----------------
+  // ---- Sidebar trigger — left-edge swipe zone ------------
   &__sidebar-toggle {
     position: fixed;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0;
     left: 0;
     z-index: $z-sidebar-toggle;
     width: $toggle-width;
     height: $toggle-height;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: $border-thin solid $c-rule;
-    border-left: none;
-    border-radius: 0 $radius-md $radius-md 0;
-    background: $c-page-dark;
-    color: $c-ink-soft;
-    font-size: $fs-step--2;
-    box-shadow: $shadow-md;
-    opacity: 0.12;
+    border: none;
+    border-right: $border-thin solid $c-rule;
+    border-radius: 0;
+    background: linear-gradient(to right, $c-page-dark, transparent);
+    opacity: 0.3;
     transition: left $transition-normal, opacity $transition-fast;
+    cursor: pointer;
 
     &:active {
-      opacity: 0.25;
+      opacity: 0.5;
     }
 
     @media (hover: hover) {
       &:hover {
-        opacity: 0.3;
-        color: $c-ink-inverse;
-        background: $c-accent;
-        border-color: $c-accent;
+        opacity: 0.45;
       }
     }
   }
 
-  // 사이드바 열리면 토글 버튼도 함께 오른쪽으로 이동
+  // 사이드바 열리면 토글도 함께 오른쪽으로 (사이드바 오른쪽 끝에 붙임)
   &__sidebar--open ~ &__sidebar-toggle {
     left: $sidebar-width;
-    border-left: $border-thin solid $c-rule;
+    background: linear-gradient(to right, transparent, $c-page-dark);
     border-right: none;
-    border-radius: $radius-md 0 0 $radius-md;
+    border-left: $border-thin solid $c-rule;
   }
 
   // ---- Backdrop overlay (sidebar 열렸을 때) -----------------
@@ -267,48 +258,39 @@
     }
   }
 
-  // ---- TOC toggle — narrow vertical bar (right side) ------
+  // ---- TOC trigger — right-edge swipe zone ---------------
   &__toc-toggle {
     position: fixed;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0;
     right: 0;
     z-index: $z-sidebar-toggle;
     width: $toggle-width;
     height: $toggle-height;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: $border-thin solid $c-rule;
-    border-right: none;
-    border-radius: $radius-md 0 0 $radius-md;
-    background: $c-page-dark;
-    color: $c-ink-soft;
-    font-size: $fs-step--2;
-    box-shadow: $shadow-md;
-    opacity: 0.12;
+    border: none;
+    border-left: $border-thin solid $c-rule;
+    border-radius: 0;
+    background: linear-gradient(to left, $c-page-dark, transparent);
+    opacity: 0.3;
     transition: right $transition-normal, opacity $transition-fast;
+    cursor: pointer;
 
     &:active {
-      opacity: 0.25;
+      opacity: 0.5;
     }
 
     @media (hover: hover) {
       &:hover {
-        opacity: 0.3;
-        color: $c-ink-inverse;
-        background: $c-accent;
-        border-color: $c-accent;
+        opacity: 0.45;
       }
     }
   }
 
-  // TOC 열리면 토글 버튼도 왼쪽으로 이동
+  // TOC 열리면 토글도 왼쪽으로 (TOC 왼쪽 끝에 붙임)
   @at-root .viewer__toc-sidebar--open ~ .viewer__toc-toggle {
     right: $sidebar-width;
-    border-right: $border-thin solid $c-rule;
+    background: linear-gradient(to left, transparent, $c-page-dark);
     border-left: none;
-    border-radius: 0 $radius-md $radius-md 0;
+    border-right: $border-thin solid $c-rule;
   }
 
   // ---- TOC items (shared between sidebar and toc-sidebar) --

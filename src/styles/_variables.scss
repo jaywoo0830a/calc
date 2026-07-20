@@ -122,8 +122,8 @@ $bp-lg: 64rem;    // 1024px
 $max-width:      26.25rem;   // 420px
 $sidebar-width:  16.25rem;   // 260px
 $sidebar-toggle: 1.75rem;    //  28px
-$toggle-width:   0.5rem;     //   8px  (좁은 트리거)
-$toggle-height:  3rem;       //  48px  (긴 트리거)
+$toggle-width:   1.25rem;   //  20px  (스와이프 트리거)
+$toggle-height:  100dvh;    //  전체 높이
 $fullscreen-btn: 2.25rem;    //  36px
 $display-min-h:  6.25rem;    // 100px
 $scrollbar-w:    0.375rem;   //   6px
