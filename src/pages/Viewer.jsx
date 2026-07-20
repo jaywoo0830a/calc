@@ -272,12 +272,9 @@ export default function Viewer() {
           <div className={'viewer__sidebar' + (sidebarOpen ? ' viewer__sidebar--open' : '')}>
             <ZipTree tree={zipTree} selectedPath={selectedPath} onSelect={openFile} />
           </div>
-          <button className="viewer__sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle file tree">
-            {sidebarOpen ? '\u25c0' : '\u25b6'}
-          </button>
-          <div className="viewer__overlay" onClick={() => { setSidebarOpen(false); setTocOpen(false); }} />
+          <button className="viewer__sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle file tree" />
         </>)}
-        {toc.length > 0 && (
+        {toc.length > 0 && (<>
           <div className={'viewer__toc-sidebar' + (tocOpen ? ' viewer__toc-sidebar--open' : '')}>
             <div className="viewer__toc-title">📑 On this page</div>
             {toc.map((h) => (
@@ -293,11 +290,11 @@ export default function Viewer() {
               </div>
             ))}
           </div>
-        )}
-        {toc.length > 0 && (
-          <button className="viewer__toc-toggle" onClick={() => setTocOpen(!tocOpen)} aria-label="Toggle outline">
-            {tocOpen ? '\u25b6' : '\u25c0'}
-          </button>
+          <button className="viewer__toc-toggle" onClick={() => setTocOpen(!tocOpen)} aria-label="Toggle outline" />
+        </>)}
+        {/* overlay: 항상 마지막에 렌더링 → 어떤 사이드바든 sibling selector 로 감지 */}
+        {(zipTree || toc.length > 0) && (
+          <div className="viewer__overlay" onClick={() => { setSidebarOpen(false); setTocOpen(false); }} />
         )}
         <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
           {rendered
@@ -316,14 +313,23 @@ export default function Viewer() {
         </button>
       )}
       {rendered && (
-        <button
-          className="viewer__readability-btn"
-          onClick={() => setReadability((readability + 1) % 6)}
-          aria-label={`Readability level ${readability}`}
-          title={`가독성 ${readability === 0 ? 'OFF' : 'Lv.' + readability}`}
-        >
-          {readability === 0 ? '👁️' : `A${'⁺'.repeat(readability)}`}
-        </button>
+        <div className="viewer__readability">
+          <button
+            className="viewer__readability-btn"
+            onClick={() => setReadability(Math.max(0, readability - 1))}
+            disabled={readability === 0}
+            aria-label="Decrease readability"
+            title="가독성 낮추기"
+          >➖</button>
+          <span className="viewer__readability-level">{readability === 0 ? '👁️' : readability}</span>
+          <button
+            className="viewer__readability-btn"
+            onClick={() => setReadability(Math.min(5, readability + 1))}
+            disabled={readability === 5}
+            aria-label="Increase readability"
+            title="가독성 높이기"
+          >➕</button>
+        </div>
       )}
     </div>
   );

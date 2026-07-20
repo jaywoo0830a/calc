@@ -157,33 +157,35 @@
     }
   }
 
-  // ---- Sidebar toggle — fixed, always visible --------------
+  // ---- Sidebar toggle — narrow vertical bar ----------------
   &__sidebar-toggle {
     position: fixed;
-    top: $sp-3;
-    left: $sp-2;
+    top: 50%;
+    transform: translateY(-50%);
+    left: 0;
     z-index: $z-sidebar-toggle;
-    width: $sidebar-toggle;
-    height: $sidebar-toggle;
+    width: $toggle-width;
+    height: $toggle-height;
     display: flex;
     align-items: center;
     justify-content: center;
     border: $border-thin solid $c-rule;
-    border-radius: $radius-sm;
+    border-left: none;
+    border-radius: 0 $radius-md $radius-md 0;
     background: $c-page-dark;
     color: $c-ink-soft;
     font-size: $fs-step--2;
-    box-shadow: $shadow-xs;
-    opacity: $opacity-subtle;
-    transition: left $transition-normal, background $transition-fast, color $transition-fast, opacity $transition-fast;
+    box-shadow: $shadow-md;
+    opacity: 0.12;
+    transition: left $transition-normal, opacity $transition-fast;
 
     &:active {
-      transform: scale(0.9);
+      opacity: 0.25;
     }
 
     @media (hover: hover) {
       &:hover {
-        opacity: $opacity-full;
+        opacity: 0.3;
         color: $c-ink-inverse;
         background: $c-accent;
         border-color: $c-accent;
@@ -193,7 +195,10 @@
 
   // 사이드바 열리면 토글 버튼도 함께 오른쪽으로 이동
   &__sidebar--open ~ &__sidebar-toggle {
-    left: calc($sidebar-width + $sp-2);
+    left: $sidebar-width;
+    border-left: $border-thin solid $c-rule;
+    border-right: none;
+    border-radius: $radius-md 0 0 $radius-md;
   }
 
   // ---- Backdrop overlay (sidebar 열렸을 때) -----------------
@@ -262,32 +267,35 @@
     }
   }
 
+  // ---- TOC toggle — narrow vertical bar (right side) ------
   &__toc-toggle {
     position: fixed;
-    top: $sp-3;
-    right: $sp-2;
+    top: 50%;
+    transform: translateY(-50%);
+    right: 0;
     z-index: $z-sidebar-toggle;
-    width: $sidebar-toggle;
-    height: $sidebar-toggle;
+    width: $toggle-width;
+    height: $toggle-height;
     display: flex;
     align-items: center;
     justify-content: center;
     border: $border-thin solid $c-rule;
-    border-radius: $radius-sm;
+    border-right: none;
+    border-radius: $radius-md 0 0 $radius-md;
     background: $c-page-dark;
     color: $c-ink-soft;
     font-size: $fs-step--2;
-    box-shadow: $shadow-xs;
-    opacity: $opacity-subtle;
-    transition: right $transition-normal, background $transition-fast, color $transition-fast, opacity $transition-fast;
+    box-shadow: $shadow-md;
+    opacity: 0.12;
+    transition: right $transition-normal, opacity $transition-fast;
 
     &:active {
-      transform: scale(0.9);
+      opacity: 0.25;
     }
 
     @media (hover: hover) {
       &:hover {
-        opacity: $opacity-full;
+        opacity: 0.3;
         color: $c-ink-inverse;
         background: $c-accent;
         border-color: $c-accent;
@@ -297,7 +305,10 @@
 
   // TOC 열리면 토글 버튼도 왼쪽으로 이동
   @at-root .viewer__toc-sidebar--open ~ .viewer__toc-toggle {
-    right: calc($sidebar-width + $sp-2);
+    right: $sidebar-width;
+    border-right: $border-thin solid $c-rule;
+    border-left: none;
+    border-radius: 0 $radius-md $radius-md 0;
   }
 
   // ---- TOC items (shared between sidebar and toc-sidebar) --
@@ -389,12 +400,19 @@
     }
   }
 
-  // ---- Readability toggle button --------------------------
-  &__readability-btn {
+  // ---- Readability ± buttons -----------------------------
+  &__readability {
     position: fixed;
     bottom: calc($sp-4 + $fullscreen-btn + $sp-2);
     right: $sp-4;
     z-index: $z-fullscreen-btn;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.125rem;
+  }
+
+  &__readability-btn {
     width: $fullscreen-btn;
     height: $fullscreen-btn;
     display: flex;
@@ -404,22 +422,39 @@
     border-radius: $radius-md;
     background: $c-page;
     color: $c-ink-soft;
-    font-size: $fs-step-0;
+    font-size: $fs-step--1;
     box-shadow: $shadow-md;
     transition: all $transition-fast;
     opacity: $opacity-subtle;
+    cursor: pointer;
 
     &:active {
       transform: scale(0.9);
     }
 
+    &:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
     @media (hover: hover) {
-      &:hover {
+      &:hover:not(:disabled) {
         opacity: $opacity-full;
         color: $c-ink;
         background: $c-page-dark;
       }
     }
+  }
+
+  &__readability-level {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-faint;
+    line-height: 1;
+    min-width: 1em;
+    text-align: center;
+    padding: 0.125rem 0;
   }
 }
 

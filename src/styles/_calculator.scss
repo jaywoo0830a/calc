@@ -79,7 +79,7 @@
     flex-direction: column;
     justify-content: flex-end;
     box-shadow: $shadow-inset;
-    overflow: hidden;
+    overflow: hidden;           // 표현식은 hidden
     min-width: 0;
     max-width: 100%;
   }
@@ -102,8 +102,16 @@
     font-weight: $fw-bold;
     color: $c-ink;
     line-height: $lh-tight;
-    overflow-wrap: anywhere;
-    word-break: break-all;
+    white-space: nowrap;        // 숫자 줄바꿈 금지 → 가로 스크롤
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    direction: rtl;             // 오른쪽 정렬 + 스크롤은 왼쪽 끝에서 시작
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
   }
 
   // ---- Keypad — grid of paper buttons ----------------------
