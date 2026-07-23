@@ -1,7 +1,7 @@
 @use 'variables' as *;
 
 // ============================================================
-// Block: pdf-viewer — PDF.js React wrapper
+// Block: pdf-viewer — Immersive PDF.js
 // ============================================================
 
 .pdf-viewer {
@@ -9,7 +9,6 @@
   flex-direction: column;
   align-items: center;
   height: 100%;
-  overflow: hidden auto;
 
   &__toolbar {
     display: flex;
@@ -17,15 +16,24 @@
     justify-content: center;
     gap: $sp-2;
     padding: $sp-2 $sp-4;
-    margin-bottom: $sp-3;
-    background: $c-page;
+    background: rgba($c-page, 0.92);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     border: $border-thin solid $c-rule;
-    border-radius: $radius-md;
-    box-shadow: $shadow-xs;
-    position: sticky;
-    top: 0;
-    z-index: 5;
+    border-radius: $radius-lg;
+    box-shadow: $shadow-md;
+    position: fixed;
+    bottom: $sp-4;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
     flex-wrap: wrap;
+    transition: opacity $transition-fast;
+    opacity: 0.85;
+
+    &:hover {
+      opacity: 1;
+    }
   }
 
   &__nav-sep {
@@ -40,16 +48,18 @@
     flex-direction: column;
     align-items: center;
     width: 100%;
+    flex: 1;
+    overflow: auto;             // 줌 시 스크롤 허용
+    padding: $sp-2;
+    padding-bottom: 4rem;       // 툴바 공간 확보
   }
 
   &__page {
-    max-width: 100%;
-    box-shadow: $shadow-md;
-    margin-bottom: $sp-4;
+    box-shadow: $shadow-lg;
 
     canvas {
-      max-width: 100% !important;
-      height: auto !important;
+      display: block;
+      // max-width 제거 — 줌인 시 canvas가 확장되어야 함
     }
   }
 
@@ -62,7 +72,7 @@
     padding: 0 $sp-2;
     border: $border-thin solid $c-rule;
     border-radius: $radius-sm;
-    background: $c-page-dark;
+    background: transparent;
     color: $c-ink-soft;
     font-size: $fs-step--1;
     cursor: pointer;
@@ -103,3 +113,4 @@
     margin-top: $sp-2;
   }
 }
+
