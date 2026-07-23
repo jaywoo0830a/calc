@@ -30,12 +30,17 @@ const httpsAgent = new https.Agent({
   scheduling: 'fifo',
 });
 
-// ── 응답에서 제거할 헤더 (iframe 차단 방지) ─────────────────────────────────
+// ── 응답에서 제거/수정할 헤더 (iframe 차단 방지) ───────────────────────────
+// CSP 는 아래에서 frame-ancestors 만 재작성하므로 여기서 제거하면 안 됨
 const STRIP_RESPONSE_HEADERS = new Set([
   'x-frame-options',
+  'x-content-type-options',
+]);
+
+// ── CSP frame-ancestors 재작성 대상 ───────────────────────────────────────
+const CSP_HEADERS = new Set([
   'content-security-policy',
   'content-security-policy-report-only',
-  'x-content-type-options',
 ]);
 
 // ── 클라이언트 요청에서 제거할 헤더 ──────────────────────────────────────────
@@ -460,8 +465,10 @@ app.all('/proxy', (req, res) => {
 
         const resHeaders = {};
         for (const [key, value] of Object.entries(proxyRes.headers)) {
-          if (STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) continue;
-          if (key.toLowerCase() === 'content-security-policy') {
+          const lk = key.toLowerCase();
+          if (STRIP_RESPONSE_HEADERS.has(lk)) continue;
+          if (CSP_HEADERS.has(lk)) {
+            // frame-ancestors 지시문만 * 로 완화, 나머지는 유지
             resHeaders[key] = String(value).replace(/frame-ancestors\s+[^;]+;?/gi, 'frame-ancestors *;');
             continue;
           }
@@ -595,16 +602,24 @@ function proxyUrl(origUrl, pageBaseUrl) {
 }
 
 function rewriteUrls(html, pageBaseUrl) {
-  // 1. X-Frame-Options / CSP 제거용 메타 주입
-  const metaInjection = '<meta http-equiv="Content-Security-Policy" content="frame-ancestors *">';
+  // 1. 기존 X-Frame-Options / CSP 메타 태그 제거
+  html = html.replace(/<meta\s+http-equiv=["'](?:X-Frame-Options|Content-Security-Policy)["'][^>]*\/?>/gi, '');
 
-  // 2. 주요 속성 재작성
+  // 2. <head> 직후 frame-ancestors 완화 + frame-busting 방지 주입
+  const injection = '<meta http-equiv="Content-Security-Policy" content="frame-ancestors *">'
+    + '<script>/* frame-busting 방지 */'
+    + '(function(){var c=0;Object.defineProperty(window,"top",{get:function(){c++;if(c>3)return window;return window.top}});'
+    + 'Object.defineProperty(window,"self",{get:function(){return window.top}});'
+    + '})();</script>';
+  html = html.replace(/<head[^>]*>/i, (m) => m + injection);
+
+  // 3. 주요 속성 재작성
   const attrPatterns = [
-    { regex: /\s(src|href|action)\s*=\s*"([^"]+)"/gi,   group: 2, multi: false },
-    { regex: /\s(src|href|action)\s*=\s*'([^']+)'/gi,   group: 2, multi: false },
+    { regex: /\s(src|href|action)\s*=\s*"([^"]+)"/gi,   group: 2 },
+    { regex: /\s(src|href|action)\s*=\s*'([^']+)'/gi,   group: 2 },
   ];
 
-  for (const { regex, group, multi } of attrPatterns) {
+  for (const { regex, group } of attrPatterns) {
     html = html.replace(regex, (match, attr, url) => {
       if (/^(data:|javascript:|blob:|mailto:|#|about:|tel:)/i.test(url)) return match;
       const newUrl = proxyUrl(url, pageBaseUrl);
@@ -625,9 +640,6 @@ function rewriteUrls(html, pageBaseUrl) {
     });
     return ` ${attr}="${rewritten.join(', ')}"`;
   });
-
-  // 3. <head> 바로 뒤에 CSP 완화 메타 삽입
-  html = html.replace(/<head[^>]*>/i, (m) => m + metaInjection);
 
   return html;
 }
