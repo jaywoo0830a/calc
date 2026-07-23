@@ -426,6 +426,7 @@ export default function Viewer() {
         <nav className="calculator__nav">
           <a href="/" className="calculator__nav-tab">Calc</a>
           <span className="calculator__nav-tab calculator__nav-tab--active">Viewer</span>
+          <a href="/proxy" className="calculator__nav-tab">Proxy</a>
         </nav>
       )}
       {!fullscreen && (

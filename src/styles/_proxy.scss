@@ -1,0 +1,180 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: proxy — In-app browser proxy
+// ============================================================
+
+.proxy {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  outline: none;
+
+  // ---- URL Bar --------------------------------------------
+  &__bar {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    padding: $sp-2 $sp-3;
+    margin-bottom: $sp-2;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+  }
+
+  &__icon {
+    font-size: $fs-step-1;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  &__input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    outline: none;
+    padding: $sp-1 0;
+
+    &::placeholder {
+      color: $c-ink-faint;
+      font-style: italic;
+    }
+  }
+
+  &__go,
+  &__reload {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    border-radius: $radius-sm;
+    background: $c-page-dark;
+    color: $c-ink;
+    font-size: $fs-step-0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all $transition-fast;
+
+    &:disabled {
+      opacity: $opacity-dim;
+      cursor: not-allowed;
+    }
+
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background: $c-accent;
+        color: $c-page;
+      }
+    }
+  }
+
+  // ---- Loading indicator ----------------------------------
+  &__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: $sp-2;
+    padding: $sp-2 0;
+    font-size: $fs-step--1;
+    font-style: italic;
+    color: $c-ink-soft;
+    flex-shrink: 0;
+  }
+
+  &__spinner {
+    display: inline-block;
+    width: 0.875rem;
+    height: 0.875rem;
+    border: 0.125rem solid $c-rule;
+    border-top-color: $c-accent;
+    border-radius: 50%;
+    animation: proxy-spin 0.6s linear infinite;
+  }
+
+  // ---- Error banner ---------------------------------------
+  &__error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-2 $sp-3;
+    margin-bottom: $sp-2;
+    background: #fef2f2;
+    border: $border-thin solid #fecaca;
+    border-radius: $radius-md;
+    font-size: $fs-step--1;
+    color: #991b1b;
+    flex-shrink: 0;
+
+    button {
+      flex-shrink: 0;
+      border: none;
+      background: none;
+      font-size: $fs-step-1;
+      color: #991b1b;
+      cursor: pointer;
+      padding: 0 $sp-1;
+    }
+  }
+
+  // ---- Iframe ---------------------------------------------
+  &__frame {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: #fff;
+  }
+
+  // ---- Empty state ----------------------------------------
+  &__empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: $sp-2;
+    color: $c-ink-soft;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+  }
+
+  &__empty-icon {
+    font-size: 3rem;
+    margin: 0;
+    opacity: $opacity-subtle;
+  }
+
+  &__empty-text {
+    font-size: $fs-step-1;
+    font-style: italic;
+    margin: 0;
+  }
+
+  &__empty-hint {
+    font-size: $fs-step--1;
+    color: $c-ink-faint;
+    margin: 0;
+
+    code {
+      padding: 0.125rem 0.375rem;
+      background: $c-page-dark;
+      border-radius: $radius-sm;
+      font-family: $ff;
+      font-size: 0.85em;
+    }
+  }
+}
+
+// ---- Keyframes --------------------------------------------
+@keyframes proxy-spin {
+  to { transform: rotate(360deg); }
+}

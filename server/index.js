@@ -5,9 +5,53 @@ import { randomUUID } from 'node:crypto';
 import { rm, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import http from 'node:http';
+import https from 'node:https';
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
+
+// ── Connection Pooling Agents (keepAlive) ───────────────────────────────────
+const httpAgent = new http.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 30000,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+  timeout: 60000,
+  scheduling: 'fifo',
+});
+
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 30000,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+  timeout: 60000,
+  scheduling: 'fifo',
+});
+
+// ── 응답에서 제거할 헤더 (iframe 차단 방지) ─────────────────────────────────
+const STRIP_RESPONSE_HEADERS = new Set([
+  'x-frame-options',
+  'content-security-policy',
+  'content-security-policy-report-only',
+  'x-content-type-options',
+]);
+
+// ── 클라이언트 요청에서 제거할 헤더 ──────────────────────────────────────────
+const STRIP_REQUEST_HEADERS = new Set([
+  'host',
+  'origin',
+  'connection',
+  'proxy-connection',
+  'proxy-authorization',
+  'proxy-authenticate',
+  'transfer-encoding',
+  'te',
+  'trailer',
+  'upgrade',
+  'via',
+]);
 
 // ── XML entity decode ──────────────────────────────────────────────────────────
 const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
@@ -315,8 +359,174 @@ app.post('/pdf', upload.single('file'), async (req, res) => {
   }
 });
 
+// ── ALL /proxy ──────────────────────────────────────────────────────────────────
+// 고성능 프록시: 전 메서드(POST/GET/PUT/…), keepAlive 풀링, 스트리밍, 쿠키 포워딩
+app.all('/proxy', (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl) return res.status(400).json({ error: 'Missing ?url=' });
+
+  let parsed;
+  try {
+    parsed = new URL(targetUrl);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('invalid protocol');
+  } catch {
+    return res.status(400).json({ error: 'Invalid URL' });
+  }
+
+  const isHttps = parsed.protocol === 'https:';
+  const agent = isHttps ? httpsAgent : httpAgent;
+  const transport = isHttps ? https : http;
+
+  // ── 요청 헤더 구성 ──────────────────────────────────────────────────────
+  const reqHeaders = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    const lk = key.toLowerCase();
+    if (STRIP_REQUEST_HEADERS.has(lk)) continue;
+    reqHeaders[key] = value;
+  }
+  reqHeaders['host'] = parsed.host;
+  reqHeaders['accept-encoding'] = reqHeaders['accept-encoding'] || 'gzip, deflate, br';
+  reqHeaders['user-agent'] = reqHeaders['user-agent'] || 'Mozilla/5.0 (compatible; CalcProxy/2.0)';
+
+  // ── 프록시 요청 전송 ────────────────────────────────────────────────────
+  const proxyReq = transport.request(
+    parsed.href,
+    {
+      method: req.method,
+      headers: reqHeaders,
+      agent,
+      timeout: 30000,
+      rejectUnauthorized: false, // 자체서명 인증서 허용
+    },
+    (proxyRes) => {
+      const statusCode = proxyRes.statusCode || 502;
+      const contentType = proxyRes.headers['content-type'] || '';
+
+      // ── Redirect: Location 헤더 재작성 ─────────────────────────────────
+      if (statusCode >= 300 && statusCode < 400 && proxyRes.headers['location']) {
+        const newLoc = proxyUrl(proxyRes.headers['location'], targetUrl);
+        proxyRes.headers['location'] = newLoc;
+      }
+
+      // ── 응답 헤더 전달 (차단 헤더 제외) ─────────────────────────────────
+      const resHeaders = {};
+      for (const [key, value] of Object.entries(proxyRes.headers)) {
+        if (STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) continue;
+        // CSP frame-ancestors 완화
+        if (key.toLowerCase() === 'content-security-policy') {
+          resHeaders[key] = String(value).replace(/frame-ancestors\s+[^;]+;?/gi, 'frame-ancestors *;');
+          continue;
+        }
+        resHeaders[key] = value;
+      }
+      resHeaders['access-control-allow-origin'] = '*';
+      resHeaders['access-control-allow-credentials'] = 'true';
+      resHeaders['x-proxied-by'] = 'CalcProxy/2.0';
+
+      res.writeHead(statusCode, resHeaders);
+
+      // ── HTML / CSS → 버퍼링 후 URL 재작성 ───────────────────────────────
+      if (contentType.includes('text/html') || contentType.includes('application/xhtml')) {
+        let body = '';
+        proxyRes.setEncoding('utf8');
+        proxyRes.on('data', (chunk) => { body += chunk; });
+        proxyRes.on('end', () => {
+          res.end(rewriteUrls(body, targetUrl));
+        });
+        return;
+      }
+
+      if (contentType.includes('text/css')) {
+        let body = '';
+        proxyRes.setEncoding('utf8');
+        proxyRes.on('data', (chunk) => { body += chunk; });
+        proxyRes.on('end', () => {
+          res.end(rewriteCssUrls(body, targetUrl));
+        });
+        return;
+      }
+
+      // ── 그 외 (영상, 이미지, JS, 폰트…) → 스트리밍 ─────────────────────
+      proxyRes.pipe(res);
+    }
+  );
+
+  // ── 에러 처리 ───────────────────────────────────────────────────────────
+  proxyReq.on('error', (e) => {
+    if (res.headersSent) return;
+    console.error('Proxy upstream error:', e.message);
+    const code = e.code === 'ENOTFOUND' ? 502 : (e.code === 'ETIMEDOUT' ? 504 : 502);
+    res.status(code).json({ error: `Proxy error: ${e.message}` });
+  });
+
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy();
+    if (!res.headersSent) res.status(504).json({ error: 'Upstream timeout' });
+  });
+
+  // ── 요청 바디 스트리밍 ──────────────────────────────────────────────────
+  req.pipe(proxyReq);
+});
+
+// ── URL 재작성: HTML 속성 ─────────────────────────────────────────────────────
+function proxyUrl(origUrl, pageBaseUrl) {
+  try {
+    const resolved = new URL(origUrl, pageBaseUrl);
+    // data: / javascript: / blob: / mailto: / tel: 등은 건너뜀
+    if (/^(data|javascript|blob|mailto|tel|ftp|file):/i.test(resolved.protocol)) return origUrl;
+    return `/api/proxy?url=${encodeURIComponent(resolved.href)}`;
+  } catch { return origUrl; }
+}
+
+function rewriteUrls(html, pageBaseUrl) {
+  // 1. X-Frame-Options / CSP 제거용 메타 주입
+  const metaInjection = '<meta http-equiv="Content-Security-Policy" content="frame-ancestors *">';
+
+  // 2. 주요 속성 재작성
+  const attrPatterns = [
+    { regex: /\s(src|href|action)\s*=\s*"([^"]+)"/gi,   group: 2, multi: false },
+    { regex: /\s(src|href|action)\s*=\s*'([^']+)'/gi,   group: 2, multi: false },
+  ];
+
+  for (const { regex, group, multi } of attrPatterns) {
+    html = html.replace(regex, (match, attr, url) => {
+      if (/^(data:|javascript:|blob:|mailto:|#|about:|tel:)/i.test(url)) return match;
+      const newUrl = proxyUrl(url, pageBaseUrl);
+      return match.replace(url, newUrl);
+    });
+  }
+
+  // srcset: 여러 URL+descriptor 쌍을 개별 처리
+  html = html.replace(/\s(srcset)\s*=\s*"([^"]+)"/gi, (match, attr, value) => {
+    const parts = value.split(/\s*,\s*/);
+    const rewritten = parts.map((part) => {
+      const m = part.match(/^(\S+)(.*)$/);
+      if (!m) return part;
+      const url = m[1];
+      const desc = m[2];
+      if (/^(data:|javascript:|blob:|mailto:|#|about:|tel:)/i.test(url)) return part;
+      return proxyUrl(url, pageBaseUrl) + desc;
+    });
+    return ` ${attr}="${rewritten.join(', ')}"`;
+  });
+
+  // 3. <head> 바로 뒤에 CSP 완화 메타 삽입
+  html = html.replace(/<head[^>]*>/i, (m) => m + metaInjection);
+
+  return html;
+}
+
+// ── URL 재작성: CSS url() ─────────────────────────────────────────────────────
+function rewriteCssUrls(css, pageBaseUrl) {
+  return css.replace(/url\s*\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, url) => {
+    if (/^(data:|#|about:)/i.test(url)) return match;
+    const newUrl = proxyUrl(url.trim(), pageBaseUrl);
+    return `url("${newUrl}")`;
+  });
+}
+
 // health check
-app.get('/api/health', (_, res) => res.json({ ok: true }));
+app.get('/health', (_, res) => res.json({ ok: true }));
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`calc-api running on :${PORT}`));

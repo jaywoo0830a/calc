@@ -51,6 +51,7 @@ export default function Calculator() {
       <nav className="calculator__nav">
         <span className="calculator__nav-tab calculator__nav-tab--active">Calc</span>
         <a href="/viewer" className="calculator__nav-tab">Viewer</a>
+        <a href="/proxy" className="calculator__nav-tab">Proxy</a>
       </nav>
       <Display expression={calc.expression} result={calc.result} />
       <Keypad onAction={handleAction} />
