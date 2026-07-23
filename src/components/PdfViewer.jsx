@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 
 /**
- * PDF 뷰어 — 서버 poppler-utils 로 PDF → HTML 변환
- * - 클라이언트: blob → POST /api/pdf → HTML 응답 → 렌더링
+ * PDF → Markdown 변환 요청 + 로딩 상태만 담당
+ * 실제 마크다운 렌더링은 부모(Viewer)의 processContent 엔진이 처리
  */
-export default function PdfViewer({ url, onOutlineReady }) {
-  const [html, setHtml] = useState('');
+export default function PdfViewer({ url, onMarkdown }) {
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!url) return;
     let cancelled = false;
+    setLoading(true);
 
     (async () => {
       try {
@@ -28,46 +29,38 @@ export default function PdfViewer({ url, onOutlineReady }) {
           const err = await apiRes.json().catch(() => ({}));
           throw new Error(err.error || 'Conversion failed');
         }
-        const text = await apiRes.text();
-        if (!cancelled) setHtml(text);
+        const md = await apiRes.text();
+        if (!cancelled && md.trim()) {
+          onMarkdown(md);
+        }
       } catch (e) {
         if (!cancelled) setError(e);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
 
     return () => { cancelled = true; };
-  }, [url]);
-
-  // outline 은 pdftotext 로는 추출 불가 → TOC 없음
-  useEffect(() => {
-    if (onOutlineReady && html) onOutlineReady(null);
-  }, [html, onOutlineReady]);
+  }, [url, onMarkdown]);
 
   if (error) {
     return (
       <div className="pdf-viewer">
         <div className="pdf-viewer__error">
-          <p>📕 PDF를 불러올 수 없습니다</p>
+          <p>📕 PDF 변환 실패</p>
           <p className="pdf-viewer__error-detail">{error.message}</p>
         </div>
       </div>
     );
   }
 
-  if (!html) {
+  if (loading) {
     return (
       <div className="pdf-viewer">
-        <div className="pdf-viewer__loading">📄 서버에서 PDF 변환 중…</div>
+        <div className="pdf-viewer__loading">📄 pandoc 변환 중…</div>
       </div>
     );
   }
 
-  return (
-    <div className="pdf-viewer">
-      <div
-        className="pdf-viewer__content markdown-body"
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    </div>
-  );
+  return null; // 마크다운은 부모가 렌더링
 }

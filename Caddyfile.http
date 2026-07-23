@@ -1,4 +1,6 @@
 :80 {
-    reverse_proxy /api/* api:3001
+    handle_path /api/* {
+        reverse_proxy api:3001
+    }
     reverse_proxy calc:80
 }

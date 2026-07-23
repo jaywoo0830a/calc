@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 
-app.post('/api/pdf', upload.single('file'), async (req, res) => {
+app.post('/pdf', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No PDF file' });
 
   const id = randomUUID();
@@ -31,13 +31,14 @@ app.post('/api/pdf', upload.single('file'), async (req, res) => {
       });
     });
 
-    // Step 2: pandoc → HTML 구조 정규화 + 시맨틱 태그 보존
-    const html = await new Promise((resolve, reject) => {
+    // Step 2: pandoc → Markdown (TOC 추출, KaTeX, 가독성 모드 활용 가능)
+    const md = await new Promise((resolve, reject) => {
       const child = execFile('pandoc', [
-        '-f', 'html',        // 입력: pdftotext가 만든 HTML
-        '-t', 'html5',       // 출력: 시맨틱 HTML5
-        '--wrap=none',       // 줄바꿈 없음
-        '--standalone=false', // fragment만
+        '-f', 'html',
+        '-t', 'gfm',          // GitHub-Flavored Markdown → 우리 엔진과 호환
+        '--wrap=none',
+        '--standalone=false',
+        '--markdown-headings=atx',  // # style headings → TOC 추출 가능
       ], {
         timeout: 30000,
         maxBuffer: 50 * 1024 * 1024,
@@ -49,7 +50,7 @@ app.post('/api/pdf', upload.single('file'), async (req, res) => {
       child.stdin.end();
     });
 
-    res.type('html').send(html);
+    res.type('text').send(md);
   } catch (e) {
     console.error('pdftotext error:', e.message);
     res.status(500).json({ error: 'PDF conversion failed: ' + e.message });
