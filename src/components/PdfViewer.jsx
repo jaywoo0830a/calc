@@ -31,7 +31,6 @@ export default function PdfViewer({ url, onOutlineReady }) {
       className="pdf-viewer"
       src={url}
       title="PDF viewer"
-      sandbox="allow-scripts allow-same-origin"
     />
   );
 }
