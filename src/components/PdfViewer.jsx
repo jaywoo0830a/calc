@@ -3,10 +3,8 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).toString();
+// Vite 호환 worker 설정
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 const ZOOM_MIN = 0.25;
@@ -16,6 +14,18 @@ export default function PdfViewer({ url }) {
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1);
+  const [error, setError] = useState(null);
+
+  if (error) {
+    return (
+      <div className="pdf-viewer">
+        <div className="pdf-viewer__error">
+          <p>📕 PDF를 불러올 수 없습니다</p>
+          <p className="pdf-viewer__error-detail">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   const zoomIn = useCallback(() => {
     setScale(s => {
@@ -68,6 +78,7 @@ export default function PdfViewer({ url }) {
       <Document
         file={url}
         onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+        onLoadError={setError}
         className="pdf-viewer__document"
       >
         <Page
