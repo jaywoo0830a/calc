@@ -12,7 +12,9 @@ import 'katex/dist/katex.min.css';
 
 function processContent(markdown, resolveImage) {
   const mathBlocks = [];
-  let out = markdown
+  // \$ → 임시 플레이스홀더로 보호 (정규식이 $로 오인하지 않게)
+  const protected$ = markdown.replace(/\\\$/g, '\uFF04');
+  let out = protected$
     .replace(/\$\$([\s\S]*?)\$\$/g, (m) => { mathBlocks.push(m); return '%%MATH' + (mathBlocks.length - 1) + '%%'; })
     .replace(/(?<!\$)\$(?!\$)([\s\S]*?)(?<!\$)\$(?!\$)/g, (m) => { mathBlocks.push(m); return '%%MATH' + (mathBlocks.length - 1) + '%%'; });
   let html = marked.parse(out, { breaks: true, gfm: true });
@@ -27,7 +29,9 @@ function processContent(markdown, resolveImage) {
   html = html.replace(/%%MATH(\d+)%%/g, (_, i) => {
     const m = mathBlocks[+i];
     const tex = m.startsWith('$$') ? m.slice(2, -2).trim() : m.slice(1, -1).trim();
-    try { return katex.renderToString(tex, { displayMode: m.startsWith('$$'), throwOnError: false, trust: true, strict: false }); }
+    // 플레이스홀더 복원
+    const restored = tex.replace(/\uFF04/g, '\\$');
+    try { return katex.renderToString(restored, { displayMode: m.startsWith('$$'), throwOnError: false, trust: true, strict: false }); }
     catch { return m; }
   });
   return html;
