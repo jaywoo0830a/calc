@@ -123,7 +123,8 @@ export default function Viewer() {
   const [toc, setToc] = useState([]);
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
-  const [readability, setReadability] = useState(0);  // 0~5 가독성 단계
+  const [readability, setReadability] = useState(0);
+  const zipRef = useRef(null);   // 현재 ZIP 인스턴스 보관 (문서 간 링크용)  // 0~5 가독성 단계
 
   // 가독성 스케일: [font, line-height, letter-spacing, paragraph-gap] 승수
   const READABILITY_SCALES = [
@@ -195,6 +196,7 @@ export default function Viewer() {
     scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
     try {
       const zip = await JSZip.loadAsync(file);
+      zipRef.current = zip;                          // 크로스 링크용 보관
       const blobs = await indexImages(zip);
       setImageBlobs(blobs);
 
@@ -232,6 +234,7 @@ export default function Viewer() {
     scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
     try {
       const zip = await JSZip.loadAsync(stored.blob);
+      zipRef.current = zip;                          // 크로스 링크용 보관
       const blobs = await indexImages(zip);
       setImageBlobs(blobs);
       const tree = { name: 'root', children: {}, isDir: true };
@@ -255,7 +258,70 @@ export default function Viewer() {
     } catch (e) { setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
   }, [indexImages]);
 
-  // 저장된 ZIP 삭제
+  // ZIP 내 문서 간 크로스 링크 처리
+  const navigateTo = useCallback(async (href) => {
+    const zip = zipRef.current;
+    if (!zip) return;
+    // hash 분리
+    const [targetPath, hash] = href.split('#');
+    if (!targetPath.endsWith('.md')) return;
+
+    // 현재 문서 디렉토리 기준 상대경로 → 절대경로
+    const dir = selectedPath.substring(0, selectedPath.lastIndexOf('/') + 1);
+    const parts = (dir + targetPath).split('/');
+    const resolved = [];
+    for (const p of parts) {
+      if (p === '' || p === '.') continue;
+      if (p === '..') { resolved.pop(); continue; }
+      resolved.push(p);
+    }
+    const fullPath = resolved.join('/');
+
+    // ZIP에서 파일 찾기
+    const file = zip.files[fullPath];
+    if (!file || file.dir) return;
+
+    // 현재 스크롤 저장
+    if (previewRef.current) {
+      scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
+    }
+
+    setSelectedPath(fullPath);
+    try {
+      const dir2 = fullPath.substring(0, fullPath.lastIndexOf('/') + 1);
+      const resolveImg = (src) => resolveImagePath(src, dir2, imageBlobs);
+      setContent(processContent(await file.async('text'), resolveImg));
+      // hash가 있으면 스크롤 (렌더 후)
+      if (hash) {
+        setTimeout(() => {
+          const el = document.getElementById(hash);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
+    } catch (e) { setContent('<p style="color:red">Read error: ' + e.message + '</p>'); }
+  }, [selectedPath, imageBlobs, setContent]);
+
+  // 마크다운 내 링크 클릭 → ZIP 내부 .md 파일이면 가로채기
+  const handleContentClick = useCallback((e) => {
+    const a = e.target.closest('a');
+    if (!a) return;
+    const href = a.getAttribute('href');
+    if (!href) return;
+    // 외부 URL은 통과
+    if (/^(https?:|data:|blob:|\/\/)/.test(href)) return;
+    // 같은 문서 내 해시 링크
+    if (href.startsWith('#')) {
+      e.preventDefault();
+      const el = document.getElementById(href.slice(1));
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    // .md 파일 링크 → 내부 네비게이션
+    if (href.endsWith('.md') || /\.md#/.test(href)) {
+      e.preventDefault();
+      navigateTo(href);
+    }
+  }, [navigateTo]);
   const handleDeleteStored = useCallback(async (id, e) => {
     e.stopPropagation();
     await deleteZip(id);
@@ -342,7 +408,7 @@ export default function Viewer() {
         )}
         <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
           {rendered
-            ? <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} />
+            ? <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
             : <div className="viewer__empty">Upload a ZIP archive to get started</div>}
         </div>
       </div>
