@@ -489,7 +489,7 @@ export default function Viewer() {
           )}
         </div>
       </div>
-      {rendered && (
+      {(rendered || pdfUrl) && (
         <button
           className="viewer__fullscreen-btn"
           onClick={() => setFullscreen(!fullscreen)}
