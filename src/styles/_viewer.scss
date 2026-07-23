@@ -349,6 +349,14 @@
     color: $c-ink-faint;
   }
 
+  // ---- PDF viewer ------------------------------------------
+  &__pdf {
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: $radius-sm;
+  }
+
   // ---- Fullscreen toggle button ----------------------------
   &__fullscreen-btn {
     position: fixed;

@@ -4,6 +4,7 @@ function TreeNode({ node, depth = 0, selectedPath, onSelect }) {
   const [open, setOpen] = useState(depth < 2);
   const isSelected = node.path === selectedPath;
   const isMarkdown = node.name.endsWith('.md');
+  const isPdf = node.name.endsWith('.pdf');
   const isImage = /\.(png|jpg|jpeg|gif|svg|webp|ico)$/i.test(node.name);
 
   let icon = '';
@@ -11,6 +12,8 @@ function TreeNode({ node, depth = 0, selectedPath, onSelect }) {
     icon = open ? '📂 ' : '📁 ';
   } else if (isImage) {
     icon = '🖼️ ';
+  } else if (isPdf) {
+    icon = '📕 ';
   } else if (isMarkdown) {
     icon = '📝 ';
   } else {

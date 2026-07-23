@@ -1,0 +1,93 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: pdf-viewer — PDF.js React wrapper
+// ============================================================
+
+.pdf-viewer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  overflow: hidden auto;
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: $sp-2;
+    padding: $sp-2 $sp-4;
+    margin-bottom: $sp-3;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    box-shadow: $shadow-xs;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    flex-wrap: wrap;
+  }
+
+  &__nav-sep {
+    width: $border-thin;
+    height: 1.5rem;
+    background: $c-rule;
+    margin: 0 $sp-1;
+  }
+
+  &__document {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  &__page {
+    max-width: 100%;
+    box-shadow: $shadow-md;
+    margin-bottom: $sp-4;
+
+    canvas {
+      max-width: 100% !important;
+      height: auto !important;
+    }
+  }
+
+  &__nav-btn {
+    min-width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    background: $c-page-dark;
+    color: $c-ink-soft;
+    font-size: $fs-step--1;
+    cursor: pointer;
+    transition: all $transition-fast;
+    white-space: nowrap;
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background: $c-accent;
+        color: $c-ink-inverse;
+        border-color: $c-accent;
+      }
+    }
+  }
+
+  &__nav-info {
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    color: $c-ink-soft;
+    min-width: 3rem;
+    text-align: center;
+  }
+}

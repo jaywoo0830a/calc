@@ -3,6 +3,7 @@ import { marked } from 'marked';
 import katex from 'katex';
 import JSZip from 'jszip';
 import ZipTree from '../components/ZipTree.jsx';
+import PdfViewer from '../components/PdfViewer.jsx';
 import { listZips, saveZip, loadZip as loadZipFromDB, deleteZip } from '../lib/storage.js';
 
 import 'katex/contrib/auto-render';
@@ -113,6 +114,8 @@ function resolveImagePath(src, dir, blobMap) {
 export default function Viewer() {
   const [fileName, setFileName] = useState('');
   const [rendered, setRendered] = useState('');
+  const [zipId, setZipId] = useState('');              // IndexedDB 키 (상태 복원용)
+  const [pdfUrl, setPdfUrl] = useState('');          // PDF blob URL
   const [zipTree, setZipTree] = useState(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [imageBlobs, setImageBlobs] = useState({});
@@ -124,7 +127,62 @@ export default function Viewer() {
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const [readability, setReadability] = useState(0);
-  const zipRef = useRef(null);   // 현재 ZIP 인스턴스 보관 (문서 간 링크용)  // 0~5 가독성 단계
+  const zipRef = useRef(null);
+
+  // ── 세션 복원: Calc ↔ Viewer 전환 시 상태 유지 ──
+  useEffect(() => {
+    const saved = sessionStorage.getItem('viewer_state');
+    if (!saved) return;
+    try {
+      const state = JSON.parse(saved);
+      if (state.zipId && state.selectedPath) {
+        setZipId(state.zipId);
+        setFileName(state.fileName || '');
+        setReadability(state.readability || 0);
+        loadZipFromDB(state.zipId).then((stored) => {
+          if (!stored) return;
+          JSZip.loadAsync(stored.blob).then(async (zip) => {
+            zipRef.current = zip;
+            const blobs = await indexImages(zip);
+            setImageBlobs(blobs);
+            const tree = { name: 'root', children: {}, isDir: true };
+            for (const [path, f] of Object.entries(zip.files)) {
+              const parts = path.split('/'); let node = tree;
+              for (let i = 0; i < parts.length; i++) {
+                const p = parts[i]; if (!p) continue;
+                const last = i === parts.length - 1;
+                if (!node.children[p]) node.children[p] = { name: p, children: last ? null : {}, isDir: !last, file: last ? f : null, path };
+                node = node.children[p];
+              }
+            }
+            setZipTree(tree);
+            setSelectedPath(state.selectedPath);
+            if (state.scrollPositions) scrollPositions.current = state.scrollPositions;
+            const f = zip.files[state.selectedPath];
+            if (f && !f.dir) {
+              if (state.selectedPath.endsWith('.pdf')) {
+                const blob = await f.async('blob');
+                setPdfUrl(URL.createObjectURL(blob));
+              } else {
+                const dir = state.selectedPath.substring(0, state.selectedPath.lastIndexOf('/') + 1);
+                const resolveImg = (src) => resolveImagePath(src, dir, blobs);
+                setContent(processContent(await f.async('text'), resolveImg));
+              }
+            }
+          }).catch(() => {});
+        }).catch(() => {});
+      }
+    } catch {}
+  }, []);
+
+  // ── 상태 변경 시 sessionStorage에 저장 ──
+  useEffect(() => {
+    if (!zipId || !selectedPath) return;
+    sessionStorage.setItem('viewer_state', JSON.stringify({
+      zipId, fileName, selectedPath,
+      scrollPositions: scrollPositions.current, readability,
+    }));
+  }, [zipId, fileName, selectedPath, readability]);  // 0~5 가독성 단계
 
   // 가독성 스케일: [font, line-height, letter-spacing, paragraph-gap] 승수
   const READABILITY_SCALES = [
@@ -200,9 +258,9 @@ export default function Viewer() {
       const blobs = await indexImages(zip);
       setImageBlobs(blobs);
 
-      // IndexedDB에 저장 (원본 blob)
+      // IndexedDB에 저장 (원본 blob) → ID 보관
       const blob = file instanceof Blob ? file : new Blob([await file.arrayBuffer()]);
-      saveZip(file.name, blob).then(refreshStored).catch(() => {});
+      saveZip(file.name, blob).then((id) => { setZipId(id); refreshStored(); }).catch(() => {});
 
       const tree = { name: 'root', children: {}, isDir: true };
       for (const [path, f] of Object.entries(zip.files)) {
@@ -231,7 +289,8 @@ export default function Viewer() {
     const stored = await loadZipFromDB(entry.id);
     if (!stored) return;
     setFileName(stored.name);
-    scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
+    setZipId(entry.id);                             // 세션 복원용
+    scrollPositions.current = {};
     try {
       const zip = await JSZip.loadAsync(stored.blob);
       zipRef.current = zip;                          // 크로스 링크용 보관
@@ -262,11 +321,12 @@ export default function Viewer() {
   const navigateTo = useCallback(async (href) => {
     const zip = zipRef.current;
     if (!zip) return;
-    // hash 분리
     const [targetPath, hash] = href.split('#');
-    if (!targetPath.endsWith('.md')) return;
+    const isMd = targetPath.endsWith('.md');
+    const isPdf = targetPath.endsWith('.pdf');
+    if (!isMd && !isPdf) return;
 
-    // 현재 문서 디렉토리 기준 상대경로 → 절대경로
+    // 상대경로 → 절대경로
     const dir = selectedPath.substring(0, selectedPath.lastIndexOf('/') + 1);
     const parts = (dir + targetPath).split('/');
     const resolved = [];
@@ -277,21 +337,25 @@ export default function Viewer() {
     }
     const fullPath = resolved.join('/');
 
-    // ZIP에서 파일 찾기
     const file = zip.files[fullPath];
     if (!file || file.dir) return;
 
-    // 현재 스크롤 저장
     if (previewRef.current) {
       scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
     }
-
     setSelectedPath(fullPath);
+
+    if (isPdf) {
+      const blob = await file.async('blob');
+      setPdfUrl(URL.createObjectURL(blob));
+      setRendered('');
+      return;
+    }
+    setPdfUrl('');
     try {
       const dir2 = fullPath.substring(0, fullPath.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir2, imageBlobs);
       setContent(processContent(await file.async('text'), resolveImg));
-      // hash가 있으면 스크롤 (렌더 후)
       if (hash) {
         setTimeout(() => {
           const el = document.getElementById(hash);
@@ -316,8 +380,8 @@ export default function Viewer() {
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
-    // .md 파일 링크 → 내부 네비게이션
-    if (href.endsWith('.md') || /\.md#/.test(href)) {
+    // .md 또는 .pdf 파일 링크 → 내부 네비게이션
+    if (/\.(md|pdf)(#|$)/.test(href)) {
       e.preventDefault();
       navigateTo(href);
     }
@@ -335,13 +399,22 @@ export default function Viewer() {
       scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
     }
     setSelectedPath(node.path);
+    // PDF 파일 처리
+    if (node.name.endsWith('.pdf')) {
+      const blob = await node.file.async('blob');
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+      setRendered('');
+      return;
+    }
+    setPdfUrl('');
     try {
       const dir = node.path.substring(0, node.path.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
       setContent(processContent(await node.file.async('text'), resolveImg));
     }
     catch (e) { setContent('<p style="color:red">Read error: ' + e.message + '</p>'); }
-  }, [imageBlobs, selectedPath]);
+  }, [imageBlobs, selectedPath, setContent]);
 
   return (
     <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')} style={readabilityVars}>
@@ -407,9 +480,13 @@ export default function Viewer() {
           <div className="viewer__overlay" onClick={() => { setSidebarOpen(false); setTocOpen(false); }} />
         )}
         <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
-          {rendered
-            ? <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
-            : <div className="viewer__empty">Upload a ZIP archive to get started</div>}
+          {pdfUrl ? (
+            <PdfViewer url={pdfUrl} />
+          ) : rendered ? (
+            <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
+          ) : (
+            <div className="viewer__empty">Upload a ZIP archive to get started</div>
+          )}
         </div>
       </div>
       {rendered && (
