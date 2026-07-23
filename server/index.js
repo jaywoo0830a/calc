@@ -388,6 +388,19 @@ app.all('/proxy', (req, res) => {
   reqHeaders['accept-encoding'] = reqHeaders['accept-encoding'] || 'gzip, deflate, br';
   reqHeaders['user-agent'] = reqHeaders['user-agent'] || 'Mozilla/5.0 (compatible; CalcProxy/2.0)';
 
+  const startTime = Date.now();
+  let responded = false;
+
+  const fail = (code, msg) => {
+    if (responded) return;
+    responded = true;
+    if (!res.headersSent) {
+      res.status(code).type('text').send(msg);
+    } else {
+      res.end();
+    }
+  };
+
   // ── 프록시 요청 전송 ────────────────────────────────────────────────────
   const proxyReq = transport.request(
     parsed.href,
@@ -396,7 +409,7 @@ app.all('/proxy', (req, res) => {
       headers: reqHeaders,
       agent,
       timeout: 30000,
-      rejectUnauthorized: false, // 자체서명 인증서 허용
+      rejectUnauthorized: false,
     },
     (proxyRes) => {
       const statusCode = proxyRes.statusCode || 502;
@@ -412,7 +425,6 @@ app.all('/proxy', (req, res) => {
       const resHeaders = {};
       for (const [key, value] of Object.entries(proxyRes.headers)) {
         if (STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) continue;
-        // CSP frame-ancestors 완화
         if (key.toLowerCase() === 'content-security-policy') {
           resHeaders[key] = String(value).replace(/frame-ancestors\s+[^;]+;?/gi, 'frame-ancestors *;');
           continue;
@@ -424,49 +436,108 @@ app.all('/proxy', (req, res) => {
       resHeaders['x-proxied-by'] = 'CalcProxy/2.0';
 
       res.writeHead(statusCode, resHeaders);
+      responded = true;
 
-      // ── HTML / CSS → 버퍼링 후 URL 재작성 ───────────────────────────────
+      // ── HTML / CSS → 버퍼링 + 타임아웃 보호 ───────────────────────────
       if (contentType.includes('text/html') || contentType.includes('application/xhtml')) {
-        let body = '';
-        proxyRes.setEncoding('utf8');
-        proxyRes.on('data', (chunk) => { body += chunk; });
-        proxyRes.on('end', () => {
-          res.end(rewriteUrls(body, targetUrl));
-        });
+        bufferAndRewrite(proxyRes, res, targetUrl, 'html');
         return;
       }
 
       if (contentType.includes('text/css')) {
-        let body = '';
-        proxyRes.setEncoding('utf8');
-        proxyRes.on('data', (chunk) => { body += chunk; });
-        proxyRes.on('end', () => {
-          res.end(rewriteCssUrls(body, targetUrl));
-        });
+        bufferAndRewrite(proxyRes, res, targetUrl, 'css');
         return;
       }
 
       // ── 그 외 (영상, 이미지, JS, 폰트…) → 스트리밍 ─────────────────────
       proxyRes.pipe(res);
+      proxyRes.on('error', (e) => {
+        console.error('Proxy response stream error:', e.message);
+        if (!res.writableEnded) res.end();
+      });
     }
   );
 
-  // ── 에러 처리 ───────────────────────────────────────────────────────────
+  // ── 업스트림 에러 처리 ──────────────────────────────────────────────────
   proxyReq.on('error', (e) => {
-    if (res.headersSent) return;
-    console.error('Proxy upstream error:', e.message);
-    const code = e.code === 'ENOTFOUND' ? 502 : (e.code === 'ETIMEDOUT' ? 504 : 502);
-    res.status(code).json({ error: `Proxy error: ${e.message}` });
+    console.error(`Proxy [${req.method} ${targetUrl}]:`, e.message);
+    fail(e.code === 'ENOTFOUND' ? 502 : (e.code === 'ETIMEDOUT' ? 504 : 502),
+      `Proxy error: ${e.message}`);
   });
 
   proxyReq.on('timeout', () => {
+    console.error(`Proxy timeout [${req.method} ${targetUrl}] after ${Date.now() - startTime}ms`);
     proxyReq.destroy();
-    if (!res.headersSent) res.status(504).json({ error: 'Upstream timeout' });
+    fail(504, 'Upstream timeout (30s)');
+  });
+
+  // ── 클라이언트 연결 해제 → 업스트림 취소 ────────────────────────────────
+  req.on('close', () => {
+    if (!responded) {
+      proxyReq.destroy();
+    }
   });
 
   // ── 요청 바디 스트리밍 ──────────────────────────────────────────────────
   req.pipe(proxyReq);
 });
+
+// ── HTML/CSS 버퍼링 + 타임아웃 보호 ──────────────────────────────────────────
+function bufferAndRewrite(proxyRes, res, targetUrl, type) {
+  const BUFFER_TIMEOUT = 15000;  // 15초 내에 전체 응답이 안 오면 지금까지 받은 것만 전송
+  const MAX_BUFFER_SIZE = 5 * 1024 * 1024; // 5MB
+
+  let body = '';
+  let timer;
+
+  const send = () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (res.writableEnded) return;
+
+    try {
+      if (type === 'html') body = rewriteUrls(body, targetUrl);
+      else body = rewriteCssUrls(body, targetUrl);
+    } catch (e) {
+      console.error('Rewrite error:', e.message);
+    }
+    res.end(body);
+  };
+
+  // 타임아웃: 15초 지나면 지금까지 받은 내용으로 응답 종료
+  timer = setTimeout(() => {
+    console.error(`Proxy buffer timeout [${type}] after 15s, sending partial (${body.length} bytes)`);
+    proxyRes.destroy(); // 업스트림 연결 중단
+    if (body.length === 0) {
+      body = '<p><em>Proxy: upstream response timed out</em></p>';
+    }
+    send();
+  }, BUFFER_TIMEOUT);
+
+  proxyRes.setEncoding('utf8');
+  proxyRes.on('data', (chunk) => {
+    body += chunk;
+    // 용량 초과 시 즉시 전송
+    if (body.length > MAX_BUFFER_SIZE) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      proxyRes.destroy();
+      send();
+    }
+  });
+
+  proxyRes.on('end', () => {
+    send();
+  });
+
+  proxyRes.on('error', (e) => {
+    console.error(`Proxy buffer error [${type}]:`, e.message);
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (body.length > 0) {
+      send();
+    } else if (!res.writableEnded) {
+      res.end();
+    }
+  });
+}
 
 // ── URL 재작성: HTML 속성 ─────────────────────────────────────────────────────
 function proxyUrl(origUrl, pageBaseUrl) {
