@@ -31,14 +31,16 @@ app.post('/pdf', upload.single('file'), async (req, res) => {
       });
     });
 
-    // Step 2: pandoc → Markdown (TOC 추출, KaTeX, 가독성 모드 활용 가능)
+    // Step 2: pandoc → 고품질 GFM Markdown
     const md = await new Promise((resolve, reject) => {
       const child = execFile('pandoc', [
-        '-f', 'html',
-        '-t', 'gfm',          // GitHub-Flavored Markdown → 우리 엔진과 호환
-        '--wrap=none',
+        '-f', 'html+tex_math_dollars',   // HTML + $...$ 수식 보존
+        '-t', 'gfm+tex_math_dollars',     // GFM Markdown + $...$ 수식 출력
+        '--wrap=preserve',                 // 원본 줄바꿈 보존
+        '--columns=0',                     // 컬럼 제한 없음
         '--standalone=false',
-        '--markdown-headings=atx',  // # style headings → TOC 추출 가능
+        '--markdown-headings=atx',
+        '--eol=lf',
       ], {
         timeout: 30000,
         maxBuffer: 50 * 1024 * 1024,
