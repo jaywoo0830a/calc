@@ -385,11 +385,11 @@ app.all('/proxy', (req, res) => {
     }
   };
 
-  // ── 전역 안전장치: 35초 내 무응답 시 강제 종료 ──────────────────────────
+  // ── 전역 안전장치: 20초 내 무응답 시 강제 종료 ──────────────────────────
   const safetyTimer = setTimeout(() => {
-    console.error(`Proxy SAFETY TIMEOUT [${req.method} ${targetUrl}] — no response in 35s`);
-    fail(504, 'Proxy safety timeout (35s)');
-  }, 35000);
+    console.error(`Proxy SAFETY TIMEOUT [${req.method} ${targetUrl}] — no response in 20s`);
+    fail(504, 'Proxy safety timeout (20s)');
+  }, 20000);
 
   // ── 요청 헤더 구성 ──────────────────────────────────────────────────────
   const reqHeaders = {};
@@ -410,6 +410,10 @@ app.all('/proxy', (req, res) => {
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
   // ── 요청 전송 (ECONNRESET 시 fresh connection으로 1회 자동 재시도) ──────
+  // HARD_TIMEOUT: Node.js socket timeout 은 TCP 연결단계에서 작동 안 할 수 있어
+  //               별도 setTimeout 으로 강제 차단
+  const HARD_TIMEOUT = 15000; // 15초
+
   sendRequest(0);
 
   function sendRequest(attempt) {
@@ -417,16 +421,33 @@ app.all('/proxy', (req, res) => {
     const transport = isHttps ? https : http;
 
     const agent = attempt > 0
-      ? new (isHttps ? https.Agent : http.Agent)({ keepAlive: false, timeout: 30000 })
+      ? new (isHttps ? https.Agent : http.Agent)({ keepAlive: false, timeout: HARD_TIMEOUT })
       : (isHttps ? httpsAgent : httpAgent);
 
     console.error(`Proxy [${attempt}] ${req.method} ${targetUrl}`);
 
+    let hardTimer;
+    let finished = false;
+
+    const cleanup = () => {
+      finished = true;
+      if (hardTimer) { clearTimeout(hardTimer); hardTimer = null; }
+    };
+
+    // ── 하드 타임아웃: 15초 내 연결/응답 없으면 강제 종료 ─────────────────
+    hardTimer = setTimeout(() => {
+      if (finished) return;
+      console.error(`Proxy HARD TIMEOUT [${attempt}] after ${Date.now() - startTime}ms`);
+      proxyReq.destroy();
+      fail(504, `Connection timeout — cannot reach ${parsed.hostname}:${parsed.port || 443}. Firewall?`);
+    }, HARD_TIMEOUT);
+
     const proxyReq = transport.request(
       parsed.href,
-      { method: req.method, headers: reqHeaders, agent, timeout: 30000, rejectUnauthorized: false },
+      { method: req.method, headers: reqHeaders, agent, timeout: HARD_TIMEOUT, rejectUnauthorized: false },
       (proxyRes) => {
-        if (responded) return;
+        if (responded || finished) return;
+        cleanup();
         clearTimeout(safetyTimer);
         const statusCode = proxyRes.statusCode || 502;
         const contentType = proxyRes.headers['content-type'] || '';
@@ -469,7 +490,8 @@ app.all('/proxy', (req, res) => {
     );
 
     proxyReq.on('error', (e) => {
-      if (responded) return;
+      if (responded || finished) return;
+      cleanup();
       console.error(`Proxy [${attempt}] ERROR: ${e.code || 'ERR'} ${e.message}`);
 
       if (attempt === 0 && (e.code === 'ECONNRESET' || e.message.includes('socket hang up'))) {
@@ -482,21 +504,21 @@ app.all('/proxy', (req, res) => {
     });
 
     proxyReq.on('timeout', () => {
-      if (responded) return;
-      console.error(`Proxy TIMEOUT after ${Date.now() - startTime}ms`);
+      if (responded || finished) return;
+      cleanup();
+      console.error(`Proxy socket timeout [${attempt}] after ${Date.now() - startTime}ms`);
       proxyReq.destroy();
-      fail(504, 'Upstream timeout (30s)');
+      fail(504, 'Upstream timeout (15s)');
     });
 
-    // ── 클라이언트 이탈 시 업스트림 취소 ──────────────────────────────────
     req.once('close', () => {
-      if (!responded) {
+      if (!responded && !finished) {
+        cleanup();
         proxyReq.destroy();
         clearTimeout(safetyTimer);
       }
     });
 
-    // ── 핵심: GET/HEAD 는 body 없으므로 즉시 end(), 나머지는 pipe ─────────
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
       proxyReq.end();
     } else {
@@ -660,12 +682,19 @@ app.get('/probe', (req, res) => {
   const transport = isHttps ? https : http;
   const timings = {};
   const tStart = Date.now();
+  const HARD_TIMEOUT = 8000;
+
+  let hardTimer = setTimeout(() => {
+    probeReq.destroy();
+    res.json({ ok: false, target: targetUrl, error: `TCP connect timeout (8s) — port ${parsed.port || 443} blocked?`, timings });
+  }, HARD_TIMEOUT);
 
   const probeReq = transport.request(
     parsed.href,
-    { method: 'HEAD', timeout: 10000, rejectUnauthorized: false,
+    { method: 'HEAD', timeout: HARD_TIMEOUT, rejectUnauthorized: false,
       headers: { 'user-agent': 'CalcProxy-Probe/1.0' } },
     (probeRes) => {
+      clearTimeout(hardTimer);
       timings.ttfb = Date.now() - tStart;
       probeRes.resume();
       probeRes.on('end', () => {
@@ -684,12 +713,14 @@ app.get('/probe', (req, res) => {
   );
 
   probeReq.on('error', (e) => {
+    clearTimeout(hardTimer);
     res.json({ ok: false, target: targetUrl, error: e.message, code: e.code, timings });
   });
 
   probeReq.on('timeout', () => {
+    clearTimeout(hardTimer);
     probeReq.destroy();
-    res.json({ ok: false, target: targetUrl, error: 'timeout (10s)', timings });
+    res.json({ ok: false, target: targetUrl, error: 'timeout (8s)', timings });
   });
 
   probeReq.end();
