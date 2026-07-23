@@ -360,7 +360,6 @@ app.post('/pdf', upload.single('file'), async (req, res) => {
 });
 
 // ── ALL /proxy ──────────────────────────────────────────────────────────────────
-// 고성능 프록시: 전 메서드, keepAlive 풀링, 스트리밍, 쿠키 포워딩, 자동 재시도
 app.all('/proxy', (req, res) => {
   const targetUrl = req.query.url;
   if (!targetUrl) return res.status(400).json({ error: 'Missing ?url=' });
@@ -373,7 +372,26 @@ app.all('/proxy', (req, res) => {
     return res.status(400).json({ error: 'Invalid URL' });
   }
 
-  // ── 브라우저 수준 요청 헤더 구성 ────────────────────────────────────────
+  const startTime = Date.now();
+  let responded = false;
+
+  const fail = (code, msg) => {
+    if (responded) return;
+    responded = true;
+    if (!res.headersSent) {
+      res.status(code).send(msg);
+    } else {
+      res.end();
+    }
+  };
+
+  // ── 전역 안전장치: 35초 내 무응답 시 강제 종료 ──────────────────────────
+  const safetyTimer = setTimeout(() => {
+    console.error(`Proxy SAFETY TIMEOUT [${req.method} ${targetUrl}] — no response in 35s`);
+    fail(504, 'Proxy safety timeout (35s)');
+  }, 35000);
+
+  // ── 요청 헤더 구성 ──────────────────────────────────────────────────────
   const reqHeaders = {};
   for (const [key, value] of Object.entries(req.headers)) {
     const lk = key.toLowerCase();
@@ -381,7 +399,6 @@ app.all('/proxy', (req, res) => {
     reqHeaders[key] = value;
   }
   reqHeaders['host'] = parsed.host;
-  // 실제 Chrome 수준의 헤더 (봇 감지 회피)
   if (!reqHeaders['accept'])          reqHeaders['accept']          = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8';
   if (!reqHeaders['accept-language']) reqHeaders['accept-language'] = reqHeaders['accept-language'] || 'en-US,en;q=0.9,ko;q=0.8';
   if (!reqHeaders['accept-encoding']) reqHeaders['accept-encoding'] = 'gzip, deflate, br';
@@ -392,43 +409,29 @@ app.all('/proxy', (req, res) => {
   if (!reqHeaders['user-agent'])      reqHeaders['user-agent']      =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-  const startTime = Date.now();
-  let responded = false;
+  // ── 요청 전송 (ECONNRESET 시 fresh connection으로 1회 자동 재시도) ──────
+  sendRequest(0);
 
-  const fail = (code, msg) => {
-    if (responded) return;
-    responded = true;
-    if (!res.headersSent) {
-      res.status(code).type('text').send(msg);
-    } else {
-      res.end();
-    }
-  };
-
-  // ── 요청 실행 (socket hang up 시 1회 재시도) ──────────────────────────
-  doProxyRequest(0);
-
-  function doProxyRequest(attempt) {
+  function sendRequest(attempt) {
     const isHttps = parsed.protocol === 'https:';
     const transport = isHttps ? https : http;
 
-    // 재시도 시 keepAlive 풀 사용 안 함 — 불량 소켓 회피
     const agent = attempt > 0
       ? new (isHttps ? https.Agent : http.Agent)({ keepAlive: false, timeout: 30000 })
       : (isHttps ? httpsAgent : httpAgent);
 
+    console.error(`Proxy [${attempt}] ${req.method} ${targetUrl}`);
+
     const proxyReq = transport.request(
       parsed.href,
-      {
-        method: req.method,
-        headers: reqHeaders,
-        agent,
-        timeout: 30000,
-        rejectUnauthorized: false,
-      },
+      { method: req.method, headers: reqHeaders, agent, timeout: 30000, rejectUnauthorized: false },
       (proxyRes) => {
+        if (responded) return;
+        clearTimeout(safetyTimer);
         const statusCode = proxyRes.statusCode || 502;
         const contentType = proxyRes.headers['content-type'] || '';
+
+        console.error(`Proxy ← ${statusCode} ${contentType.slice(0, 50)} (${Date.now() - startTime}ms)`);
 
         if (statusCode >= 300 && statusCode < 400 && proxyRes.headers['location']) {
           proxyRes.headers['location'] = proxyUrl(proxyRes.headers['location'], targetUrl);
@@ -451,13 +454,10 @@ app.all('/proxy', (req, res) => {
         responded = true;
 
         if (contentType.includes('text/html') || contentType.includes('application/xhtml')) {
-          bufferAndRewrite(proxyRes, res, targetUrl, 'html');
-          return;
+          return bufferAndRewrite(proxyRes, res, targetUrl, 'html');
         }
-
         if (contentType.includes('text/css')) {
-          bufferAndRewrite(proxyRes, res, targetUrl, 'css');
-          return;
+          return bufferAndRewrite(proxyRes, res, targetUrl, 'css');
         }
 
         proxyRes.pipe(res);
@@ -469,29 +469,39 @@ app.all('/proxy', (req, res) => {
     );
 
     proxyReq.on('error', (e) => {
-      console.error(`Proxy [attempt ${attempt}] [${req.method} ${targetUrl}]: ${e.code || 'ERR'} ${e.message}`);
+      if (responded) return;
+      console.error(`Proxy [${attempt}] ERROR: ${e.code || 'ERR'} ${e.message}`);
 
-      // socket hang up / ECONNRESET → 1회만 재시도 (fresh connection)
-      if (!responded && attempt === 0 && (e.code === 'ECONNRESET' || e.message.includes('socket hang up'))) {
+      if (attempt === 0 && (e.code === 'ECONNRESET' || e.message.includes('socket hang up'))) {
         console.error('→ Retrying with fresh connection…');
-        return doProxyRequest(1);
+        return sendRequest(1);
       }
 
-      fail(e.code === 'ENOTFOUND' ? 502 : (e.code === 'ETIMEDOUT' ? 504 : 502),
-        `Proxy error: ${e.message}`);
+      const code = e.code === 'ENOTFOUND' ? 502 : (e.code === 'ETIMEDOUT' ? 504 : 502);
+      fail(code, `Proxy error: ${e.message}`);
     });
 
     proxyReq.on('timeout', () => {
-      console.error(`Proxy timeout [${req.method} ${targetUrl}] after ${Date.now() - startTime}ms`);
+      if (responded) return;
+      console.error(`Proxy TIMEOUT after ${Date.now() - startTime}ms`);
       proxyReq.destroy();
       fail(504, 'Upstream timeout (30s)');
     });
 
-    req.on('close', () => {
-      if (!responded) proxyReq.destroy();
+    // ── 클라이언트 이탈 시 업스트림 취소 ──────────────────────────────────
+    req.once('close', () => {
+      if (!responded) {
+        proxyReq.destroy();
+        clearTimeout(safetyTimer);
+      }
     });
 
-    req.pipe(proxyReq);
+    // ── 핵심: GET/HEAD 는 body 없으므로 즉시 end(), 나머지는 pipe ─────────
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+      proxyReq.end();
+    } else {
+      req.pipe(proxyReq);
+    }
   }
 });
 
