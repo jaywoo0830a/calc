@@ -1,11 +1,81 @@
 @use 'variables' as *;
 
-// 브라우저 내장 PDF 뷰어 — 안전하고 대용량 호환
+// PDF → HTML 변환 뷰어
 .pdf-viewer {
-  width: 100%;
   height: 100%;
-  border: none;
-  background: #fff;
+  overflow: hidden auto;
+  padding: $sp-5 $sp-6;
+
+  &__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: $fs-step-1;
+    font-style: italic;
+    color: $c-ink-faint;
+  }
+
+  &__error {
+    text-align: center;
+    padding: $sp-8 $sp-4;
+    color: $c-error;
+
+    p { margin: 0; }
+  }
+
+  &__error-detail {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    margin-top: $sp-2;
+  }
+
+  &__content {
+    max-width: 48rem;
+    margin: 0 auto;
+
+    h2, h3 {
+      color: $c-ink;
+      margin-top: $sp-6;
+      margin-bottom: $sp-2;
+    }
+
+    h2 {
+      font-size: $fs-step-3;
+      border-bottom: $border-thin solid $c-rule;
+      padding-bottom: $sp-1;
+    }
+
+    h3 { font-size: $fs-step-2; }
+  }
+
+  &__page-html {
+    position: relative;
+    margin-bottom: $sp-8;
+    padding-bottom: $sp-4;
+    border-bottom: $border-thin dashed $c-rule-light;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  &__page-num {
+    display: block;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    margin-bottom: $sp-2;
+    font-style: italic;
+
+    &::before { content: '— Page '; }
+  }
+
+  .pdf-line {
+    display: block;
+    line-height: $lh-body;
+    color: $c-ink;
+    min-height: 1em;
+  }
 }
 
 
