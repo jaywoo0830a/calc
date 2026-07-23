@@ -1,88 +1,11 @@
 @use 'variables' as *;
 
-// ============================================================
-// Block: pdf-viewer — Fit-to-width · Continuous scroll
-// ============================================================
-
+// 브라우저 내장 PDF 뷰어 — 안전하고 대용량 호환
 .pdf-viewer {
-  display: flex;
-  flex-direction: column;
+  width: 100%;
   height: 100%;
-  overflow: hidden auto;
-  scroll-behavior: smooth;
-
-  &__document {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: $sp-4;
-    padding: $sp-4 $sp-2;
-    padding-bottom: 3rem;
-  }
-
-  &__page-wrap {
-    position: relative;
-    box-shadow: $shadow-lg;
-    background: #fff;
-  }
-
-  &__placeholder {
-    height: 60rem;              // 추정 높이 — 실제 페이지 렌더링 전 공간 확보
-    background: linear-gradient(180deg, $c-page, $c-paper);
-  }
-
-  &__page {
-    canvas {
-      display: block;
-    }
-  }
-
-  &__page-num {
-    position: absolute;
-    bottom: 0.25rem;
-    right: 0.5rem;
-    font-size: $fs-step--2;
-    color: $c-ink-faint;
-    font-family: $ff;
-    opacity: 0.6;
-    pointer-events: none;
-  }
-
-  &__mini-nav {
-    position: fixed;
-    bottom: $sp-3;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: $sp-1 $sp-4;
-    background: rgba($c-page, 0.88);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    border: $border-thin solid $c-rule;
-    border-radius: $radius-lg;
-    font-size: $fs-step--2;
-    color: $c-ink-faint;
-    z-index: 50;
-    opacity: 0;
-    transition: opacity $transition-fast;
-    pointer-events: none;
-  }
-
-  // 스크롤 시 현재 페이지 표시 (간단히 항상 보이게)
-  &:hover &__mini-nav {
-    opacity: 1;
-  }
-
-  &__error {
-    text-align: center;
-    padding: $sp-8 $sp-4;
-    color: $c-error;
-  }
-
-  &__error-detail {
-    font-size: $fs-step--2;
-    color: $c-ink-faint;
-    margin-top: $sp-2;
-  }
+  border: none;
+  background: #fff;
 }
 
 

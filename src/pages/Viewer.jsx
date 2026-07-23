@@ -112,22 +112,30 @@ function resolveImagePath(src, dir, blobMap) {
 }
 
 /** PDF outline 항목 (재귀) */
-function OutlineItem({ item, depth, onNavigate }) {
+function OutlineItem({ item, depth, pdfUrl, onNavigate }) {
   const page = typeof item.dest === 'object' && item.dest?.[0]?.num != null
     ? item.dest[0].num + 1
     : typeof item.dest === 'number' ? item.dest + 1 : null;
+
+  const handleClick = () => {
+    if (page && pdfUrl) {
+      // blob URL + #page=X 로 iframe 페이지 이동 (브라우저 지원 시)
+      const base = pdfUrl.split('#')[0];
+      onNavigate(`${base}#page=${page}`);
+    }
+  };
 
   return (
     <>
       <div
         className={`viewer__toc-item viewer__toc-item--h${Math.min(depth + 2, 3)}`}
         style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
-        onClick={() => { if (page) onNavigate(page); }}
+        onClick={handleClick}
       >
         {item.title}
       </div>
       {item.items?.map((child, i) => (
-        <OutlineItem key={i} item={child} depth={depth + 1} onNavigate={onNavigate} />
+        <OutlineItem key={i} item={child} depth={depth + 1} pdfUrl={pdfUrl} onNavigate={onNavigate} />
       ))}
     </>
   );
@@ -139,7 +147,6 @@ export default function Viewer() {
   const [zipId, setZipId] = useState('');              // IndexedDB 키 (상태 복원용)
   const [pdfUrl, setPdfUrl] = useState('');          // PDF blob URL
   const [pdfOutline, setPdfOutline] = useState(null); // PDF 목차
-  const pdfNavRef = useRef(null);                     // PDF page jump 함수
   const [zipTree, setZipTree] = useState(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [imageBlobs, setImageBlobs] = useState({});
@@ -488,7 +495,7 @@ export default function Viewer() {
             <div className="viewer__toc-title">{pdfOutline ? '📑 PDF Outline' : '📑 On this page'}</div>
             {pdfOutline
               ? pdfOutline.map((item, i) => (
-                  <OutlineItem key={i} item={item} depth={0} onNavigate={(page) => pdfNavRef.current?.scrollToPage(page)} />
+                  <OutlineItem key={i} item={item} depth={0} pdfUrl={pdfUrl} onNavigate={setPdfUrl} />
                 ))
               : toc.map((h) => (
                   <div
@@ -511,7 +518,7 @@ export default function Viewer() {
         )}
         <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
           {pdfUrl ? (
-            <PdfViewer url={pdfUrl} onOutlineReady={setPdfOutline} ref={pdfNavRef} />
+            <PdfViewer url={pdfUrl} onOutlineReady={setPdfOutline} />
           ) : rendered ? (
             <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
           ) : (
