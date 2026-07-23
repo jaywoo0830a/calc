@@ -1,104 +1,70 @@
 @use 'variables' as *;
 
 // ============================================================
-// Block: pdf-viewer — Immersive PDF.js
+// Block: pdf-viewer — Fit-to-width · Continuous scroll
 // ============================================================
 
 .pdf-viewer {
   display: flex;
   flex-direction: column;
-  align-items: center;
   height: 100%;
-
-  &__toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: $sp-2;
-    padding: $sp-2 $sp-4;
-    background: rgba($c-page, 0.92);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    border: $border-thin solid $c-rule;
-    border-radius: $radius-lg;
-    box-shadow: $shadow-md;
-    position: fixed;
-    bottom: $sp-4;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 50;
-    flex-wrap: wrap;
-    transition: opacity $transition-fast;
-    opacity: 0.85;
-
-    &:hover {
-      opacity: 1;
-    }
-  }
-
-  &__nav-sep {
-    width: $border-thin;
-    height: 1.5rem;
-    background: $c-rule;
-    margin: 0 $sp-1;
-  }
+  overflow: hidden auto;
+  scroll-behavior: smooth;
 
   &__document {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 100%;
-    flex: 1;
-    overflow: auto;             // 줌 시 스크롤 허용
-    padding: $sp-2;
-    padding-bottom: 4rem;       // 툴바 공간 확보
+    gap: $sp-4;
+    padding: $sp-4 $sp-2;
+    padding-bottom: 3rem;
+  }
+
+  &__page-wrap {
+    position: relative;
+    box-shadow: $shadow-lg;
+    background: #fff;
   }
 
   &__page {
-    box-shadow: $shadow-lg;
-
     canvas {
       display: block;
-      // max-width 제거 — 줌인 시 canvas가 확장되어야 함
     }
   }
 
-  &__nav-btn {
-    min-width: 2rem;
-    height: 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 $sp-2;
+  &__page-num {
+    position: absolute;
+    bottom: 0.25rem;
+    right: 0.5rem;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-family: $ff;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  &__mini-nav {
+    position: fixed;
+    bottom: $sp-3;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: $sp-1 $sp-4;
+    background: rgba($c-page, 0.88);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     border: $border-thin solid $c-rule;
-    border-radius: $radius-sm;
-    background: transparent;
-    color: $c-ink-soft;
-    font-size: $fs-step--1;
-    cursor: pointer;
-    transition: all $transition-fast;
-    white-space: nowrap;
-
-    &:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
-
-    @media (hover: hover) {
-      &:hover:not(:disabled) {
-        background: $c-accent;
-        color: $c-ink-inverse;
-        border-color: $c-accent;
-      }
-    }
+    border-radius: $radius-lg;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity $transition-fast;
+    pointer-events: none;
   }
 
-  &__nav-info {
-    font-size: $fs-step--1;
-    font-weight: $fw-semibold;
-    color: $c-ink-soft;
-    min-width: 3rem;
-    text-align: center;
+  // 스크롤 시 현재 페이지 표시 (간단히 항상 보이게)
+  &:hover &__mini-nav {
+    opacity: 1;
   }
 
   &__error {
@@ -113,4 +79,5 @@
     margin-top: $sp-2;
   }
 }
+
 

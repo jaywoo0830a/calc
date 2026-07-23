@@ -1,20 +1,47 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Vite 호환 worker 설정
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
-const ZOOM_MIN = 0.25;
-const ZOOM_MAX = 5;
-
-export default function PdfViewer({ url }) {
+const PdfViewer = forwardRef(function PdfViewer({ url, onOutlineReady }, ref) {
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(1);
+  const [pageWidth, setPageWidth] = useState(800);
   const [error, setError] = useState(null);
+  const containerRef = useRef(null);
+
+  // parent 에게 scrollToPage 노출
+  const scrollToPage = useCallback((page) => {
+    setPageNumber(page);
+    const el = document.getElementById(`pdf-page-${page}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  useImperativeHandle(ref, () => ({ scrollToPage }), [scrollToPage]);
+
+  // 컨테이너 너비 측정 → fit-to-width
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => {
+      setPageWidth(e.contentRect.width - 16); // 패딩 보정
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // PDF 문서 로드 → outline 추출
+  const onLoadSuccess = useCallback(async (pdf) => {
+    setNumPages(pdf.numPages);
+    try {
+      const outline = await pdf.getOutline();
+      if (onOutlineReady && outline?.length) {
+        onOutlineReady(outline);
+      }
+    } catch {}
+  }, [onOutlineReady]);
 
   if (error) {
     return (
@@ -27,68 +54,37 @@ export default function PdfViewer({ url }) {
     );
   }
 
-  const zoomIn = useCallback(() => {
-    setScale(s => {
-      const next = ZOOM_STEPS.find(v => v > s + 0.01) || s * 1.25;
-      return Math.min(ZOOM_MAX, next);
-    });
-  }, []);
-
-  const zoomOut = useCallback(() => {
-    setScale(s => {
-      const reversed = [...ZOOM_STEPS].reverse();
-      const next = reversed.find(v => v < s - 0.01) || s / 1.25;
-      return Math.max(ZOOM_MIN, next);
-    });
-  }, []);
-
-  const zoomReset = useCallback(() => setScale(1), []);
-
   return (
-    <div className="pdf-viewer">
-      <nav className="pdf-viewer__toolbar">
-        <button className="pdf-viewer__nav-btn" onClick={zoomOut} disabled={scale <= ZOOM_MIN} title="축소">
-          ➖
-        </button>
-        <button className="pdf-viewer__nav-btn" onClick={zoomReset} title="100%">
-          {Math.round(scale * 100)}%
-        </button>
-        <button className="pdf-viewer__nav-btn" onClick={zoomIn} disabled={scale >= ZOOM_MAX} title="확대">
-          ➕
-        </button>
-        {numPages && numPages > 1 && (
-          <>
-            <span className="pdf-viewer__nav-sep" />
-            <button
-              className="pdf-viewer__nav-btn"
-              disabled={pageNumber <= 1}
-              onClick={() => setPageNumber(p => Math.max(1, p - 1))}
-              title="이전 페이지"
-            >◀</button>
-            <span className="pdf-viewer__nav-info">{pageNumber} / {numPages}</span>
-            <button
-              className="pdf-viewer__nav-btn"
-              disabled={pageNumber >= numPages}
-              onClick={() => setPageNumber(p => Math.min(numPages, p + 1))}
-              title="다음 페이지"
-            >▶</button>
-          </>
-        )}
-      </nav>
+    <div className="pdf-viewer" ref={containerRef}>
       <Document
         file={url}
-        onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+        onLoadSuccess={onLoadSuccess}
         onLoadError={setError}
         className="pdf-viewer__document"
       >
-        <Page
-          pageNumber={pageNumber}
-          scale={scale}
-          className="pdf-viewer__page"
-          renderTextLayer={true}
-          renderAnnotationLayer={true}
-        />
+        {/* 연속 스크롤: 모든 페이지를 fit-to-width 로 렌더링 */}
+        {Array.from({ length: numPages || 0 }, (_, i) => (
+          <div key={i} id={`pdf-page-${i + 1}`} className="pdf-viewer__page-wrap">
+            <Page
+              pageNumber={i + 1}
+              width={pageWidth || undefined}
+              className="pdf-viewer__page"
+              renderTextLayer={true}
+              renderAnnotationLayer={true}
+            />
+            <span className="pdf-viewer__page-num">{i + 1}</span>
+          </div>
+        ))}
       </Document>
+
+      {/* 미니멀 하단 네비게이션 (현재 페이지만 표시) */}
+      {numPages && numPages > 1 && (
+        <nav className="pdf-viewer__mini-nav">
+          <span className="pdf-viewer__nav-info">{pageNumber} / {numPages}</span>
+        </nav>
+      )}
     </div>
   );
-}
+});
+
+export default PdfViewer;
