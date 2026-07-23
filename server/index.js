@@ -619,6 +619,82 @@ function rewriteCssUrls(css, pageBaseUrl) {
   });
 }
 
+// ── Diagnostics ────────────────────────────────────────────────────────────────
+app.get('/ping', (_, res) => {
+  res.json({
+    ok: true,
+    time: new Date().toISOString(),
+    uptime: process.uptime(),
+    node: process.version,
+    memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+  });
+});
+
+// DNS resolve 테스트: 서버가 google.com 등을 resolve 할 수 있는지 확인
+app.get('/resolve', async (req, res) => {
+  const host = req.query.host || 'google.com';
+  const { lookup } = await import('node:dns').catch(() => ({ lookup: null }));
+  const timings = {};
+
+  // node:dns/promises
+  try {
+    const t0 = Date.now();
+    const dns = await import('node:dns/promises');
+    const result = await dns.lookup(host, { all: true });
+    timings.dns = Date.now() - t0;
+    res.json({ ok: true, host, addresses: result, timings });
+  } catch (e) {
+    res.json({ ok: false, host, error: e.message, code: e.code });
+  }
+});
+
+// 프록시 연결 테스트: 실제 TCP 연결까지만 시도하고 응답
+app.get('/probe', (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl) return res.status(400).json({ error: 'Missing ?url=' });
+
+  let parsed;
+  try { parsed = new URL(targetUrl); } catch { return res.status(400).json({ error: 'Invalid URL' }); }
+
+  const isHttps = parsed.protocol === 'https:';
+  const transport = isHttps ? https : http;
+  const timings = {};
+  const tStart = Date.now();
+
+  const probeReq = transport.request(
+    parsed.href,
+    { method: 'HEAD', timeout: 10000, rejectUnauthorized: false,
+      headers: { 'user-agent': 'CalcProxy-Probe/1.0' } },
+    (probeRes) => {
+      timings.ttfb = Date.now() - tStart;
+      probeRes.resume();
+      probeRes.on('end', () => {
+        res.json({
+          ok: true,
+          target: targetUrl,
+          status: probeRes.statusCode,
+          headers: {
+            server: probeRes.headers['server'],
+            'content-type': probeRes.headers['content-type'],
+          },
+          timings,
+        });
+      });
+    }
+  );
+
+  probeReq.on('error', (e) => {
+    res.json({ ok: false, target: targetUrl, error: e.message, code: e.code, timings });
+  });
+
+  probeReq.on('timeout', () => {
+    probeReq.destroy();
+    res.json({ ok: false, target: targetUrl, error: 'timeout (10s)', timings });
+  });
+
+  probeReq.end();
+});
+
 // health check
 app.get('/health', (_, res) => res.json({ ok: true }));
 

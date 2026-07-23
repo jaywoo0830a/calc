@@ -172,6 +172,123 @@
       font-size: 0.85em;
     }
   }
+
+  // ---- Debug panel ----------------------------------------
+  &__debug-btn {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    font-size: $fs-step-0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all $transition-fast;
+    opacity: 0.5;
+
+    @media (hover: hover) {
+      &:hover { opacity: 1; background: $c-page-dark; }
+    }
+
+    &--active {
+      opacity: 1;
+      background: $c-accent;
+    }
+  }
+
+  &__debug {
+    margin-bottom: $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.6875rem;
+    line-height: 1.55;
+    flex-shrink: 0;
+    max-height: 14rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__debug-header {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    padding: $sp-1 $sp-2;
+    background: #333;
+    border-radius: $radius-md $radius-md 0 0;
+    font-size: 0.7rem;
+    color: #ccc;
+    flex-shrink: 0;
+  }
+
+  &__debug-meta {
+    margin-left: auto;
+    font-size: 0.65rem;
+    color: #999;
+  }
+
+  &__debug-rerun,
+  &__debug-close {
+    border: none;
+    background: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 0.7rem;
+    padding: 0 $sp-1;
+
+    @media (hover: hover) {
+      &:hover { color: #fff; }
+    }
+  }
+
+  &__debug-log {
+    overflow-y: auto;
+    flex: 1;
+    padding: $sp-1 0;
+  }
+
+  &__debug-empty {
+    padding: $sp-2;
+    color: #666;
+    font-style: italic;
+    text-align: center;
+  }
+
+  &__debug-line {
+    display: flex;
+    align-items: flex-start;
+    gap: $sp-1;
+    padding: 0.125rem $sp-2;
+    border-bottom: 1px solid #2a2a2a;
+
+    &--ok  { color: #6a9955; }
+    &--err { color: #f44747; background: #2a1a1a; }
+    &--warn { color: #cca700; }
+    &--info { color: #9cdcfe; }
+  }
+
+  &__debug-icon {
+    flex-shrink: 0;
+    width: 1.1rem;
+  }
+
+  &__debug-msg {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__debug-time {
+    flex-shrink: 0;
+    color: #666;
+    font-size: 0.6rem;
+    margin-left: auto;
+  }
 }
 
 // ---- Keyframes --------------------------------------------
