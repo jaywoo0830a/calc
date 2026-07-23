@@ -1,18 +1,12 @@
 FROM node:24.18.0-alpine
 
-# ── PDF → Markdown 최고 품질 변환 스택 ──
-# poppler-utils: pdftotext (PDF 텍스트 추출)
-# pandoc: 문서 변환기 (Haskell 풀버전)
-# pandoc-cli: 추가 CLI 도구
-# texlive: LaTeX 수식 → pandoc math 출력
-# groff: man/page 레이아웃 지원
+# ── PDF → Markdown 변환 스택 ──
+# poppler-utils: pdftotext (PDF → HTML 추출)
+# pandoc + pandoc-cli: 문서 변환기 (Haskell 풀버전)
 RUN apk add --no-cache \
     poppler-utils \
     pandoc \
-    pandoc-cli \
-    texlive \
-    texlive-latex \
-    groff
+    pandoc-cli
 
 WORKDIR /app
 COPY server/package.json ./
