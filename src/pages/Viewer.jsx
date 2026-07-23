@@ -11,15 +11,57 @@ import 'katex/contrib/copy-tex';
 import 'katex/dist/katex.min.css';
 
 function processContent(markdown, resolveImage) {
+  // ── 토크나이저: 문자 단위로 $$ / $ 블록을 안전하게 추출 ──
   const mathBlocks = [];
-  // \$ → 임시 플레이스홀더로 보호 (정규식이 $로 오인하지 않게)
-  const protected$ = markdown.replace(/\\\$/g, '\uFF04');
-  let out = protected$
-    .replace(/\$\$([\s\S]*?)\$\$/g, (m) => { mathBlocks.push(m); return '%%MATH' + (mathBlocks.length - 1) + '%%'; })
-    .replace(/(?<!\$)\$(?!\$)([\s\S]*?)(?<!\$)\$(?!\$)/g, (m) => { mathBlocks.push(m); return '%%MATH' + (mathBlocks.length - 1) + '%%'; });
+  let out = '';
+  let i = 0;
+  const len = markdown.length;
+
+  while (i < len) {
+    // Escape 문자 — 다음 글자와 함께 그대로 통과
+    if (markdown[i] === '\\' && i + 1 < len) {
+      out += markdown[i] + markdown[i + 1];
+      i += 2;
+      continue;
+    }
+    // $$ display math
+    if (markdown[i] === '$' && markdown[i + 1] === '$') {
+      const start = i;
+      i += 2;
+      while (i < len) {
+        if (markdown[i] === '\\' && i + 1 < len) { i += 2; continue; }
+        if (markdown[i] === '$' && markdown[i + 1] === '$') { i += 2; break; }
+        i++;
+      }
+      mathBlocks.push(markdown.slice(start, i));
+      out += '%%MATH' + (mathBlocks.length - 1) + '%%';
+      continue;
+    }
+    // $ inline math (줄바꿈 전까지)
+    if (markdown[i] === '$') {
+      const start = i;
+      i++;
+      while (i < len) {
+        if (markdown[i] === '\n') break;
+        if (markdown[i] === '\\' && i + 1 < len) { i += 2; continue; }
+        if (markdown[i] === '$') { i++; break; }
+        i++;
+      }
+      const raw = markdown.slice(start, i);
+      if (raw.startsWith('$') && raw.endsWith('$') && raw.length > 2 && !raw.startsWith('$$')) {
+        mathBlocks.push(raw);
+        out += '%%MATH' + (mathBlocks.length - 1) + '%%';
+      } else {
+        out += raw;
+      }
+      continue;
+    }
+    out += markdown[i];
+    i++;
+  }
+
   let html = marked.parse(out, { breaks: true, gfm: true });
   if (resolveImage) {
-    // <img> 태그의 src 속성을 찾아 blob URL로 치환 (alt 등 다른 속성이 앞에 와도 대응)
     html = html.replace(/<img\s[^>]*\bsrc="([^"]+)"/g, (match, src) => {
       if (/^(https?:|data:|blob:)/.test(src)) return match;
       const blob = resolveImage(src);
@@ -29,9 +71,7 @@ function processContent(markdown, resolveImage) {
   html = html.replace(/%%MATH(\d+)%%/g, (_, i) => {
     const m = mathBlocks[+i];
     const tex = m.startsWith('$$') ? m.slice(2, -2).trim() : m.slice(1, -1).trim();
-    // 플레이스홀더 복원
-    const restored = tex.replace(/\uFF04/g, '\\$');
-    try { return katex.renderToString(restored, { displayMode: m.startsWith('$$'), throwOnError: false, trust: true, strict: false }); }
+    try { return katex.renderToString(tex, { displayMode: m.startsWith('$$'), throwOnError: false, trust: true, strict: false }); }
     catch { return m; }
   });
   return html;
