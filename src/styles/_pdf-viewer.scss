@@ -26,6 +26,11 @@
     background: #fff;
   }
 
+  &__placeholder {
+    height: 60rem;              // 추정 높이 — 실제 페이지 렌더링 전 공간 확보
+    background: linear-gradient(180deg, $c-page, $c-paper);
+  }
+
   &__page {
     canvas {
       display: block;

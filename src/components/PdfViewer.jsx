@@ -5,34 +5,90 @@ import 'react-pdf/dist/Page/TextLayer.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
+const BUFFER = 2;   // 뷰포트 위아래로 미리 렌더링할 페이지 수
+
+/** 개별 페이지 — 필요할 때만 렌더링 */
+function LazyPage({ pageNumber, width, isVisible }) {
+  return (
+    <div id={`pdf-page-${pageNumber}`} className="pdf-viewer__page-wrap">
+      {isVisible ? (
+        <Page
+          pageNumber={pageNumber}
+          width={width || undefined}
+          className="pdf-viewer__page"
+          renderTextLayer={false}        // 대용량 최적화
+          renderAnnotationLayer={false}
+        />
+      ) : (
+        <div className="pdf-viewer__placeholder" />
+      )}
+      <span className="pdf-viewer__page-num">{pageNumber}</span>
+    </div>
+  );
+}
+
 const PdfViewer = forwardRef(function PdfViewer({ url, onOutlineReady }, ref) {
   const [numPages, setNumPages] = useState(null);
-  const [pageNumber, setPageNumber] = useState(1);
+  const [visiblePages, setVisiblePages] = useState(new Set());
   const [pageWidth, setPageWidth] = useState(800);
   const [error, setError] = useState(null);
   const containerRef = useRef(null);
+  const observerRef = useRef(null);
+  const pageRefs = useRef({});
 
-  // parent 에게 scrollToPage 노출
+  // scrollToPage 노출
   const scrollToPage = useCallback((page) => {
-    setPageNumber(page);
     const el = document.getElementById(`pdf-page-${page}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   useImperativeHandle(ref, () => ({ scrollToPage }), [scrollToPage]);
 
-  // 컨테이너 너비 측정 → fit-to-width
+  // 컨테이너 너비 측정
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([e]) => {
-      setPageWidth(e.contentRect.width - 16); // 패딩 보정
+      setPageWidth(e.contentRect.width - 16);
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  // PDF 문서 로드 → outline 추출
+  // IntersectionObserver → 보이는 페이지만 렌더링
+  useEffect(() => {
+    if (!numPages) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const next = new Set(visiblePages);
+        let changed = false;
+        for (const e of entries) {
+          const p = Number(e.target.dataset.page);
+          if (e.isIntersecting) {
+            if (!next.has(p)) { next.add(p); changed = true; }
+          } else {
+            if (next.has(p)) { next.delete(p); changed = true; }
+          }
+        }
+        // 버퍼: 보이는 페이지 ± BUFFER 도 렌더링
+        if (changed) {
+          const min = Math.min(...next);
+          const max = Math.max(...next);
+          for (let i = Math.max(1, min - BUFFER); i <= Math.min(numPages, max + BUFFER); i++) {
+            next.add(i);
+          }
+          setVisiblePages(next);
+        }
+      },
+      { root: containerRef.current, rootMargin: '200px 0px' }
+    );
+    observerRef.current = obs;
+    // 모든 페이지 placeholder observe
+    Object.values(pageRefs.current).forEach((el) => { if (el) obs.observe(el); });
+    return () => obs.disconnect();
+  }, [numPages]);
+
+  // PDF 로드 → outline 추출
   const onLoadSuccess = useCallback(async (pdf) => {
     setNumPages(pdf.numPages);
     try {
@@ -62,25 +118,28 @@ const PdfViewer = forwardRef(function PdfViewer({ url, onOutlineReady }, ref) {
         onLoadError={setError}
         className="pdf-viewer__document"
       >
-        {/* 연속 스크롤: 모든 페이지를 fit-to-width 로 렌더링 */}
-        {Array.from({ length: numPages || 0 }, (_, i) => (
-          <div key={i} id={`pdf-page-${i + 1}`} className="pdf-viewer__page-wrap">
-            <Page
-              pageNumber={i + 1}
-              width={pageWidth || undefined}
-              className="pdf-viewer__page"
-              renderTextLayer={true}
-              renderAnnotationLayer={true}
-            />
-            <span className="pdf-viewer__page-num">{i + 1}</span>
-          </div>
-        ))}
+        {Array.from({ length: numPages || 0 }, (_, i) => {
+          const pn = i + 1;
+          return (
+            <div
+              key={pn}
+              ref={(el) => { pageRefs.current[pn] = el; if (el && observerRef.current) observerRef.current.observe(el); }}
+              data-page={pn}
+            >
+              <LazyPage
+                pageNumber={pn}
+                width={pageWidth || undefined}
+                isVisible={visiblePages.has(pn)}
+              />
+            </div>
+          );
+        })}
       </Document>
-
-      {/* 미니멀 하단 네비게이션 (현재 페이지만 표시) */}
       {numPages && numPages > 1 && (
         <nav className="pdf-viewer__mini-nav">
-          <span className="pdf-viewer__nav-info">{pageNumber} / {numPages}</span>
+          <span className="pdf-viewer__nav-info">
+            {visiblePages.size > 0 ? `${Math.min(...visiblePages)}-${Math.max(...visiblePages)}` : '…'} / {numPages}
+          </span>
         </nav>
       )}
     </div>
