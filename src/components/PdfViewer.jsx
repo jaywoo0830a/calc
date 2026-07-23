@@ -1,49 +1,47 @@
 import { useState, useEffect } from 'react';
-import * as pdfjs from 'pdfjs-dist';
-
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 /**
- * PDF → HTML 변환 뷰어
- * - pdfjs-dist로 텍스트 추출 → HTML로 재구성
- * - iframe 없이 순수 HTML 렌더링 → 다운로드 링크 문제 없음
+ * PDF 뷰어 — 서버 poppler-utils 로 PDF → HTML 변환
+ * - 클라이언트: blob → POST /api/pdf → HTML 응답 → 렌더링
  */
 export default function PdfViewer({ url, onOutlineReady }) {
-  const [pages, setPages] = useState(null);
+  const [html, setHtml] = useState('');
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!url) return;
     let cancelled = false;
-    const loadingTask = pdfjs.getDocument(url);
 
-    loadingTask.promise.then(async (pdf) => {
-      if (cancelled) return;
-      // outline 추출
-      if (onOutlineReady) {
-        try {
-          const outline = await pdf.getOutline();
-          if (outline?.length) onOutlineReady(outline);
-        } catch {}
-      }
-      // 모든 페이지 텍스트 추출
-      const result = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        if (cancelled) break;
-        try {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          const viewport = page.getViewport({ scale: 1 });
-          result.push({ pageNum: i, items: content.items, width: viewport.width, height: viewport.height });
-        } catch { result.push({ pageNum: i, items: [], width: 600, height: 800 }); }
-      }
-      if (!cancelled) setPages(result);
-    }).catch((e) => {
-      if (!cancelled) setError(e);
-    });
+    (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok || cancelled) return;
+        const blob = await res.blob();
+        if (cancelled) return;
 
-    return () => { cancelled = true; loadingTask.destroy(); };
-  }, [url, onOutlineReady]);
+        const form = new FormData();
+        form.append('file', blob, 'input.pdf');
+
+        const apiRes = await fetch('/api/pdf', { method: 'POST', body: form });
+        if (cancelled) return;
+        if (!apiRes.ok) {
+          const err = await apiRes.json().catch(() => ({}));
+          throw new Error(err.error || 'Conversion failed');
+        }
+        const text = await apiRes.text();
+        if (!cancelled) setHtml(text);
+      } catch (e) {
+        if (!cancelled) setError(e);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [url]);
+
+  // outline 은 pdftotext 로는 추출 불가 → TOC 없음
+  useEffect(() => {
+    if (onOutlineReady && html) onOutlineReady(null);
+  }, [html, onOutlineReady]);
 
   if (error) {
     return (
@@ -56,61 +54,20 @@ export default function PdfViewer({ url, onOutlineReady }) {
     );
   }
 
-  if (!pages) {
+  if (!html) {
     return (
       <div className="pdf-viewer">
-        <div className="pdf-viewer__loading">📄 PDF 변환 중…</div>
+        <div className="pdf-viewer__loading">📄 서버에서 PDF 변환 중…</div>
       </div>
     );
   }
 
   return (
     <div className="pdf-viewer">
-      <div className="pdf-viewer__content markdown-body">
-        {pages.map((page) => {
-          // 텍스트 아이템을 y 좌표로 그룹화 → 단락 추정
-          const lines = [];
-          let currentLine = [];
-          let lastY = null;
-          const sorted = [...page.items].sort((a, b) => a.transform[5] - b.transform[5] || a.transform[4] - b.transform[4]);
-
-          for (const item of sorted) {
-            const y = Math.round(item.transform[5]);
-            if (lastY !== null && Math.abs(y - lastY) > 2) {
-              if (currentLine.length) lines.push(currentLine);
-              currentLine = [];
-            }
-            currentLine.push(item);
-            lastY = y;
-          }
-          if (currentLine.length) lines.push(currentLine);
-
-          // 행 → HTML
-          const html = lines.map((line, li) => {
-            const xSorted = [...line].sort((a, b) => a.transform[4] - b.transform[4]);
-            const text = xSorted.map((item) => {
-              let str = item.str;
-              if (item.fontName?.toLowerCase().includes('bold')) {
-                str = `<strong>${str}</strong>`;
-              }
-              return str;
-            }).join('');
-
-            const fontSize = line[0]?.height || 12;
-            // 큰 글씨 → 제목으로 추정
-            if (fontSize > 18) return `<h2>${text}</h2>`;
-            if (fontSize > 15) return `<h3>${text}</h3>`;
-            return `<span class="pdf-line">${text || '&#8203;'}</span>`;
-          }).join('\n');
-
-          return (
-            <div key={page.pageNum} id={`pdf-page-${page.pageNum}`} className="pdf-viewer__page-html">
-              <span className="pdf-viewer__page-num">{page.pageNum}</span>
-              <div dangerouslySetInnerHTML={{ __html: html }} />
-            </div>
-          );
-        })}
-      </div>
+      <div
+        className="pdf-viewer__content markdown-body"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
     </div>
   );
 }

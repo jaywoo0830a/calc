@@ -1,6 +1,6 @@
 @use 'variables' as *;
 
-// PDF → HTML 변환 뷰어
+// 서버 pdftotext 변환 PDF 뷰어
 .pdf-viewer {
   height: 100%;
   overflow: hidden auto;
@@ -33,48 +33,6 @@
   &__content {
     max-width: 48rem;
     margin: 0 auto;
-
-    h2, h3 {
-      color: $c-ink;
-      margin-top: $sp-6;
-      margin-bottom: $sp-2;
-    }
-
-    h2 {
-      font-size: $fs-step-3;
-      border-bottom: $border-thin solid $c-rule;
-      padding-bottom: $sp-1;
-    }
-
-    h3 { font-size: $fs-step-2; }
-  }
-
-  &__page-html {
-    position: relative;
-    margin-bottom: $sp-8;
-    padding-bottom: $sp-4;
-    border-bottom: $border-thin dashed $c-rule-light;
-
-    &:last-child {
-      border-bottom: none;
-    }
-  }
-
-  &__page-num {
-    display: block;
-    font-size: $fs-step--2;
-    color: $c-ink-faint;
-    margin-bottom: $sp-2;
-    font-style: italic;
-
-    &::before { content: '— Page '; }
-  }
-
-  .pdf-line {
-    display: block;
-    line-height: $lh-body;
-    color: $c-ink;
-    min-height: 1em;
   }
 }
 

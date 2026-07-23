@@ -111,42 +111,11 @@ function resolveImagePath(src, dir, blobMap) {
     || null;
 }
 
-/** PDF outline 항목 (재귀) */
-function OutlineItem({ item, depth, pdfUrl, onNavigate }) {
-  const page = typeof item.dest === 'object' && item.dest?.[0]?.num != null
-    ? item.dest[0].num + 1
-    : typeof item.dest === 'number' ? item.dest + 1 : null;
-
-  const handleClick = () => {
-    if (page && pdfUrl) {
-      // blob URL + #page=X 로 iframe 페이지 이동 (브라우저 지원 시)
-      const base = pdfUrl.split('#')[0];
-      onNavigate(`${base}#page=${page}`);
-    }
-  };
-
-  return (
-    <>
-      <div
-        className={`viewer__toc-item viewer__toc-item--h${Math.min(depth + 2, 3)}`}
-        style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
-        onClick={handleClick}
-      >
-        {item.title}
-      </div>
-      {item.items?.map((child, i) => (
-        <OutlineItem key={i} item={child} depth={depth + 1} pdfUrl={pdfUrl} onNavigate={onNavigate} />
-      ))}
-    </>
-  );
-}
-
 export default function Viewer() {
   const [fileName, setFileName] = useState('');
   const [rendered, setRendered] = useState('');
   const [zipId, setZipId] = useState('');              // IndexedDB 키 (상태 복원용)
   const [pdfUrl, setPdfUrl] = useState('');          // PDF blob URL
-  const [pdfOutline, setPdfOutline] = useState(null); // PDF 목차
   const [zipTree, setZipTree] = useState(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [imageBlobs, setImageBlobs] = useState({});
@@ -383,7 +352,6 @@ export default function Viewer() {
       return;
     }
     setPdfUrl('');
-    setPdfOutline(null);
     try {
       const dir2 = fullPath.substring(0, fullPath.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir2, imageBlobs);
@@ -440,7 +408,6 @@ export default function Viewer() {
       return;
     }
     setPdfUrl('');
-    setPdfOutline(null);
     try {
       const dir = node.path.substring(0, node.path.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
@@ -490,25 +457,27 @@ export default function Viewer() {
           </div>
           <button className="viewer__sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle file tree" />
         </>)}
-        {(toc.length > 0 || pdfOutline) && (<>
+        {(toc.length > 0 || pdfUrl) && (<>
           <div className={'viewer__toc-sidebar' + (tocOpen ? ' viewer__toc-sidebar--open' : '')}>
-            <div className="viewer__toc-title">{pdfOutline ? '📑 PDF Outline' : '📑 On this page'}</div>
-            {pdfOutline
-              ? pdfOutline.map((item, i) => (
-                  <OutlineItem key={i} item={item} depth={0} pdfUrl={pdfUrl} onNavigate={setPdfUrl} />
-                ))
-              : toc.map((h) => (
-                  <div
-                    key={h.id}
-                    className={`viewer__toc-item viewer__toc-item--${h.tag}`}
-                    onClick={() => {
-                      const el = document.getElementById(h.id);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }}
-                  >
-                    {h.text}
-                  </div>
-                ))}
+            <div className="viewer__toc-title">📑 On this page</div>
+            {toc.length > 0 ? (
+              toc.map((h) => (
+                <div
+                  key={h.id}
+                  className={`viewer__toc-item viewer__toc-item--${h.tag}`}
+                  onClick={() => {
+                    const el = document.getElementById(h.id);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                >
+                  {h.text}
+                </div>
+              ))
+            ) : (
+              <div className="viewer__toc-item" style={{ fontStyle: 'italic', cursor: 'default' }}>
+                PDF — 서버 변환됨
+              </div>
+            )}
           </div>
           <button className="viewer__toc-toggle" onClick={() => setTocOpen(!tocOpen)} aria-label="Toggle outline" />
         </>)}
@@ -518,7 +487,7 @@ export default function Viewer() {
         )}
         <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
           {pdfUrl ? (
-            <PdfViewer url={pdfUrl} onOutlineReady={setPdfOutline} />
+            <PdfViewer url={pdfUrl} />
           ) : rendered ? (
             <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
           ) : (

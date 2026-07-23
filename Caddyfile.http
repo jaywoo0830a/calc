@@ -1,3 +1,6 @@
 :80 {
+    handle /api/* {
+        reverse_proxy api:3001
+    }
     reverse_proxy calc:80
 }

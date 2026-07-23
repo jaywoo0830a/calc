@@ -1,0 +1,13 @@
+FROM node:24.18.0-alpine
+
+# poppler-utils: pdftotext (PDF → HTML 1차 추출)
+# pandoc: HTML → 구조화된 HTML/Markdown 변환
+RUN apk add --no-cache poppler-utils pandoc
+
+WORKDIR /app
+COPY server/package.json ./
+RUN npm install --legacy-peer-deps
+COPY server/ .
+
+EXPOSE 3001
+CMD ["node", "index.js"]
