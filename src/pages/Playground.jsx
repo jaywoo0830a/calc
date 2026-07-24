@@ -33,21 +33,33 @@ const C3D = setup3D() +
 "// Add your 3D objects below:\n"+
 anim3D();
 
-// ── Complex Plane: optimized domain coloring ──────────────────────────────
+// ── Complex Plane: vector field + domain coloring ─────────────────────────
 const CCX = setup3D() +
-"cam.position.set(0,0,4);cam.lookAt(0,0,0);ctrl.enableRotate=false;"+
-"const fnExpr='(z^2-1)/(z^2+1)';const compiled=math.compile(fnExpr);const R=2.5;const S=256;"+
+"cam.position.set(0,0,5);cam.lookAt(0,0,0);ctrl.enableRotate=false;"+
+"const fnExpr='z^2';const compiled=math.compile(fnExpr);const R=2.5;const S=256;"+
+"// Domain coloring background\n"+
 "const cv=document.createElement('canvas');cv.width=cv.height=S;const ctx=cv.getContext('2d');const img=ctx.createImageData(S,S);"+
 "for(let py=0;py<S;py++){for(let px=0;px<S;px++){const x=(px/S-0.5)*2*R;const y=(py/S-0.5)*2*R;"+
 "try{const fz=compiled.evaluate({z:math.complex(x,y)});const arg=math.arg(fz);const mag=math.abs(fz);"+
-"const hue=((arg+Math.PI)/(2*Math.PI))*360;const L=1-1/(1+mag);const sat=0.7+0.3*L;"+
+"const hue=((arg+Math.PI)/(2*Math.PI))*360;const L=0.3+0.7/(1+mag*0.3);const sat=0.7;"+
 "const cc=(1-Math.abs(2*L-1))*sat;const x2=cc*(1-Math.abs((hue/60)%2-1));const m=L-cc/2;let rr,gg,bb;"+
 "if(hue<60){rr=cc;gg=x2;bb=0}else if(hue<120){rr=x2;gg=cc;bb=0}else if(hue<180){rr=0;gg=cc;bb=x2}"+
 "else if(hue<240){rr=0;gg=x2;bb=cc}else if(hue<300){rr=x2;gg=0;bb=cc}else{rr=cc;gg=0;bb=x2};"+
 "const i=(py*S+px)*4;img.data[i]=Math.round((rr+m)*255);img.data[i+1]=Math.round((gg+m)*255);img.data[i+2]=Math.round((bb+m)*255);img.data[i+3]=255;}catch{}}}"+
 "ctx.putImageData(img,0,0);"+
 "const tex=new THREE.CanvasTexture(cv);tex.minFilter=THREE.LinearFilter;"+
-"scene.add(new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),new THREE.MeshBasicMaterial({map:tex})));"+
+"scene.add(new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:0.5})));"+
+"// Vector field: arrows showing f(z) at each grid point\n"+
+"const step=0.4;const maxMag=5;"+
+"for(let x=-R;x<=R;x+=step){for(let y=-R;y<=R;y+=step){"+
+"try{const fz=compiled.evaluate({z:math.complex(x,y)});const u=math.re(fz);const v=math.im(fz);"+
+"const mag=Math.sqrt(u*u+v*v);if(mag<0.001)continue;const s=Math.min(mag,maxMag)/maxMag*step*0.8;"+
+"const nx=u/mag*s;const ny=v/mag*s;"+
+"const hue=((Math.atan2(v,u)+Math.PI)/(2*Math.PI))*360;"+
+"const c=new THREE.Color().setHSL(hue/360,0.8,0.4+0.3*Math.min(mag/maxMag,1));"+
+"scene.add(new THREE.ArrowHelper(new THREE.Vector3(nx,ny,0).normalize(),new THREE.Vector3(x,y,0.01),s,c.getHex(),0.06,0.04));"+
+"}catch{}}}"+
+"// Axes\n"+
 "const ax2=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-R,0,0),new THREE.Vector3(R,0,0),new THREE.Vector3(0,-R,0),new THREE.Vector3(0,R,0)]);"+
 "scene.add(new THREE.LineSegments(ax2,new THREE.LineBasicMaterial({color:0x2c2416})));"+
 anim3D();
@@ -70,11 +82,11 @@ const PRESETS = {
     { label: 'Torus Knot', code: C3D.replace('// Add your 3D objects below:', 'scene.add(new THREE.Mesh(new THREE.TorusKnotGeometry(1,0.3,128,32),new THREE.MeshStandardMaterial({color:0x5c3d2e,roughness:0.3})));') },
   ],
   'complex': [
-    { label: 'z²', code: CCX.replace("const fnExpr='(z^2-1)/(z^2+1)'", "const fnExpr='z^2'") },
-    { label: 'exp(z)', code: CCX.replace("const fnExpr='(z^2-1)/(z^2+1)'", "const fnExpr='exp(z)'") },
-    { label: 'sin(z)', code: CCX.replace("const fnExpr='(z^2-1)/(z^2+1)'", "const fnExpr='sin(z)'") },
-    { label: 'z+1/z', code: CCX.replace("const fnExpr='(z^2-1)/(z^2+1)'", "const fnExpr='z+1/z'") },
-    { label: 'z³−1', code: CCX.replace("const fnExpr='(z^2-1)/(z^2+1)'", "const fnExpr='z^3-1'") },
+    { label: 'z²', code: CCX },
+    { label: 'exp(z)', code: CCX.replace("const fnExpr='z^2'", "const fnExpr='exp(z)'") },
+    { label: 'sin(z)', code: CCX.replace("const fnExpr='z^2'", "const fnExpr='sin(z)'") },
+    { label: 'z+1/z', code: CCX.replace("const fnExpr='z^2'", "const fnExpr='z+1/z'") },
+    { label: 'z³', code: CCX.replace("const fnExpr='z^2'", "const fnExpr='z^3'") },
   ],
 };
 
