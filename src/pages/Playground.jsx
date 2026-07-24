@@ -5,11 +5,8 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { javascript } from '@codemirror/lang-javascript';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 
-// ── iframe HTML template ─────────────────────────────────────────────────────
-// Three.js + Mathbox2 are copied to public/lib/ by postinstall script.
-// public/lib/ is .gitignored — regenerated on npm install.
-function buildIframeHtml() {
-  return `<!DOCTYPE html>
+// ── iframe HTML (computed once at module level — never changes) ──────────────
+const IFRAME_HTML = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
@@ -55,7 +52,6 @@ window.THREE = THREE;
   window.parent.postMessage({ type: 'ready' }, '*');
 </script>
 </body></html>`;
-}
 
 // ── Preset examples (math) ───────────────────────────────────────────────────
 const PRESETS = [
@@ -213,7 +209,7 @@ export default function Playground() {
           <iframe
             ref={iframeRef}
             className="playground__iframe"
-            srcDoc={buildIframeHtml()}
+            srcDoc={IFRAME_HTML}
             title="3D Preview"
             sandbox="allow-scripts allow-same-origin"
           />
