@@ -32,37 +32,43 @@ export default function Playground() {
   const canvasRef = useRef(null);
   const cleanupRef = useRef(null);
   const [error, setError] = useState(null);
-  const readyRef = useRef(false);
+  const [ready, setReady] = useState(false);
 
-  // ── Wait for mathbox to be ready ──────────────────────────────────────────
+  // ── Wait for mathbox ──────────────────────────────────────────────────────
   useEffect(() => {
+    let attempts = 0;
     const check = setInterval(() => {
+      attempts++;
       if (window.mathbox && window.THREE) {
-        readyRef.current = true;
+        setReady(true);
         clearInterval(check);
         runCode(STARTER);
+      } else if (attempts > 50) {
+        clearInterval(check);
+        setError(window._mathboxError || 'mathbox failed to load. Check that /lib/mathbox.min.js exists and is accessible.');
       }
-    }, 100);
+    }, 200);
     return () => clearInterval(check);
   }, []);
 
   // ── Run user code safely ──────────────────────────────────────────────────
   const runCode = useCallback((code) => {
-    if (!readyRef.current || !canvasRef.current) return;
+    if (!canvasRef.current) { setError('Canvas not ready'); return; }
+    if (!window.THREE)      { setError('THREE not loaded'); return; }
+    if (!window.mathbox)    { setError('mathbox not loaded yet — please wait'); return; }
     // Clean up previous render
     if (cleanupRef.current) {
       try { cleanupRef.current(); } catch (e) { /* ignore */ }
       cleanupRef.current = null;
     }
-    // Clear canvas
     canvasRef.current.innerHTML = '';
     try {
-      const fn = new Function('THREE', 'mathbox', 'container', '"use strict";' + code);
+      const fn = new Function('THREE', 'mathbox', 'container', '"use strict";\n' + code);
       const result = fn(window.THREE, window.mathbox, canvasRef.current);
       if (typeof result === 'function') cleanupRef.current = result;
       setError(null);
     } catch (e) {
-      setError(e.message);
+      setError(e.message || String(e));
     }
   }, []);
 
@@ -109,7 +115,9 @@ export default function Playground() {
         <div className="playground__editor-pane">
           <div className="playground__editor-header">
             <span>Code</span>
-            <button className="playground__render-btn" onClick={handleRender}>Render</button>
+            <button className="playground__render-btn" onClick={handleRender} disabled={!ready}>
+              {ready ? 'Render' : 'Loading...'}
+            </button>
           </div>
           <div ref={editorRef} className="playground__editor" />
           {error && <div className="playground__error">{error}</div>}
