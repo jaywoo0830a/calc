@@ -1,0 +1,197 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: visualizer — Academic Paper (Plotly.js)
+// ============================================================
+
+.visualizer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  outline: none;
+  gap: $sp-3;
+
+  // ---- Space selector --------------------------------------
+  &__spaces {
+    display: flex;
+    gap: $sp-2;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  &__space-btn {
+    flex: 1;
+    min-width: 5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: $sp-1;
+    padding: $sp-2 $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-medium;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+        color: $c-ink;
+      }
+    }
+
+    &--active {
+      background: $c-accent;
+      color: $c-ink-inverse;
+      border-color: $c-accent;
+
+      @media (hover: hover) {
+        &:hover {
+          background: $c-accent-hover;
+          color: $c-ink-inverse;
+        }
+      }
+    }
+  }
+
+  &__space-icon {
+    font-size: $fs-step-0;
+    line-height: 1;
+  }
+
+  // ---- Expression inputs -----------------------------------
+  &__inputs {
+    display: flex;
+    gap: $sp-2;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  &__input-group {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    flex: 1;
+    min-width: 0;
+    padding: $sp-2 $sp-3;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+  }
+
+  &__label {
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    font-style: italic;
+    color: $c-ink-soft;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  &__input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    outline: none;
+    padding: $sp-1 0;
+
+    &::placeholder {
+      color: $c-ink-faint;
+      font-style: italic;
+    }
+
+    &--small {
+      max-width: 5rem;
+      text-align: center;
+    }
+  }
+
+  // ---- Range controls --------------------------------------
+  &__ranges {
+    display: flex;
+    gap: $sp-2;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  &__range-group {
+    display: flex;
+    align-items: center;
+    gap: $sp-1;
+    padding: $sp-1 $sp-3;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    flex-shrink: 0;
+  }
+
+  // ---- Error -------------------------------------------------
+  &__error {
+    padding: $sp-2 $sp-3;
+    background: $c-error-light;
+    color: $c-error;
+    border: $border-thin solid $c-error;
+    border-radius: $radius-md;
+    font-size: $fs-step--2;
+    font-family: $ff;
+    flex-shrink: 0;
+  }
+
+  // ---- Plot --------------------------------------------------
+  &__plot-wrap {
+    flex: 1;
+    min-height: 0;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    overflow: hidden;
+    background: $c-paper;
+    position: relative;
+  }
+
+  &__plot {
+    width: 100%;
+    height: 100%;
+    min-height: 250px;
+
+    // Override Plotly modebar to match paper theme
+    :global(.modebar) {
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    &:hover :global(.modebar) {
+      opacity: 1;
+    }
+  }
+
+  &__loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: $fs-step--1;
+    font-style: italic;
+    color: $c-ink-faint;
+    pointer-events: none;
+  }
+
+  // ---- Help --------------------------------------------------
+  &__help {
+    flex-shrink: 0;
+    text-align: center;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-style: italic;
+    padding: $sp-1 0;
+  }
+}
