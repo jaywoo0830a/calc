@@ -61,6 +61,124 @@
     }
   }
 
+  // ---- Search area -----------------------------------------
+  &__search-area {
+    position: relative;
+    margin-bottom: $sp-3;
+  }
+
+  &__search-bar {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    padding: $sp-2 $sp-3;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+  }
+
+  &__search-icon {
+    font-size: $fs-step--1;
+    flex-shrink: 0;
+  }
+
+  &__search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    outline: none;
+    padding: $sp-1 0;
+
+    &::placeholder {
+      color: $c-ink-faint;
+      font-style: italic;
+    }
+  }
+
+  &__search-clear {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    border-radius: 50%;
+    background: $c-page-dark;
+    color: $c-ink-soft;
+    font-size: $fs-step--1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-darker;
+        color: $c-ink;
+      }
+    }
+  }
+
+  &__search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: $sp-1;
+    max-height: 18rem;
+    overflow-y: auto;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    box-shadow: $shadow-lg;
+    z-index: $z-hint;
+  }
+
+  &__search-result {
+    padding: $sp-2 $sp-3;
+    border-bottom: $border-thin solid $c-rule-light;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+      }
+    }
+
+    mark {
+      background: $c-accent-light;
+      color: $c-accent;
+      padding: 0 0.125rem;
+      border-radius: 0.125rem;
+      font-weight: $fw-semibold;
+    }
+  }
+
+  &__search-result-file {
+    display: block;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-accent;
+    margin-bottom: $sp-1;
+  }
+
+  &__search-result-snippet {
+    display: block;
+    font-size: $fs-step--2;
+    color: $c-ink-soft;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   // ---- Stored ZIPs list ------------------------------------
   &__stored {
     margin-bottom: $sp-3;

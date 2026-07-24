@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { marked } from 'marked';
 import katex from 'katex';
 import JSZip from 'jszip';
+import hljs from 'highlight.js';
 import ZipTree from '../components/ZipTree.jsx';
 import PdfViewer from '../components/PdfViewer.jsx';
 import { listZips, saveZip, loadZip as loadZipFromDB, deleteZip } from '../lib/storage.js';
@@ -10,6 +11,7 @@ import 'katex/contrib/auto-render';
 import 'katex/contrib/mhchem';
 import 'katex/contrib/copy-tex';
 import 'katex/dist/katex.min.css';
+import 'highlight.js/styles/github.css';
 
 function processContent(markdown, resolveImage) {
   // ── 토크나이저: 문자 단위로 $$ / $ 블록을 안전하게 추출 ──
@@ -75,6 +77,22 @@ function processContent(markdown, resolveImage) {
     try { return katex.renderToString(tex, { displayMode: m.startsWith('$$'), throwOnError: false, trust: true, strict: false }); }
     catch { return m; }
   });
+
+  // ── Apply syntax highlighting to code blocks ──────────────────────────
+  html = html.replace(/<pre><code(?:\s+class="language-(\w+)")?>([\s\S]*?)<\/code><\/pre>/g, (match, lang, code) => {
+    const decoded = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+    try {
+      if (lang && hljs.getLanguage(lang)) {
+        const highlighted = hljs.highlight(decoded, { language: lang }).value;
+        return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+      }
+      const auto = hljs.highlightAuto(decoded);
+      return `<pre><code class="hljs language-${auto.language || ''}">${auto.value}</code></pre>`;
+    } catch {
+      return match;
+    }
+  });
+
   return html;
 }
 
@@ -129,6 +147,13 @@ export default function Viewer() {
   const [readability, setReadability] = useState(0);
   const zipRef = useRef(null);
 
+  // ── Search state ────────────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchIndex = useRef({});  // { path: textContent }
+  const searchDebounce = useRef(null);
+
   // ── 세션 복원: Calc ↔ Viewer 전환 시 상태 유지 ──
   useEffect(() => {
     const saved = sessionStorage.getItem('viewer_state');
@@ -145,6 +170,7 @@ export default function Viewer() {
             zipRef.current = zip;
             const blobs = await indexImages(zip);
             setImageBlobs(blobs);
+            buildSearchIndex(zip);
             const tree = { name: 'root', children: {}, isDir: true };
             for (const [path, f] of Object.entries(zip.files)) {
               const parts = path.split('/'); let node = tree;
@@ -249,6 +275,92 @@ export default function Viewer() {
     return blobs;
   }, []);
 
+  // ── Build search index from text files in ZIP ──────────────────────────
+  const buildSearchIndex = useCallback(async (zip) => {
+    const idx = {};
+    const textExts = ['.md', '.txt', '.html', '.htm', '.xml', '.json', '.csv', '.tex', '.rst', '.yml', '.yaml', '.toml'];
+    for (const [path, file] of Object.entries(zip.files)) {
+      if (file.dir) continue;
+      const ext = '.' + path.split('.').pop().toLowerCase();
+      if (!textExts.includes(ext) && ext !== '.pdf') continue;
+      try {
+        const text = await file.async('text');
+        idx[path] = text;
+      } catch { /* binary, skip */ }
+    }
+    searchIndex.current = idx;
+  }, []);
+
+  // ── Search handler ─────────────────────────────────────────────────────
+  const handleSearch = useCallback((query) => {
+    setSearchQuery(query);
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    if (!query.trim()) {
+      setSearchResults([]);
+      setSearchOpen(false);
+      return;
+    }
+    searchDebounce.current = setTimeout(() => {
+      const q = query.toLowerCase();
+      const results = [];
+      for (const [path, text] of Object.entries(searchIndex.current)) {
+        const lower = text.toLowerCase();
+        let idx = lower.indexOf(q);
+        if (idx === -1) continue;
+        // Collect all match positions
+        const matches = [];
+        let pos = 0;
+        while (pos < lower.length) {
+          const found = lower.indexOf(q, pos);
+          if (found === -1) break;
+          matches.push(found);
+          pos = found + 1;
+        }
+        for (const matchPos of matches) {
+          // Extract snippet around match
+          const start = Math.max(0, matchPos - 60);
+          const end = Math.min(text.length, matchPos + q.length + 60);
+          let snippet = text.slice(start, end);
+          if (start > 0) snippet = '…' + snippet;
+          if (end < text.length) snippet = snippet + '…';
+          // Highlight the match
+          const displayName = path.split('/').pop();
+          results.push({ path, displayName, snippet, matchPos: matchPos - start + (start > 0 ? 1 : 0) });
+        }
+      }
+      // Limit to 20 results, sort by path
+      results.sort((a, b) => a.path.localeCompare(b.path));
+      setSearchResults(results.slice(0, 20));
+      setSearchOpen(results.length > 0);
+    }, 200);
+  }, []);
+
+  const navigateToSearchResult = useCallback((result) => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    if (result.path.endsWith('.pdf')) {
+      const zip = zipRef.current;
+      if (!zip) return;
+      const file = zip.files[result.path];
+      if (!file) return;
+      file.async('blob').then((blob) => {
+        setPdfUrl(URL.createObjectURL(blob));
+        setSelectedPath(result.path);
+        setRendered('');
+      });
+    } else {
+      // Use the tree node selection path
+      const zip = zipRef.current;
+      if (!zip) return;
+      const file = zip.files[result.path];
+      if (!file) return;
+      setSelectedPath(result.path);
+      const dir = result.path.substring(0, result.path.lastIndexOf('/') + 1);
+      const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
+      file.async('text').then((txt) => setContent(processContent(txt, resolveImg)));
+    }
+  }, [imageBlobs, setContent]);
+
   const loadZip = useCallback(async (file) => {
     setFileName(file.name);
     scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
@@ -257,6 +369,7 @@ export default function Viewer() {
       zipRef.current = zip;                          // 크로스 링크용 보관
       const blobs = await indexImages(zip);
       setImageBlobs(blobs);
+      buildSearchIndex(zip);                         // 검색 인덱스 구축
 
       // IndexedDB에 저장 (원본 blob) → ID 보관
       const blob = file instanceof Blob ? file : new Blob([await file.arrayBuffer()]);
@@ -296,6 +409,7 @@ export default function Viewer() {
       zipRef.current = zip;                          // 크로스 링크용 보관
       const blobs = await indexImages(zip);
       setImageBlobs(blobs);
+      buildSearchIndex(zip);                         // 검색 인덱스 구축
       const tree = { name: 'root', children: {}, isDir: true };
       for (const [path, f] of Object.entries(zip.files)) {
         const parts = path.split('/'); let node = tree;
@@ -426,8 +540,45 @@ export default function Viewer() {
         <nav className="calculator__nav">
           <a href="/" className="calculator__nav-tab">Calc</a>
           <span className="calculator__nav-tab calculator__nav-tab--active">Viewer</span>
-          <a href="/proxy" className="calculator__nav-tab">Proxy</a>
         </nav>
+      )}
+      {!fullscreen && zipTree && (
+        <div className="viewer__search-area">
+          <div className="viewer__search-bar">
+            <span className="viewer__search-icon">🔍</span>
+            <input
+              className="viewer__search-input"
+              type="text"
+              placeholder="Search in all documents…"
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              onFocus={() => { if (searchResults.length > 0) setSearchOpen(true); }}
+              onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
+              onKeyDown={(e) => { if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); } }}
+            />
+            {searchQuery && (
+              <button className="viewer__search-clear" onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchOpen(false); }}>×</button>
+            )}
+          </div>
+          {searchOpen && searchResults.length > 0 && (
+            <div className="viewer__search-results">
+              {searchResults.map((r, i) => (
+                <div
+                  key={i}
+                  className="viewer__search-result"
+                  onMouseDown={(e) => { e.preventDefault(); navigateToSearchResult(r); }}
+                >
+                  <span className="viewer__search-result-file">{r.displayName}</span>
+                  <span className="viewer__search-result-snippet">
+                    {r.snippet.slice(0, r.matchPos)}
+                    <mark>{r.snippet.slice(r.matchPos, r.matchPos + searchQuery.length)}</mark>
+                    {r.snippet.slice(r.matchPos + searchQuery.length)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
       {!fullscreen && (
         <div className="viewer__upload"

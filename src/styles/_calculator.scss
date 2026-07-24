@@ -114,12 +114,29 @@
     }
   }
 
+  // ---- Keypad area (wraps sci panel + basic grid) ---------
+  &__keypad-area {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+    flex: 1;
+    min-height: 0;
+  }
+
   // ---- Keypad — grid of paper buttons ----------------------
   &__keypad {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: $sp-2;
-    flex: 1;
+
+    &--sci {
+      flex-shrink: 0;
+    }
+
+    &--basic {
+      flex: 1;
+      align-content: start;
+    }
   }
 
   &__btn {
@@ -231,6 +248,167 @@
         }
       }
     }
+
+    // -- scientific keys
+    &--sci {
+      background: $c-page-dark;
+      color: $c-link;
+      font-size: $fs-step-0;
+      font-weight: $fw-medium;
+
+      @media (hover: hover) {
+        &:hover {
+          background: $c-page-darker;
+          color: darken($c-link, 10%);
+        }
+      }
+    }
+
+    // -- sci toggle button (spans full width in grid)
+    &--sciToggle {
+      background: $c-page-dark;
+      color: $c-accent;
+      font-size: $fs-step-1;
+      font-weight: $fw-bold;
+
+      @media (hover: hover) {
+        &:hover {
+          background: $c-page-darker;
+          color: $c-accent-hover;
+        }
+      }
+    }
+  }
+
+  // ---- Toolbar (Sci / Hist toggles) -----------------------
+  &__toolbar {
+    display: flex;
+    gap: $sp-2;
+    margin-top: $sp-3;
+    flex-shrink: 0;
+  }
+
+  &__sci-toggle,
+  &__hist-toggle {
+    flex: 1;
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-soft;
+    background: $c-page;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        color: $c-ink;
+        background: $c-page-dark;
+      }
+    }
+
+    &--active {
+      color: $c-ink-inverse;
+      background: $c-accent;
+      border-color: $c-accent;
+    }
+  }
+
+  // ---- History panel --------------------------------------
+  &__history {
+    margin-top: $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    overflow: hidden;
+    flex-shrink: 0;
+    max-height: 16rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-2 $sp-3;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-soft;
+    border-bottom: $border-thin solid $c-rule-light;
+    flex-shrink: 0;
+  }
+
+  &__history-clear {
+    padding: $sp-1 $sp-2;
+    border: none;
+    border-radius: $radius-sm;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    color: $c-error;
+    background: $c-error-light;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-error-soft;
+      }
+    }
+  }
+
+  &__history-list {
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  &__history-empty {
+    padding: $sp-5;
+    text-align: center;
+    font-size: $fs-step--1;
+    font-style: italic;
+    color: $c-ink-faint;
+  }
+
+  &__history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-2 $sp-3;
+    border-bottom: $border-thin solid $c-rule-light;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+      }
+    }
+  }
+
+  &__history-expr {
+    font-size: $fs-step--2;
+    color: $c-ink-soft;
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    margin-right: $sp-3;
+  }
+
+  &__history-result {
+    font-size: $fs-step-0;
+    font-weight: $fw-bold;
+    color: $c-ink;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   // ---- Footer ----------------------------------------------

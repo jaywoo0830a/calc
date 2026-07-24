@@ -24,26 +24,66 @@ const BUTTONS = [
   ['equals',  '=', 'eq'],
 ];
 
-export default function Keypad({ onAction }) {
+const SCI_BUTTONS = [
+  ['unary', 'sin',  'sci', 'sin'],
+  ['unary', 'cos',  'sci', 'cos'],
+  ['unary', 'tan',  'sci', 'tan'],
+  ['unary', 'log',  'sci', 'log'],
+
+  ['unary', 'ln',   'sci', 'ln'],
+  ['unary', '\u221A', 'sci', 'sqrt'],
+  ['unary', 'x\u00B2', 'sci', 'square'],
+  ['operator', 'x\u02B8', 'op', 'pow'],
+
+  ['const', '\u03C0', 'sci', 'pi'],
+  ['const', 'e',    'sci', 'e'],
+  ['unary', 'n!',   'sci', 'factorial'],
+  ['sciToggle', '', 'sciToggle'],
+];
+
+export default function Keypad({ onAction, sciMode }) {
   return (
-    <div className="calculator__keypad">
-      {BUTTONS.map(([action, label, mod, value], i) => (
-        <div
-          key={i}
-          className={`calculator__btn calculator__btn--${mod}`}
-          role="button"
-          tabIndex={0}
-          onClick={() => onAction(action, value ?? label)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onAction(action, value ?? label);
-            }
-          }}
-        >
-          {label}
+    <div className="calculator__keypad-area">
+      {sciMode && (
+        <div className="calculator__keypad calculator__keypad--sci">
+          {SCI_BUTTONS.map(([action, label, mod, value], i) => (
+            <div
+              key={'sci-' + i}
+              className={`calculator__btn calculator__btn--${mod}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => onAction(action, value ?? label)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onAction(action, value ?? label);
+                }
+              }}
+            >
+              {label}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
+      <div className={'calculator__keypad' + (sciMode ? ' calculator__keypad--basic' : '')}>
+        {BUTTONS.map(([action, label, mod, value], i) => (
+          <div
+            key={i}
+            className={`calculator__btn calculator__btn--${mod}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => onAction(action, value ?? label)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onAction(action, value ?? label);
+              }
+            }}
+          >
+            {label}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
