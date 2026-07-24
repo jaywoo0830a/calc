@@ -42,9 +42,11 @@ function iframeHtml() {
 </head><body>
 <div id="mathbox"></div><div id="error"></div>
 <script type="module">
-import * as THREE from 'three';
+import * as _THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-THREE.OrbitControls = OrbitControls;
+
+// ES module namespace is sealed — create mutable copy with OrbitControls
+var THREE = Object.assign({}, _THREE, { OrbitControls: OrbitControls });
 window.THREE = THREE;
 
 // Load mathbox after THREE is ready
