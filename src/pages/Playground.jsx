@@ -32,10 +32,8 @@ view.area({
 });
 `;
 
-// ── Self-contained iframe HTML ────────────────────────────────────────────────
-// All scripts loaded via import map. Ready signal sent ONLY after everything is loaded.
-function iframeHtml() {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+// ── Self-contained iframe HTML (module-level constant — never changes) ────────
+const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html,body{width:100%;height:100%;overflow:hidden;background:#f8f4eb}#mathbox{width:100%;height:100%}#error{position:fixed;bottom:0;left:0;right:0;background:#b5433a;color:#fff;padding:8px 14px;font:12px monospace;display:none;z-index:100}</style>
 <link rel="stylesheet" href="/lib/mathbox.css">
 <script type="importmap">{"imports":{"three":"/lib/three.module.min.js","three/addons/":"/lib/three-addons/"}}</script>
@@ -44,24 +42,19 @@ function iframeHtml() {
 <script type="module">
 import * as _THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-// ES module namespace is sealed — create mutable copy with OrbitControls
 var THREE = Object.assign({}, _THREE, { OrbitControls: OrbitControls });
 window.THREE = THREE;
 
-// Load mathbox after THREE is ready
 await new Promise(function(resolve, reject) {
   var s = document.createElement('script');
   s.src = '/lib/mathbox.min.js';
-  s.onload = resolve;
-  s.onerror = reject;
+  s.onload = resolve; s.onerror = reject;
   document.head.appendChild(s);
 });
 
 var errEl = document.getElementById('error');
 function show(msg) { errEl.textContent = msg; errEl.style.display = 'block'; }
 function hide() { errEl.style.display = 'none'; }
-
 var cleanupFn = null;
 function run(code) {
   if (cleanupFn) { try { cleanupFn(); } catch(e){} cleanupFn = null; }
@@ -73,16 +66,12 @@ function run(code) {
     hide();
   } catch(e) { show(e.message || String(e)); }
 }
-
 window.addEventListener('message', function(e) {
   if (e.data && e.data.type === 'run') run(e.data.code);
 });
-
-// Signal ready — ONLY now is everything loaded
 window.parent.postMessage({ type: 'ready' }, '*');
 </script>
 </body></html>`;
-}
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function Playground() {
@@ -165,7 +154,7 @@ export default function Playground() {
           <iframe
             ref={iframeRef}
             className="playground__iframe"
-            srcDoc={iframeHtml()}
+            srcDoc={IFRAME_HTML}
             title="3D Preview"
             sandbox="allow-scripts allow-same-origin"
             onLoad={handleIframeLoad}
