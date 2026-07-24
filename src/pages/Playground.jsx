@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
@@ -25,15 +25,15 @@ view.area({
   expr: function (emit, x, y) {
     emit(x, y, Math.sin(x) * Math.cos(y));
   },
-  channels: 3,
-  items: 2,
-  width: 64,
-  height: 64,
+  channels: 3, items: 2, width: 64, height: 64,
 });
 `;
 
-// ── Self-contained iframe HTML (module-level constant — never changes) ────────
-const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+// ── Self-contained iframe HTML ────────────────────────────────────────────────
+const IFRAME_SRC = URL.createObjectURL(
+  new Blob(
+    [
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html,body{width:100%;height:100%;overflow:hidden;background:#f8f4eb}#mathbox{width:100%;height:100%}#error{position:fixed;bottom:0;left:0;right:0;background:#b5433a;color:#fff;padding:8px 14px;font:12px monospace;display:none;z-index:100}</style>
 <link rel="stylesheet" href="/lib/mathbox.css">
 <script type="importmap">{"imports":{"three":"/lib/three.module.min.js","three/addons/":"/lib/three-addons/"}}</script>
@@ -71,7 +71,11 @@ window.addEventListener('message', function(e) {
 });
 window.parent.postMessage({ type: 'ready' }, '*');
 </script>
-</body></html>`;
+</body></html>`,
+    ],
+    { type: 'text/html' }
+  )
+);
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function Playground() {
@@ -154,7 +158,7 @@ export default function Playground() {
           <iframe
             ref={iframeRef}
             className="playground__iframe"
-            srcDoc={IFRAME_HTML}
+            src={IFRAME_SRC}
             title="3D Preview"
             sandbox="allow-scripts allow-same-origin"
             onLoad={handleIframeLoad}
