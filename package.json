@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "postinstall": "mkdir -p public/lib/three-addons && cp node_modules/three/build/three.module.min.js public/lib/ && cp -r node_modules/three/examples/jsm/* public/lib/three-addons/ && cp node_modules/mathbox/build/bundle/mathbox.min.js public/lib/ && cp node_modules/mathbox/build/mathbox.css public/lib/"
+    "postinstall": "mkdir -p public/lib/three-addons && cp node_modules/three/build/*.js public/lib/ && cp -r node_modules/three/examples/jsm/* public/lib/three-addons/ && cp node_modules/mathbox/build/bundle/mathbox.min.js public/lib/ && cp node_modules/mathbox/build/mathbox.css public/lib/"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
