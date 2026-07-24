@@ -58,7 +58,7 @@ export default function Calculator() {
       <nav className="calculator__nav">
         <span className="calculator__nav-tab calculator__nav-tab--active">Calc</span>
         <a href="/viewer" className="calculator__nav-tab">Viewer</a>
-        <a href="/playground" className="calculator__nav-tab">Code</a>
+        <a href="/playground" className="calculator__nav-tab">3D</a>
       </nav>
       <Display expression={calc.expression} result={calc.result} />
       <Keypad onAction={handleAction} sciMode={calc.sciMode} />
