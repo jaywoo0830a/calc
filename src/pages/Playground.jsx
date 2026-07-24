@@ -2,14 +2,13 @@ import { useRef, useEffect } from 'react';
 
 export default function Playground() {
   const containerRef = useRef(null);
-  const cleanupRef = useRef(null);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !window.mathbox || !window.THREE) return;
+    const el = containerRef.current;
+    if (!el || !window.mathbox || !window.THREE) return;
 
     const root = window.mathbox({
-      element: container,
+      element: el,
       plugins: ['core', 'controls', 'cursor'],
       controls: { klass: window.THREE.OrbitControls },
     });
@@ -21,15 +20,13 @@ export default function Playground() {
     view.axis({ axis: 1, detail: 8 });
     view.axis({ axis: 2, detail: 8 });
     view.axis({ axis: 3, detail: 8 });
-
     view.area({
       axes: [1, 3],
-      expr: function (emit, x, y) { emit(x, y, Math.sin(x) * Math.cos(y)); },
+      expr: (emit, x, y) => { emit(x, y, Math.sin(x) * Math.cos(y)); },
       channels: 3, items: 2, width: 64, height: 64,
     });
 
-    cleanupRef.current = () => three.renderer.dispose();
-    return () => { if (cleanupRef.current) cleanupRef.current(); };
+    return () => three.renderer.dispose();
   }, []);
 
   return (
