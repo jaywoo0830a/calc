@@ -12,24 +12,26 @@
   outline: none;
   gap: $sp-3;
 
-  // ---- Space selector --------------------------------------
+  // ---- Space selector (compact scrollable strip) --------
   &__spaces {
     display: flex;
-    gap: $sp-2;
+    gap: $sp-1;
     flex-shrink: 0;
-    flex-wrap: wrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: $sp-1;
+
+    &::-webkit-scrollbar { display: none; }
   }
 
   &__space-btn {
-    flex: 1;
-    min-width: 5rem;
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: $sp-1;
-    padding: $sp-2 $sp-2;
+    padding: $sp-1 $sp-2;
     border: $border-thin solid $c-rule;
-    border-radius: $radius-md;
+    border-radius: $radius-lg;
     background: $c-page;
     color: $c-ink-soft;
     font-family: $ff;
@@ -37,6 +39,9 @@
     font-weight: $fw-medium;
     cursor: pointer;
     transition: all $transition-fast;
+    white-space: nowrap;
+    flex-shrink: 0;
+    user-select: none;
 
     @media (hover: hover) {
       &:hover {
@@ -60,8 +65,15 @@
   }
 
   &__space-icon {
-    font-size: $fs-step-0;
+    font-size: $fs-step--1;
     line-height: 1;
+  }
+
+  &__space-label {
+    // Hide label on very small screens, show on wider
+    @media (max-width: 380px) {
+      display: none;
+    }
   }
 
   // ---- Expression inputs -----------------------------------
@@ -145,6 +157,67 @@
     font-size: $fs-step--2;
     font-family: $ff;
     flex-shrink: 0;
+  }
+
+  // ---- Examples panel ----------------------------------------
+  &__examples {
+    flex-shrink: 0;
+  }
+
+  &__examples-toggle {
+    display: flex;
+    align-items: center;
+    gap: $sp-1;
+    border: none;
+    background: none;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-soft;
+    cursor: pointer;
+    padding: 0;
+    transition: color $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { color: $c-accent; }
+    }
+  }
+
+  &__examples-list {
+    margin-top: $sp-2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: $sp-1;
+  }
+
+  &__examples-desc {
+    width: 100%;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-style: italic;
+    margin-bottom: $sp-1;
+  }
+
+  &__example-chip {
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-rule-light;
+    border-radius: $radius-lg;
+    background: $c-page-dark;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    cursor: pointer;
+    transition: all $transition-fast;
+    white-space: nowrap;
+    user-select: none;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-accent-light;
+        color: $c-accent;
+        border-color: $c-accent;
+      }
+    }
   }
 
   // ---- Plot --------------------------------------------------

@@ -16,13 +16,124 @@ function compileExpr(expr) {
 }
 
 // ── Space definitions ────────────────────────────────────────────────────────
+// Examples sorted by educational priority: fundamental → common → advanced
 const SPACES = [
-  { id: 'cartesian',    label: '2D Cartesian',    icon: '📈', inputs: ['y ='],             examples: ['sin(x)', 'x^2, sqrt(x), cos(2x)'] },
-  { id: 'polar',        label: 'Polar',            icon: '🌀', inputs: ['r(θ) ='],          examples: ['1+cos(theta)', 'sin(2*theta), 2'] },
-  { id: 'parametric2d', label: 'Parametric 2D',    icon: '🔗', inputs: ['x(t) =', 'y(t) ='], examples: ['cos(t)', 'sin(t)'] },
-  { id: 'surface3d',    label: '3D Surface',       icon: '🏔️', inputs: ['z = f(x,y)'],      examples: ['sin(x)*cos(y)', 'x^2+y^2', 'sin(sqrt(x^2+y^2))'] },
-  { id: 'parametric3d', label: '3D Parametric',    icon: '🎯', inputs: ['x(t)=', 'y(t)=', 'z(t)='], examples: ['cos(t)', 'sin(t)', 't/5'] },
-  { id: 'contour',      label: 'Contour',          icon: '🗺️', inputs: ['f(x,y) ='],        examples: ['sin(x)*cos(y)', 'x^2-y^2'] },
+  {
+    id: 'cartesian', label: '2D', icon: '📈', inputs: ['y ='],
+    examples: [
+      'sin(x)',                      // 1. sine — fundamental
+      'x^2',                         // 2. parabola
+      'x^3',                         // 3. cubic
+      'sqrt(x)',                     // 4. square root
+      '1/x',                         // 5. reciprocal / hyperbola
+      'abs(x)',                      // 6. absolute value
+      'exp(x)',                      // 7. exponential e^x
+      'log(x)',                      // 8. natural logarithm
+      'cos(x)',                      // 9. cosine
+      'tan(x)',                      // 10. tangent
+      'exp(-x^2)',                   // 11. Gaussian bell curve
+      'sin(x)/x',                    // 12. sinc function
+      'floor(x)',                    // 13. step function
+      'x*sin(x)',                    // 14. damped oscillation
+      '1/(1+x^2)',                   // 15. Lorentzian / witch of Agnesi
+      'cos(x)+sin(2x)/2+sin(3x)/3',  // 16. Fourier sawtooth approx
+      'log(1+abs(x))',               // 17. slow growth
+      'sin(1/x)',                    // 18. topologist's sine curve (use high pts)
+    ],
+    desc: 'y = f(x). Use commas to overlay: sin(x), cos(x), x^2. Try higher Pts for detailed curves.',
+  },
+  {
+    id: 'polar', label: 'Polar', icon: '🌀', inputs: ['r(θ) ='],
+    examples: [
+      '1',                           // 1. circle
+      '1+cos(theta)',                // 2. cardioid ♡
+      'sin(2*theta)',                // 3. 4-petal rose
+      'cos(3*theta)',                // 4. 3-petal rose
+      '2',                           // 5. circle radius 2
+      'theta',                       // 6. Archimedean spiral
+      '2*cos(theta)',                // 7. circle through origin
+      '1+2*sin(theta)',              // 8. limaçon with inner loop
+      '2*cos(2*theta)',              // 9. 4-petal rose (amplitude)
+      '1+sin(theta)',                // 10. cardioid rotated
+      'sqrt(cos(2*theta))',          // 11. lemniscate of Bernoulli
+      'sin(5*theta)',                // 12. 10-petal rose
+      'exp(theta/5)',                // 13. logarithmic spiral
+      'sqrt(theta)',                 // 14. Fermat's spiral
+      'abs(2*cos(3*theta))',         // 15. 6-petal (absolute)
+    ],
+    desc: 'r = f(θ), θ ∈ [0, 2π]. Overlay: 1+cos(theta), 1+sin(theta). Negative r is skipped.',
+  },
+  {
+    id: 'parametric2d', label: 'P2D', icon: '🔗', inputs: ['x(t) =', 'y(t) ='],
+    examples: [
+      { x: 'cos(t)', y: 'sin(t)', label: 'Circle' },
+      { x: '2*cos(t)', y: 'sin(t)', label: 'Ellipse' },
+      { x: 't', y: 't^2', label: 'Parabola' },
+      { x: 't-sin(t)', y: '1-cos(t)', label: 'Cycloid' },
+      { x: 'cos(3t)', y: 'sin(2t)', label: 'Lissajous 3:2' },
+      { x: 'sin(t)+2*sin(2t)', y: 'cos(t)-2*cos(2t)', label: 'Epicycloid' },
+      { x: '2*cos(t)+cos(2t)', y: '2*sin(t)-sin(2t)', label: 'Cardioid' },
+      { x: '(cos(t))^3', y: '(sin(t))^3', label: 'Astroid' },
+      { x: '3*cos(t)-cos(3t)', y: '3*sin(t)-sin(3t)', label: 'Nephroid' },
+      { x: 't*cos(t)', y: 't*sin(t)', label: 'Archimedean spiral' },
+      { x: 'cos(5t)', y: 'sin(3t)', label: 'Lissajous 5:3' },
+      { x: 'sin(t)+sin(3t)/3', y: 'cos(t)-cos(3t)/3', label: 'Square-ish' },
+    ],
+    desc: '(x(t), y(t)). Adjust t range for different portions. Try t ∈ [0, 4π] for multi-loop Lissajous.',
+  },
+  {
+    id: 'surface3d', label: '3D Surf', icon: '🏔️', inputs: ['z = f(x,y)'],
+    examples: [
+      'sin(x)*cos(y)',               // 1. egg-carton / wave
+      'x^2+y^2',                     // 2. circular paraboloid
+      'sin(sqrt(x^2+y^2))',          // 3. ripple / water drop
+      'cos(x)+cos(y)',               // 4. checkerboard
+      'exp(-(x^2+y^2)/5)',           // 5. Gaussian bump
+      'x*y/5',                       // 6. saddle (hyperbolic paraboloid)
+      'x^2-y^2',                     // 7. saddle (alternate)
+      'sin(x)*sin(y)',               // 8. standing wave
+      'cos(abs(x)+abs(y))',          // 9. diamond ripple
+      'sin(x*y/3)',                  // 10. interference pattern
+      '(x^2+3*y^2)*exp(-x^2-y^2)',   // 11. Mexican hat (Ricker wavelet)
+      'x^3-3*x*y^2',                 // 12. monkey saddle
+      'abs(sin(x)*sin(y))',          // 13. egg carton (absolute)
+      'sin(x)+cos(y)',               // 14. diagonal wave
+      'log(x^2+y^2+0.1)',            // 15. logarithmic pit
+    ],
+    desc: 'z = f(x,y). Drag to rotate, scroll to zoom. Increase Res for smoother surfaces (slower).',
+  },
+  {
+    id: 'parametric3d', label: '3D Curv', icon: '🎯', inputs: ['x(t)=', 'y(t)=', 'z(t)='],
+    examples: [
+      { x: 'cos(t)', y: 'sin(t)', z: 't/5', label: 'Helix' },
+      { x: 'cos(t)', y: 'sin(t)', z: 'cos(2t)', label: 'Figure-8' },
+      { x: 't*cos(t)', y: 't*sin(t)', z: 't', label: 'Spiral cone' },
+      { x: 'cos(3t)*cos(t)', y: 'cos(3t)*sin(t)', z: 'sin(3t)', label: 'Spherical' },
+      { x: '(2+cos(3t))*cos(t)', y: '(2+cos(3t))*sin(t)', z: 'sin(3t)', label: 'Torus knot (2,3)' },
+      { x: '(3+cos(2t))*cos(t)', y: '(3+cos(2t))*sin(t)', z: 'sin(2t)', label: 'Torus knot (2,2)' },
+      { x: 'cos(t)', y: 'sin(t)', z: 'sin(5t)/3', label: 'Wavy ring' },
+      { x: 'cos(t)*cos(3t)', y: 'sin(t)*cos(3t)', z: 'cos(3t)', label: '3D clover' },
+    ],
+    desc: '(x(t), y(t), z(t)). t ∈ [0, 2π] by default. Extend range for multi-loop knots.',
+  },
+  {
+    id: 'contour', label: 'Contour', icon: '🗺️', inputs: ['f(x,y) ='],
+    examples: [
+      'sin(x)*cos(y)',               // 1. egg-carton
+      'x^2-y^2',                     // 2. saddle
+      'x^2+y^2',                     // 3. concentric circles
+      'cos(x)+cos(y)',               // 4. checkerboard
+      'x*y',                         // 5. hyperbolic
+      'sin(x)+sin(y)',               // 6. diagonal wave
+      'x^3-3*x*y^2',                 // 7. monkey saddle
+      'exp(-(x^2+y^2))',             // 8. Gaussian
+      'x^2+2*y^2',                   // 9. elliptical paraboloid
+      'sin(x*y/2)',                  // 10. interference
+      'cos(x)*sin(y)',               // 11. rotated egg-carton
+      'sqrt(x^2+y^2)',               // 12. cone (V-shape)
+    ],
+    desc: 'f(x,y) contour heatmap. Each color band = constant f value. Use Res to control detail.',
+  },
 ];
 
 // ── Plotly theme (academic paper) ────────────────────────────────────────────
@@ -118,6 +229,7 @@ export default function Visualizer() {
   const [space, setSpace] = useState('cartesian');
   const [exprInputs, setExprInputs] = useState(['sin(x)', '']);
   const [error, setError] = useState(null);
+  const [showExamples, setShowExamples] = useState(true);
 
   // Range controls
   const [xMin, setXMin] = useState(-5);
@@ -135,11 +247,32 @@ export default function Visualizer() {
     setError(null);
     const sp = SPACES.find((s) => s.id === newSpace);
     if (sp) {
-      setExprInputs(sp.examples);
+      const ex = sp.examples;
+      if (sp.id === 'parametric2d' || sp.id === 'parametric3d') {
+        // Object-based examples, use first entry
+        const first = ex[0];
+        if (sp.id === 'parametric2d') setExprInputs([first.x, first.y]);
+        else setExprInputs([first.x, first.y, first.z]);
+      } else {
+        // String-based examples
+        setExprInputs([ex[0], '']);
+      }
       if (newSpace === 'polar') { setXMin(-3); setXMax(3); setYMin(-3); setYMax(3); }
       else { setXMin(-5); setXMax(5); setYMin(-5); setYMax(5); }
     }
   }, []);
+
+  // ── Apply example ─────────────────────────────────────────────────────────
+  const applyExample = useCallback((ex) => {
+    if (typeof ex === 'string') {
+      setExprInputs([ex, '']);
+    } else if (space === 'parametric2d') {
+      setExprInputs([ex.x, ex.y]);
+    } else if (space === 'parametric3d') {
+      setExprInputs([ex.x, ex.y, ex.z]);
+    }
+    setError(null);
+  }, [space]);
 
   // ── Build Plotly data ──────────────────────────────────────────────────────
   const buildPlotData = useCallback(() => {
@@ -278,17 +411,17 @@ export default function Visualizer() {
         <span className="calculator__nav-tab calculator__nav-tab--active">Visualizer</span>
       </nav>
 
-      {/* ── Space selector ──────────────────────────────── */}
+      {/* ── Space selector (compact scrollable strip) ─── */}
       <div className="visualizer__spaces">
         {SPACES.map((s) => (
           <button
             key={s.id}
             className={'visualizer__space-btn' + (space === s.id ? ' visualizer__space-btn--active' : '')}
             onClick={() => switchSpace(s.id)}
-            title={s.inputs.join(' ')}
+            title={s.desc}
           >
             <span className="visualizer__space-icon">{s.icon}</span>
-            {s.label}
+            <span className="visualizer__space-label">{s.label}</span>
           </button>
         ))}
       </div>
@@ -304,12 +437,40 @@ export default function Visualizer() {
               value={exprInputs[i] || ''}
               onChange={(e) => updateInput(i, e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') renderPlot(); }}
-              placeholder={spaceDef.examples[i] || ''}
+              placeholder={typeof spaceDef?.examples[0] === 'string' ? spaceDef.examples[0] : spaceDef?.examples[0]?.x || ''}
               spellCheck={false}
               autoCapitalize="off"
             />
           </div>
         ))}
+      </div>
+
+      {/* ── Examples ────────────────────────────────────── */}
+      <div className="visualizer__examples">
+        <button
+          className="visualizer__examples-toggle"
+          onClick={() => setShowExamples((p) => !p)}
+        >
+          {showExamples ? '▾' : '▸'} Examples
+        </button>
+        {showExamples && (
+          <div className="visualizer__examples-list">
+            <span className="visualizer__examples-desc">{spaceDef?.desc}</span>
+            {spaceDef?.examples.map((ex, i) => {
+              const label = typeof ex === 'string' ? ex : (ex.label || `${ex.x}, ${ex.y}`);
+              return (
+                <button
+                  key={i}
+                  className="visualizer__example-chip"
+                  onClick={() => applyExample(ex)}
+                  title={typeof ex === 'string' ? `Plot: ${ex}` : `Plot: x=${ex.x}, y=${ex.y}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── Range controls ──────────────────────────────── */}
