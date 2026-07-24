@@ -23,8 +23,12 @@ const IFRAME_HTML = `<!DOCTYPE html>
 <script type="module">
 import * as THREE from 'three';
 window.THREE = THREE;
+// Now that THREE is ready, load mathbox
+var mbScript = document.createElement('script');
+mbScript.src = '/lib/mathbox.min.js';
+mbScript.onload = function() { window._mathboxReady = true; };
+document.head.appendChild(mbScript);
 </script>
-<script src="/lib/mathbox.min.js"></script>
 <script>
   var errorEl = document.getElementById('error');
   function showError(msg) {
@@ -34,6 +38,7 @@ window.THREE = THREE;
   }
   var currentCleanup = null;
   function run(code) {
+    if (!window.mathbox) { showError('mathbox not loaded yet — retrying...'); setTimeout(function() { run(code); }, 200); return; }
     if (currentCleanup) { try { currentCleanup(); } catch(e){} currentCleanup = null; }
     var container = document.getElementById('mathbox');
     container.innerHTML = '';
