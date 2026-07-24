@@ -74,41 +74,49 @@ document.head.appendChild(mbScript);
 </script>
 </body></html>`;
 
-// ── Preset examples (math) ───────────────────────────────────────────────────
-const PRESETS = [
-  {
-    label: 'Surface: sin(x)·cos(y)',
-    code: `const mb = mathbox({\n  element: container,\n  plugins: ['core', 'controls', 'cursor'],\n  controls: { klass: THREE.OrbitControls },\n});\nconst three = mb.three;\nthree.camera.position.set(3, 2, 3);\nthree.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);\n\nconst view = mb.cartesian({ range: [[-4, 4], [-4, 4], [-4, 4]] });\nview.axis({ detail: 8 });\nview.area({\n  axes: [1, 3],\n  expr: function (emit, x, y) {\n    emit(x, y, Math.sin(x) * Math.cos(y));\n  },\n  channels: 3, items: 2, width: 64, height: 64,\n});\n`,
+// ── Starter example (official Mathbox2 + Three.js) ───────────────────────────
+// See: https://github.com/unconed/mathbox — docs/primitives.md for all primitives
+//      https://threejs.org/docs/ — Three.js API reference
+const STARTER_CODE = `// Mathbox2 — Presentation-quality WebGL math diagrams
+// API: mathbox({ element, plugins, controls }).cartesian({ range }).area({ ... })
+
+const root = mathbox({
+  element: container,
+  plugins: ['core', 'controls', 'cursor'],
+  controls: { klass: THREE.OrbitControls },
+});
+
+const three = root.three;
+three.camera.position.set(3, 2.5, 3);
+three.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);
+
+// ── Cartesian view with axes ─────────────────────────────────────
+const view = root.cartesian({
+  range: [[-4, 4], [-4, 4], [-4, 4]],
+  scale: [1, 1, 1],
+});
+
+view.axis({ axis: 1, detail: 8 });  // x-axis
+view.axis({ axis: 2, detail: 8 });  // y-axis
+view.axis({ axis: 3, detail: 8 });  // z-axis
+
+// ── Parametric surface: z = sin(x) · cos(y) ─────────────────────
+view.area({
+  axes: [1, 3],          // map u→x, v→z (height)
+  expr: function (emit, x, y) {
+    emit(x, y, Math.sin(x) * Math.cos(y));
   },
-  {
-    label: 'Torus knot (2,3)',
-    code: `const mb = mathbox({\n  element: container,\n  plugins: ['core', 'controls', 'cursor'],\n  controls: { klass: THREE.OrbitControls },\n});\nconst three = mb.three;\nthree.camera.position.set(4, 2.5, 4);\nthree.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);\n\nconst view = mb.cartesian({ range: [[-4, 4], [-4, 4], [-4, 4]] });\nview.axis({ detail: 8 });\nview.area({\n  axes: [1, 3],\n  expr: function (emit, u, v) {\n    const R = 2, r = 0.6, p = 2, q = 3;\n    const x = (R + r * Math.cos(q * u)) * Math.cos(p * v);\n    const y = (R + r * Math.cos(q * u)) * Math.sin(p * v);\n    const z = r * Math.sin(q * u);\n    emit(x, y, z);\n  },\n  channels: 3, items: 2, width: 128, height: 128,\n});\n`,
-  },
-  {
-    label: 'Klein bottle',
-    code: `const mb = mathbox({\n  element: container,\n  plugins: ['core', 'controls', 'cursor'],\n  controls: { klass: THREE.OrbitControls },\n});\nconst three = mb.three;\nthree.camera.position.set(3, 2, 4);\nthree.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);\n\nconst view = mb.cartesian({ range: [[-3, 3], [-3, 3], [-3, 3]] });\nview.axis({ detail: 6 });\nfunction klein(emit, u, v) {\n  u *= Math.PI * 2; v *= Math.PI * 2;\n  const cu = Math.cos(u), su = Math.sin(u);\n  const r = 2 - Math.cos(u);\n  emit((cu < 0 ? r * Math.cos(v) : r * Math.cos(v) + 2) * 0.5, r * Math.sin(v) * 0.5, su * 0.5);\n}\nview.area({ axes: [1, 3], expr: klein, channels: 3, items: 2, width: 100, height: 100 });\n`,
-  },
-  {
-    label: 'Möbius strip',
-    code: `const mb = mathbox({\n  element: container,\n  plugins: ['core', 'controls', 'cursor'],\n  controls: { klass: THREE.OrbitControls },\n});\nconst three = mb.three;\nthree.camera.position.set(3, 2, 3);\nthree.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);\n\nconst view = mb.cartesian({ range: [[-2.5, 2.5], [-2.5, 2.5], [-2.5, 2.5]] });\nview.axis({ detail: 5 });\nview.area({\n  axes: [1, 3],\n  expr: function(emit, u, v) {\n    u = (u - 0.5) * Math.PI * 2;\n    v = (v - 0.5) * 1.5;\n    emit((1+v*Math.cos(u/2))*Math.cos(u), (1+v*Math.cos(u/2))*Math.sin(u), v*Math.sin(u/2));\n  },\n  channels: 3, items: 2, width: 80, height: 40,\n});\n`,
-  },
-  {
-    label: 'Sphere',
-    code: `const mb = mathbox({\n  element: container,\n  plugins: ['core', 'controls', 'cursor'],\n  controls: { klass: THREE.OrbitControls },\n});\nconst three = mb.three;\nthree.camera.position.set(3, 2, 3);\nthree.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);\n\nconst view = mb.cartesian({ range: [[-2, 2], [-2, 2], [-2, 2]] });\nview.axis({ detail: 4 });\nview.area({\n  axes: [1, 3],\n  expr: function(emit, theta, phi) {\n    emit(Math.sin(theta)*Math.cos(phi), Math.cos(theta), Math.sin(theta)*Math.sin(phi));\n  },\n  channels: 3, items: 2, width: 64, height: 64,\n});\n`,
-  },
-  {
-    label: 'Saddle: x² − y²',
-    code: `const mb = mathbox({\n  element: container,\n  plugins: ['core', 'controls', 'cursor'],\n  controls: { klass: THREE.OrbitControls },\n});\nconst three = mb.three;\nthree.camera.position.set(3, 2.5, 3);\nthree.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);\n\nconst view = mb.cartesian({ range: [[-3, 3], [-3, 3], [-3, 3]] });\nview.axis({ detail: 6 });\nview.area({\n  axes: [1, 3],\n  expr: function(emit, x, y) {\n    emit(x, y, (x*x - y*y) / 2);\n  },\n  channels: 3, items: 2, width: 64, height: 64,\n});\n`,
-  },
-  {
-    label: 'Helix (3D curve)',
-    code: `const mb = mathbox({\n  element: container,\n  plugins: ['core', 'controls', 'cursor'],\n  controls: { klass: THREE.OrbitControls },\n});\nconst three = mb.three;\nthree.camera.position.set(4, 2, 5);\nthree.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);\n\nconst view = mb.cartesian({ range: [[-3, 3], [-3, 3], [-5, 5]] });\nview.axis({ detail: 5 });\n\nconst n = 500, pts = new Float32Array(n * 3);\nfor (let i = 0; i < n; i++) {\n  const t = (i / n - 0.5) * 20;\n  pts[i*3] = Math.cos(t); pts[i*3+1] = Math.sin(t); pts[i*3+2] = t / 4;\n}\nview.array({ data: pts, channels: 3, width: n }).line({ color: 0x5c3d2e, width: 2 });\n`,
-  },
-  {
-    label: 'Ripple: sin(r)/r',
-    code: `const mb = mathbox({\n  element: container,\n  plugins: ['core', 'controls', 'cursor'],\n  controls: { klass: THREE.OrbitControls },\n});\nconst three = mb.three;\nthree.camera.position.set(5, 4, 5);\nthree.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);\n\nconst view = mb.cartesian({ range: [[-6, 6], [-6, 6], [-2, 2]] });\nview.axis({ detail: 6 });\nview.area({\n  axes: [1, 3],\n  expr: function(emit, x, y) {\n    const r = Math.sqrt(x*x + y*y) + 0.01;\n    emit(x, y, Math.sin(r * 2) / r);\n  },\n  channels: 3, items: 2, width: 100, height: 100,\n});\n`,
-  },
-];
+  channels: 3,            // x, y, z
+  items: 2,               // 2D grid
+  width: 64,              // resolution
+  height: 64,
+});
+
+// Return cleanup for hot-reload (optional)
+return function cleanup() {
+  three.renderer.dispose();
+};
+`;
 
 const DEFAULT_CODE = `const mb = mathbox({\n  element: container,\n  plugins: ['core', 'controls', 'cursor'],\n  controls: { klass: THREE.OrbitControls },\n});\nconst three = mb.three;\nthree.camera.position.set(3, 2, 3);\nthree.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);\n\nconst view = mb.cartesian({ range: [[-4, 4], [-4, 4], [-4, 4]] });\nview.axis({ detail: 8 });\n\nview.area({\n  axes: [1, 3],\n  expr: function (emit, x, y) {\n    emit(x, y, Math.sin(x) * Math.cos(y));\n  },\n  channels: 3,\n  items: 2,\n  width: 64,\n  height: 64,\n});\n`;
 
@@ -117,7 +125,7 @@ export default function Playground() {
   const editorContainer = useRef(null);
   const editorView = useRef(null);
   const iframeRef = useRef(null);
-  const [code, setCode] = useState(DEFAULT_CODE);
+  const [code, setCode] = useState(STARTER_CODE);
   const [error, setError] = useState(null);
   const debounceRef = useRef(null);
 
@@ -132,7 +140,7 @@ export default function Playground() {
     });
 
     const state = EditorState.create({
-      doc: DEFAULT_CODE,
+      doc: STARTER_CODE,
       extensions: [
         lineNumbers(),
         highlightActiveLine(),
@@ -185,16 +193,6 @@ export default function Playground() {
     };
   }, []);
 
-  // ── Update editor content when preset is loaded ────────────────────────────
-  const loadCode = useCallback((newCode) => {
-    if (editorView.current) {
-      editorView.current.dispatch({
-        changes: { from: 0, to: editorView.current.state.doc.length, insert: newCode },
-      });
-    }
-    setCode(newCode);
-  }, []);
-
   // ── Send code to iframe ────────────────────────────────────────────────────
   const sendCode = useCallback((source) => {
     const iframe = iframeRef.current;
@@ -213,7 +211,7 @@ export default function Playground() {
   // ── Listen for iframe ready ────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
-      if (e.data?.type === 'ready') sendCode(DEFAULT_CODE);
+      if (e.data?.type === 'ready') sendCode(STARTER_CODE);
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -226,17 +224,6 @@ export default function Playground() {
         <a href="/viewer" className="calculator__nav-tab">Viewer</a>
         <span className="calculator__nav-tab calculator__nav-tab--active">3D</span>
       </nav>
-
-      {/* ── Presets ─────────────────────────────────────── */}
-      <div className="playground__toolbar">
-        <div className="playground__presets">
-          {PRESETS.map((p, i) => (
-            <button key={i} className="playground__preset-chip" onClick={() => loadCode(p.code)}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* ── Editor + Preview ───────────────────────────── */}
       <div className="playground__split">
