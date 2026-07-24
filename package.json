@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "postinstall": "echo ok"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -21,7 +20,6 @@
     "jszip": "3.10.1",
     "katex": "0.18.0",
     "marked": "18.0.6",
-    "mathbox": "^2.3.2-rc1",
     "pdfjs-dist": "^6.1.200",
     "react": "19.2.7",
     "react-dom": "19.2.7",
