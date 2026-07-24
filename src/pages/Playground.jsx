@@ -53,8 +53,12 @@ document.head.appendChild(mbScript);
     setTimeout(function() { errorEl.style.display = 'none'; }, 4000);
   }
   var currentCleanup = null;
+  var ready = false;
+  function checkReady() {
+    return window.THREE && window.THREE.OrbitControls && window.mathbox;
+  }
   function run(code) {
-    if (!window.mathbox) { showError('mathbox not loaded yet — retrying...'); setTimeout(function() { run(code); }, 200); return; }
+    if (!checkReady()) { setTimeout(function() { run(code); }, 100); return; }
     if (currentCleanup) { try { currentCleanup(); } catch(e){} currentCleanup = null; }
     var container = document.getElementById('mathbox');
     container.innerHTML = '';
