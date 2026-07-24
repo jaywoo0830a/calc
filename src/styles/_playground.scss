@@ -12,44 +12,6 @@
   outline: none;
   gap: $sp-2;
 
-  // ---- Toolbar (presets only) -----------------------------
-  &__toolbar {
-    display: flex;
-    flex-shrink: 0;
-  }
-
-  &__presets {
-    display: flex;
-    flex-wrap: wrap;
-    gap: $sp-1;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
-  }
-
-  &__preset-chip {
-    padding: $sp-1 $sp-2;
-    border: $border-thin solid $c-rule-light;
-    border-radius: $radius-lg;
-    background: $c-page-dark;
-    color: $c-ink-soft;
-    font-family: $ff;
-    font-size: $fs-step--2;
-    cursor: pointer;
-    transition: all $transition-fast;
-    white-space: nowrap;
-    flex-shrink: 0;
-
-    @media (hover: hover) {
-      &:hover {
-        background: $c-accent-light;
-        color: $c-accent;
-        border-color: $c-accent;
-      }
-    }
-  }
-
   // ---- Split layout ----------------------------------------
   &__split {
     display: flex;

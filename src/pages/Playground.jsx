@@ -1,225 +1,149 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { EditorState } from '@codemirror/state';
-import {
-  EditorView,
-  keymap,
-  lineNumbers,
-  highlightActiveLine,
-  drawSelection,
-  rectangularSelection,
-  highlightSpecialChars,
-} from '@codemirror/view';
+import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { javascript } from '@codemirror/lang-javascript';
-import {
-  syntaxHighlighting,
-  defaultHighlightStyle,
-  bracketMatching,
-  indentOnInput,
-} from '@codemirror/language';
-import { closeBrackets } from '@codemirror/autocomplete';
+import { syntaxHighlighting, defaultHighlightStyle, bracketMatching } from '@codemirror/language';
 
-// ── iframe HTML (computed once at module level — never changes) ──────────────
-const IFRAME_HTML = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  html,body{width:100%;height:100%;overflow:hidden;background:#f8f4eb;}
-  #mathbox{width:100%;height:100%;}
-  #error{position:fixed;bottom:0;left:0;right:0;background:#b5433a;color:#fff;padding:8px 14px;font:12px monospace;display:none;z-index:100;}
-</style>
-<link rel="stylesheet" href="/lib/mathbox.css"></head><body>
-<div id="mathbox"></div>
-<div id="error"></div>
-<script type="importmap">
-{ "imports": { "three": "/lib/three.module.min.js", "three/addons/": "/lib/three-addons/" } }
-</script>
+// ── Starter code ─────────────────────────────────────────────────────────────
+const STARTER = `const root = mathbox({
+  element: container,
+  plugins: ['core', 'controls', 'cursor'],
+  controls: { klass: THREE.OrbitControls },
+});
+const three = root.three;
+three.camera.position.set(3, 2.5, 3);
+three.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);
+
+const view = root.cartesian({ range: [[-4, 4], [-4, 4], [-4, 4]] });
+view.axis({ axis: 1, detail: 8 });
+view.axis({ axis: 2, detail: 8 });
+view.axis({ axis: 3, detail: 8 });
+
+view.area({
+  axes: [1, 3],
+  expr: function (emit, x, y) {
+    emit(x, y, Math.sin(x) * Math.cos(y));
+  },
+  channels: 3,
+  items: 2,
+  width: 64,
+  height: 64,
+});
+`;
+
+// ── Self-contained iframe HTML ────────────────────────────────────────────────
+// All scripts loaded via import map. Ready signal sent ONLY after everything is loaded.
+function iframeHtml() {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html,body{width:100%;height:100%;overflow:hidden;background:#f8f4eb}#mathbox{width:100%;height:100%}#error{position:fixed;bottom:0;left:0;right:0;background:#b5433a;color:#fff;padding:8px 14px;font:12px monospace;display:none;z-index:100}</style>
+<link rel="stylesheet" href="/lib/mathbox.css">
+<script type="importmap">{"imports":{"three":"/lib/three.module.min.js","three/addons/":"/lib/three-addons/"}}</script>
+</head><body>
+<div id="mathbox"></div><div id="error"></div>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 THREE.OrbitControls = OrbitControls;
 window.THREE = THREE;
-// Now that THREE is ready, load mathbox
-var mbScript = document.createElement('script');
-mbScript.src = '/lib/mathbox.min.js';
-mbScript.onload = function() { window._mathboxReady = true; };
-document.head.appendChild(mbScript);
-</script>
-<script>
-  var errorEl = document.getElementById('error');
-  function showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.style.display = 'block';
-    setTimeout(function() { errorEl.style.display = 'none'; }, 4000);
-  }
-  var currentCleanup = null;
-  var ready = false;
-  function checkReady() {
-    return window.THREE && window.THREE.OrbitControls && window.mathbox;
-  }
-  function run(code) {
-    if (!checkReady()) { setTimeout(function() { run(code); }, 100); return; }
-    if (currentCleanup) { try { currentCleanup(); } catch(e){} currentCleanup = null; }
-    var container = document.getElementById('mathbox');
-    container.innerHTML = '';
-    try {
-      var fn = new Function('THREE', 'mathbox', 'container', '"use strict";' + code);
-      var result = fn(window.THREE, window.mathbox, container);
-      if (typeof result === 'function') currentCleanup = result;
-      errorEl.style.display = 'none';
-    } catch(e) {
-      showError(e.message || String(e));
-    }
-  }
-  window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'run') run(e.data.code);
-  });
-  window.parent.postMessage({ type: 'ready' }, '*');
+
+// Load mathbox after THREE is ready
+await new Promise(function(resolve, reject) {
+  var s = document.createElement('script');
+  s.src = '/lib/mathbox.min.js';
+  s.onload = resolve;
+  s.onerror = reject;
+  document.head.appendChild(s);
+});
+
+var errEl = document.getElementById('error');
+function show(msg) { errEl.textContent = msg; errEl.style.display = 'block'; }
+function hide() { errEl.style.display = 'none'; }
+
+var cleanupFn = null;
+function run(code) {
+  if (cleanupFn) { try { cleanupFn(); } catch(e){} cleanupFn = null; }
+  document.getElementById('mathbox').innerHTML = '';
+  try {
+    var fn = new Function('THREE', 'mathbox', 'container', '"use strict";' + code);
+    var result = fn(THREE, mathbox, document.getElementById('mathbox'));
+    if (typeof result === 'function') cleanupFn = result;
+    hide();
+  } catch(e) { show(e.message || String(e)); }
+}
+
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'run') run(e.data.code);
+});
+
+// Signal ready — ONLY now is everything loaded
+window.parent.postMessage({ type: 'ready' }, '*');
 </script>
 </body></html>`;
-
-// ── Starter example (official Mathbox2 + Three.js) ───────────────────────────
-// See: https://github.com/unconed/mathbox — docs/primitives.md for all primitives
-//      https://threejs.org/docs/ — Three.js API reference
-const STARTER_CODE = `// Mathbox2 — Presentation-quality WebGL math diagrams
-// API: mathbox({ element, plugins, controls }).cartesian({ range }).area({ ... })
-
-const root = mathbox({
-  element: container,
-  plugins: ['core', 'controls', 'cursor'],
-  controls: { klass: THREE.OrbitControls },
-});
-
-const three = root.three;
-three.camera.position.set(3, 2.5, 3);
-three.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);
-
-// ── Cartesian view with axes ─────────────────────────────────────
-const view = root.cartesian({
-  range: [[-4, 4], [-4, 4], [-4, 4]],
-  scale: [1, 1, 1],
-});
-
-view.axis({ axis: 1, detail: 8 });  // x-axis
-view.axis({ axis: 2, detail: 8 });  // y-axis
-view.axis({ axis: 3, detail: 8 });  // z-axis
-
-// ── Parametric surface: z = sin(x) · cos(y) ─────────────────────
-view.area({
-  axes: [1, 3],          // map u→x, v→z (height)
-  expr: function (emit, x, y) {
-    emit(x, y, Math.sin(x) * Math.cos(y));
-  },
-  channels: 3,            // x, y, z
-  items: 2,               // 2D grid
-  width: 64,              // resolution
-  height: 64,
-});
-
-// Return cleanup for hot-reload (optional)
-return function cleanup() {
-  three.renderer.dispose();
-};
-`;
-
-const DEFAULT_CODE = `const mb = mathbox({\n  element: container,\n  plugins: ['core', 'controls', 'cursor'],\n  controls: { klass: THREE.OrbitControls },\n});\nconst three = mb.three;\nthree.camera.position.set(3, 2, 3);\nthree.renderer.setClearColor(new THREE.Color(0xf8f4eb), 1);\n\nconst view = mb.cartesian({ range: [[-4, 4], [-4, 4], [-4, 4]] });\nview.axis({ detail: 8 });\n\nview.area({\n  axes: [1, 3],\n  expr: function (emit, x, y) {\n    emit(x, y, Math.sin(x) * Math.cos(y));\n  },\n  channels: 3,\n  items: 2,\n  width: 64,\n  height: 64,\n});\n`;
+}
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function Playground() {
-  const editorContainer = useRef(null);
-  const editorView = useRef(null);
+  const editorRef = useRef(null);
+  const viewRef = useRef(null);
   const iframeRef = useRef(null);
-  const [code, setCode] = useState(STARTER_CODE);
   const [error, setError] = useState(null);
   const debounceRef = useRef(null);
+  const readyRef = useRef(false);
 
-  // ── Initialize CodeMirror ──────────────────────────────────────────────────
+  // ── CodeMirror ───────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!editorContainer.current || editorView.current) return;
-
-    const updateListener = EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
-        setCode(update.state.doc.toString());
-      }
+    if (!editorRef.current || viewRef.current) return;
+    const listener = EditorView.updateListener.of((u) => {
+      if (u.docChanged) debounceRef.current = u.state.doc.toString();
     });
-
     const state = EditorState.create({
-      doc: STARTER_CODE,
+      doc: STARTER,
       extensions: [
         lineNumbers(),
-        highlightActiveLine(),
-        highlightSpecialChars(),
-        drawSelection(),
-        rectangularSelection(),
         history(),
         bracketMatching(),
-        closeBrackets(),
-        indentOnInput(),
         javascript(),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        keymap.of([
-          ...defaultKeymap,
-          ...historyKeymap,
-          indentWithTab,
-        ]),
-        updateListener,
+        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+        listener,
         EditorView.theme({
-          '&': {
-            height: '100%',
-            fontSize: '13px',
-            backgroundColor: '#f8f4eb',
-          },
-          '.cm-scroller': {
-            fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', 'SF Mono', monospace",
-            lineHeight: '1.6',
-          },
+          '&': { height: '100%', fontSize: '13px', backgroundColor: '#f8f4eb' },
+          '.cm-scroller': { fontFamily: "'Fira Code','Cascadia Code','Consolas',monospace", lineHeight: '1.6' },
           '.cm-content': { padding: '8px 0' },
-          '.cm-gutters': {
-            borderRight: '1px solid #e5ddcc',
-            backgroundColor: '#f8f4eb',
-            color: '#9b907e',
-          },
+          '.cm-gutters': { borderRight: '1px solid #e5ddcc', backgroundColor: '#f8f4eb', color: '#9b907e' },
           '.cm-activeLine': { backgroundColor: 'rgba(92,61,46,0.04)' },
-          '.cm-selectionBackground': { backgroundColor: 'rgba(92,61,46,0.15)' },
-          '.cm-cursor': { borderLeftColor: '#2c2416' },
         }),
       ],
     });
+    viewRef.current = new EditorView({ state, parent: editorRef.current });
 
-    editorView.current = new EditorView({
-      state,
-      parent: editorContainer.current,
-    });
-
+    // Auto-run: send code 400ms after last change
+    const interval = setInterval(() => {
+      if (debounceRef.current && readyRef.current) {
+        iframeRef.current?.contentWindow?.postMessage({ type: 'run', code: debounceRef.current }, '*');
+        debounceRef.current = null;
+      }
+    }, 400);
     return () => {
-      editorView.current?.destroy();
-      editorView.current = null;
+      clearInterval(interval);
+      viewRef.current?.destroy();
+      viewRef.current = null;
     };
   }, []);
 
-  // ── Send code to iframe ────────────────────────────────────────────────────
-  const sendCode = useCallback((source) => {
-    const iframe = iframeRef.current;
-    if (!iframe || !iframe.contentWindow) return;
-    iframe.contentWindow.postMessage({ type: 'run', code: source }, '*');
-    setError(null);
-  }, []);
-
-  // ── Auto-run with debounce ─────────────────────────────────────────────────
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => sendCode(code), 500);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [code, sendCode]);
-
-  // ── Listen for iframe ready ────────────────────────────────────────────────
-  useEffect(() => {
+  // ── Iframe ready handler ──────────────────────────────────────────────────
+  const handleIframeLoad = useCallback(() => {
+    readyRef.current = false;
     const handler = (e) => {
-      if (e.data?.type === 'ready') sendCode(STARTER_CODE);
+      if (e.data?.type === 'ready') {
+        readyRef.current = true;
+        debounceRef.current = STARTER; // trigger initial render
+        window.removeEventListener('message', handler);
+      }
     };
     window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <main className="playground" tabIndex={-1}>
@@ -229,28 +153,26 @@ export default function Playground() {
         <span className="calculator__nav-tab calculator__nav-tab--active">3D</span>
       </nav>
 
-      {/* ── Editor + Preview ───────────────────────────── */}
       <div className="playground__split">
         <div className="playground__editor-pane">
-          <div className="playground__editor-header">
-            <span>📝 JavaScript — Three.js + Mathbox 2</span>
-          </div>
-          <div ref={editorContainer} className="playground__editor" />
+          <div className="playground__editor-header">JavaScript — Three.js + Mathbox2</div>
+          <div ref={editorRef} className="playground__editor" />
           {error && <div className="playground__error">{error}</div>}
         </div>
         <div className="playground__preview-pane">
           <iframe
             ref={iframeRef}
             className="playground__iframe"
-            srcDoc={IFRAME_HTML}
+            srcDoc={iframeHtml()}
             title="3D Preview"
             sandbox="allow-scripts allow-same-origin"
+            onLoad={handleIframeLoad}
           />
         </div>
       </div>
 
       <div className="playground__help">
-        <span>mathbox + Three.js · Write JS · Auto-run on edit · Return cleanup function for hot-reload</span>
+        mathbox + Three.js · Write JavaScript · Auto-run on edit
       </div>
     </main>
   );
