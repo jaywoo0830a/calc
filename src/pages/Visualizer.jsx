@@ -134,6 +134,33 @@ const SPACES = [
     ],
     desc: 'f(x,y) contour heatmap. Each color band = constant f value. Use Res to control detail.',
   },
+  {
+    id: 'vector2d', label: 'Vec 2D', icon: '🧲', inputs: ['u(x,y) =', 'v(x,y) ='],
+    examples: [
+      { u: '1', v: '0', label: 'Uniform →' },
+      { u: 'x', v: 'y', label: 'Source (diverging)' },
+      { u: '-y', v: 'x', label: 'Rotation (curl)' },
+      { u: 'y', v: 'x', label: 'Shear / saddle' },
+      { u: '-x', v: '-y', label: 'Sink (converging)' },
+      { u: 'sin(y)', v: 'cos(x)', label: 'Wavy' },
+      { u: 'y/(x^2+y^2+0.1)', v: '-x/(x^2+y^2+0.1)', label: 'Point vortex' },
+      { u: 'x/(x^2+y^2+0.1)', v: 'y/(x^2+y^2+0.1)', label: 'Point source' },
+    ],
+    desc: '2D vector field F(x,y) = (u, v). Arrows show direction & magnitude. Physics: E-fields, fluid flow.',
+  },
+  {
+    id: 'vector3d', label: 'Vec 3D', icon: '🌪️', inputs: ['u(x,y,z)=', 'v(x,y,z)=', 'w(x,y,z)='],
+    examples: [
+      { u: '1', v: '0', w: '0', label: 'Uniform →' },
+      { u: '-y', v: 'x', w: '0', label: 'Rotation about z' },
+      { u: 'x', v: 'y', w: 'z', label: 'Radial source 3D' },
+      { u: '-x', v: '-y', w: '-z', label: 'Radial sink 3D' },
+      { u: 'sin(z)', v: 'cos(z)', w: '0', label: 'Spiral layers' },
+      { u: 'y', v: 'z', w: 'x', label: 'Cyclic shear' },
+      { u: '-y/(x^2+y^2+0.5)', v: 'x/(x^2+y^2+0.5)', w: '0', label: 'Line vortex (z-axis)' },
+    ],
+    desc: '3D vector field F(x,y,z) = (u, v, w). Cones show direction & magnitude. Drag to rotate.',
+  },
 ];
 
 // ── Plotly theme (academic paper) ────────────────────────────────────────────
@@ -220,6 +247,59 @@ function sampleSurface(fn, xMin, xMax, yMin, yMax, nx = 60, ny = 60) {
   return { x: Array.from(xs), y: Array.from(ys), z: zs };
 }
 
+// ── 2D Quiver: build arrow segments for F(x,y) = (u, v) ─────────────────────
+function sampleQuiver2D(fnU, fnV, xMin, xMax, yMin, yMax, nx = 16, ny = 16, scale = 1) {
+  const xs = linspace(xMin, xMax, nx);
+  const ys = linspace(yMin, yMax, ny);
+  const arrowX = [];
+  const arrowY = [];
+  const arrowU = [];
+  const arrowV = [];
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      try {
+        const u = fnU.evaluate({ x: xs[i], y: ys[j] });
+        const v = fnV.evaluate({ x: xs[i], y: ys[j] });
+        if (!isFinite(u) || !isFinite(v)) continue;
+        const mag = Math.sqrt(u * u + v * v);
+        if (mag < 1e-9) continue;
+        // Normalize and scale
+        const s = scale / mag;
+        arrowX.push(xs[i]);
+        arrowY.push(ys[j]);
+        arrowU.push(u * s);
+        arrowV.push(v * s);
+      } catch { /* skip */ }
+    }
+  }
+  return { x: arrowX, y: arrowY, u: arrowU, v: arrowV };
+}
+
+// ── 3D Cone: sample for F(x,y,z) = (u, v, w) ────────────────────────────────
+function sampleCone3D(fnU, fnV, fnW, xMin, xMax, yMin, yMax, zMin, zMax, n = 8) {
+  const xs = linspace(xMin, xMax, n);
+  const ys = linspace(yMin, yMax, n);
+  const zs = linspace(zMin, zMax, n);
+  const cx = [], cy = [], cz = [], cu = [], cv = [], cw = [];
+  for (let k = 0; k < n; k++) {
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        try {
+          const u = fnU.evaluate({ x: xs[i], y: ys[j], z: zs[k] });
+          const v = fnV.evaluate({ x: xs[i], y: ys[j], z: zs[k] });
+          const w = fnW.evaluate({ x: xs[i], y: ys[j], z: zs[k] });
+          if (!isFinite(u) || !isFinite(v) || !isFinite(w)) continue;
+          const mag = Math.sqrt(u * u + v * v + w * w);
+          if (mag < 1e-9) continue;
+          cx.push(xs[i]); cy.push(ys[j]); cz.push(zs[k]);
+          cu.push(u); cv.push(v); cw.push(w);
+        } catch { /* skip */ }
+      }
+    }
+  }
+  return { x: cx, y: cy, z: cz, u: cu, v: cv, w: cw };
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 export default function Visualizer() {
   const plotRef = useRef(null);
@@ -249,12 +329,14 @@ export default function Visualizer() {
     if (sp) {
       const ex = sp.examples;
       if (sp.id === 'parametric2d' || sp.id === 'parametric3d') {
-        // Object-based examples, use first entry
         const first = ex[0];
         if (sp.id === 'parametric2d') setExprInputs([first.x, first.y]);
         else setExprInputs([first.x, first.y, first.z]);
+      } else if (sp.id === 'vector2d') {
+        setExprInputs([ex[0].u, ex[0].v]);
+      } else if (sp.id === 'vector3d') {
+        setExprInputs([ex[0].u, ex[0].v, ex[0].w]);
       } else {
-        // String-based examples
         setExprInputs([ex[0], '']);
       }
       if (newSpace === 'polar') { setXMin(-3); setXMax(3); setYMin(-3); setYMax(3); }
@@ -270,6 +352,10 @@ export default function Visualizer() {
       setExprInputs([ex.x, ex.y]);
     } else if (space === 'parametric3d') {
       setExprInputs([ex.x, ex.y, ex.z]);
+    } else if (space === 'vector2d') {
+      setExprInputs([ex.u, ex.v]);
+    } else if (space === 'vector3d') {
+      setExprInputs([ex.u, ex.v, ex.w]);
     }
     setError(null);
   }, [space]);
@@ -338,6 +424,38 @@ export default function Visualizer() {
           }
           break;
         }
+        case 'vector2d': {
+          const fnU = compileExpr(exprInputs[0] || '1');
+          const fnV = compileExpr(exprInputs[1] || '0');
+          const q = sampleQuiver2D(fnU, fnV, xMin, xMax, yMin, yMax, gridRes, gridRes, 1.5);
+          // Build arrow segments: each arrow = 3 points (start → tip → NaN gap)
+          const ax = [], ay = [];
+          for (let i = 0; i < q.x.length; i++) {
+            const sx = q.x[i], sy = q.y[i];
+            const ex = sx + q.u[i], ey = sy + q.v[i];
+            ax.push(sx, ex, NaN);
+            ay.push(sy, ey, NaN);
+          }
+          traces.push({
+            type: 'scatter', mode: 'lines', x: ax, y: ay,
+            name: `F=(u,v), ${q.x.length} arrows`,
+            line: { width: 1.5, color: '#5c3d2e' },
+            showlegend: false, hoverinfo: 'skip',
+          });
+          break;
+        }
+        case 'vector3d': {
+          const fnU = compileExpr(exprInputs[0] || '1');
+          const fnV = compileExpr(exprInputs[1] || '0');
+          const fnW = compileExpr(exprInputs[2] || '0');
+          const c = sampleCone3D(fnU, fnV, fnW, xMin, xMax, yMin, yMax, xMin, xMax, gridRes);
+          traces.push({
+            type: 'cone', x: c.x, y: c.y, z: c.z, u: c.u, v: c.v, w: c.w,
+            name: `F=(u,v,w), ${c.x.length} cones`,
+            colorscale: 'Earth', sizemode: 'absolute', sizeref: 0.8,
+          });
+          break;
+        }
       }
     } catch (e) {
       setError(e.message);
@@ -354,10 +472,10 @@ export default function Visualizer() {
     if (space === 'polar') {
       return { ...base, polar: { radialaxis: { range: [0, Math.max(Math.abs(xMax), Math.abs(yMax), 5)] }, angularaxis: { tickfont: { size: 10 } } } };
     }
-    if (space === 'surface3d' || space === 'parametric3d') {
+    if (space === 'surface3d' || space === 'parametric3d' || space === 'vector3d') {
       return { ...base, scene: { xaxis: { title: 'x', range: [xMin, xMax] }, yaxis: { title: 'y', range: [yMin, yMax] }, zaxis: { title: 'z' }, camera: { eye: { x: 1.5, y: 1.5, z: 1.2 } } } };
     }
-    if (space === 'contour') {
+    if (space === 'contour' || space === 'vector2d') {
       return { ...base, xaxis: { title: 'x', range: [xMin, xMax] }, yaxis: { title: 'y', range: [yMin, yMax], scaleanchor: 'x', scaleratio: 1 } };
     }
     return { ...base, xaxis: { title: 'x', range: [xMin, xMax], zeroline: true, zerolinecolor: '#2c2416', gridcolor: '#e5ddcc' }, yaxis: { title: 'y', range: [yMin, yMax], zeroline: true, zerolinecolor: '#2c2416', gridcolor: '#e5ddcc', scaleanchor: 'x', scaleratio: 1 } };
@@ -398,9 +516,10 @@ export default function Visualizer() {
   }, []);
 
   const spaceDef = SPACES.find((s) => s.id === space);
-  const is2D = space === 'cartesian' || space === 'polar' || space === 'parametric2d' || space === 'contour';
-  const is3D = space === 'surface3d' || space === 'parametric3d';
+  const is2D = space === 'cartesian' || space === 'polar' || space === 'parametric2d' || space === 'contour' || space === 'vector2d';
+  const is3D = space === 'surface3d' || space === 'parametric3d' || space === 'vector3d';
   const isParametric = space === 'parametric2d' || space === 'parametric3d';
+  const isVector = space === 'vector2d' || space === 'vector3d';
 
   return (
     <main className="visualizer" tabIndex={-1}>
@@ -498,7 +617,7 @@ export default function Visualizer() {
         {is3D && (
           <>
             <div className="visualizer__range-group">
-              <label className="visualizer__label">x,y ∈ [</label>
+              <label className="visualizer__label">x,y,z ∈ [</label>
               <input className="visualizer__input visualizer__input--small" type="number" value={xMin} onChange={(e) => { setXMin(parseFloat(e.target.value)||0); setYMin(parseFloat(e.target.value)||0); }} step="any" />
               <label className="visualizer__label">,</label>
               <input className="visualizer__input visualizer__input--small" type="number" value={xMax} onChange={(e) => { setXMax(parseFloat(e.target.value)||0); setYMax(parseFloat(e.target.value)||0); }} step="any" />
@@ -506,9 +625,15 @@ export default function Visualizer() {
             </div>
             <div className="visualizer__range-group">
               <label className="visualizer__label">Res: </label>
-              <input className="visualizer__input visualizer__input--small" type="number" value={gridRes} onChange={(e) => setGridRes(Math.max(10, Math.min(150, parseInt(e.target.value)||60)))} step="10" />
+              <input className="visualizer__input visualizer__input--small" type="number" value={gridRes} onChange={(e) => setGridRes(Math.max(4, Math.min(20, parseInt(e.target.value)||8)))} step="2" />
             </div>
           </>
+        )}
+        {isVector && !is3D && (
+          <div className="visualizer__range-group">
+            <label className="visualizer__label">Grid: </label>
+            <input className="visualizer__input visualizer__input--small" type="number" value={gridRes} onChange={(e) => setGridRes(Math.max(4, Math.min(30, parseInt(e.target.value)||16)))} step="2" />
+          </div>
         )}
         {isParametric && (
           <div className="visualizer__range-group">

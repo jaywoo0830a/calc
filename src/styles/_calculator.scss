@@ -130,16 +130,16 @@
   &__keypad {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: $sp-1;
+    gap: $sp-2;
 
     &--sci {
       flex-shrink: 0;
-      grid-template-rows: repeat(3, 1fr);
+      gap: $sp-1;
     }
 
     &--basic {
       flex: 1;
-      grid-template-rows: repeat(5, 1fr);
+      align-content: center;
     }
   }
 
@@ -159,7 +159,8 @@
     overflow: hidden;
     background: $c-page;
     color: $c-ink;
-    min-height: 2.5rem;
+    aspect-ratio: 1;
+    min-height: 0;
 
     // ink-press ripple
     &::after {
@@ -193,13 +194,14 @@
     &--num {
       background: $c-page;
       color: $c-ink;
-      font-size: $fs-step-2;
+      font-size: $fs-step-3;
       font-weight: $fw-semibold;
     }
 
     // -- zero key
     &--zero {
       grid-column: span 2;
+      aspect-ratio: auto;
       border-radius: $radius-lg;
     }
 
@@ -207,7 +209,7 @@
     &--func {
       background: $c-page-dark;
       color: $c-accent;
-      font-size: $fs-step-0;
+      font-size: $fs-step-1;
       font-weight: $fw-semibold;
 
       @media (hover: hover) {
@@ -222,7 +224,7 @@
     &--op {
       background: $c-accent;
       color: $c-ink-inverse;
-      font-size: $fs-step-2;
+      font-size: $fs-step-3;
       font-weight: $fw-bold;
       border-color: $c-accent;
 
@@ -239,7 +241,7 @@
     &--eq {
       background: $c-equals;
       color: $c-ink-inverse;
-      font-size: $fs-step-2;
+      font-size: $fs-step-3;
       font-weight: $fw-bold;
       border-color: $c-equals;
 
@@ -251,35 +253,67 @@
         }
       }
     }
+  }
 
-    // -- scientific keys
-    &--sci {
-      background: $c-page-dark;
-      color: $c-link;
-      font-size: $fs-step--1;
-      font-weight: $fw-medium;
-      min-height: 2rem;
+  // -- Scientific mode: compact buttons ---------------------
+  &--sci {
+    .calculator__keypad {
+      gap: $sp-1;
 
-      @media (hover: hover) {
-        &:hover {
-          background: $c-page-darker;
-          color: darken($c-link, 10%);
-        }
+      &--basic {
+        align-content: start;
+        // Remove aspect-ratio, use grid rows to distribute space
+        grid-template-rows: repeat(5, 1fr);
       }
     }
 
-    // -- sci toggle button (spans full width in grid)
-    &--sciToggle {
-      background: $c-page-dark;
-      color: $c-accent;
-      font-size: $fs-step-0;
-      font-weight: $fw-bold;
-      min-height: 2rem;
+    .calculator__btn {
+      aspect-ratio: auto;
+      min-height: 2.5rem;
 
-      @media (hover: hover) {
-        &:hover {
-          background: $c-page-darker;
-          color: $c-accent-hover;
+      &--num {
+        font-size: $fs-step-2;
+      }
+
+      &--func {
+        font-size: $fs-step-0;
+      }
+
+      &--op {
+        font-size: $fs-step-2;
+      }
+
+      &--eq {
+        font-size: $fs-step-2;
+      }
+
+      &--sci {
+        background: $c-page-dark;
+        color: $c-link;
+        font-size: $fs-step--1;
+        font-weight: $fw-medium;
+        min-height: 2rem;
+
+        @media (hover: hover) {
+          &:hover {
+            background: $c-page-darker;
+            color: darken($c-link, 10%);
+          }
+        }
+      }
+
+      &--sciToggle {
+        background: $c-page-dark;
+        color: $c-accent;
+        font-size: $fs-step-0;
+        font-weight: $fw-bold;
+        min-height: 2rem;
+
+        @media (hover: hover) {
+          &:hover {
+            background: $c-page-darker;
+            color: $c-accent-hover;
+          }
         }
       }
     }

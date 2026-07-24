@@ -54,7 +54,7 @@ export default function Calculator() {
   const [hintVisible, setHintVisible] = useState(() => !navigator.standalone);
 
   return (
-    <main className="calculator" onKeyDown={handleKeyDown} tabIndex={-1}>
+    <main className={'calculator' + (calc.sciMode ? ' calculator--sci' : '')} onKeyDown={handleKeyDown} tabIndex={-1}>
       <nav className="calculator__nav">
         <span className="calculator__nav-tab calculator__nav-tab--active">Calc</span>
         <a href="/viewer" className="calculator__nav-tab">Viewer</a>
