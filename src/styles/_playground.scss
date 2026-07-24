@@ -7,7 +7,73 @@
   min-height: 0;
   gap: $sp-2;
 
-  &__stage {
+  &__presets {
+    display: flex;
+    gap: $sp-1;
+    flex-shrink: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  &__chip {
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-rule-light;
+    border-radius: $radius-lg;
+    background: $c-page-dark;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all $transition-fast;
+    @media (hover: hover) { &:hover { background: $c-accent-light; color: $c-accent; border-color: $c-accent; } }
+  }
+
+  &__split {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    gap: $sp-2;
+    @media (max-width: $bp-md) { flex-direction: column; }
+  }
+
+  &__editor-pane {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+  }
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-1 $sp-3;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-soft;
+    flex-shrink: 0;
+  }
+
+  &__render-btn {
+    padding: $sp-1 $sp-3;
+    border: none;
+    border-radius: $radius-md;
+    background: $c-equals;
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-bold;
+    cursor: pointer;
+    transition: all $transition-fast;
+    @media (hover: hover) { &:hover { background: $c-equals-hover; } }
+    &:active { transform: scale(0.96); }
+  }
+
+  &__editor {
     flex: 1;
     min-height: 0;
     border: $border-thin solid $c-rule;
@@ -16,13 +82,40 @@
     background: $c-paper;
   }
 
-  &__legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: $sp-3;
-    padding: $sp-1 $sp-3;
+  &__error {
+    padding: $sp-2 $sp-3;
+    background: $c-error-light;
+    color: $c-error;
+    border: $border-thin solid $c-error;
+    border-radius: $radius-md;
     font-size: $fs-step--2;
-    color: $c-ink-soft;
+    font-family: monospace;
     flex-shrink: 0;
+    max-height: 4rem;
+    overflow-y: auto;
+  }
+
+  &__preview-pane {
+    flex: 1.2;
+    min-width: 0;
+    min-height: 0;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    overflow: hidden;
+    background: $c-paper;
+  }
+
+  &__canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  &__help {
+    flex-shrink: 0;
+    text-align: center;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-style: italic;
+    padding: $sp-1 0;
   }
 }
