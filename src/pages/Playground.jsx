@@ -33,26 +33,23 @@ const C3D = setup3D() +
 "// Add your 3D objects below:\n"+
 anim3D();
 
-// ── Complex Plane: domain coloring of f(z) ────────────────────────────────
+// ── Complex Plane: optimized domain coloring ──────────────────────────────
 const CCX = setup3D() +
 "cam.position.set(0,0,4);cam.lookAt(0,0,0);ctrl.enableRotate=false;"+
-"// Domain coloring: f(z) where z=x+iy. Hue=arg(f(z)), Brightness=|f(z)|\n"+
-"const fn='(z^2-1)/(z^2+1)';const R=2.5;const texSize=512;"+
-"const cv=document.createElement('canvas');cv.width=cv.height=texSize;const ctx=cv.getContext('2d');const img=ctx.createImageData(texSize,texSize);"+
-"for(let py=0;py<texSize;py++){for(let px=0;px<texSize;px++){const x=(px/texSize-0.5)*2*R;const y=(py/texSize-0.5)*2*R;"+
-"try{const z=math.complex(x,y);const fz=math.evaluate(fn,{z});const arg=math.arg(fz);const mag=math.abs(fz);"+
-"const hue=((arg+Math.PI)/(2*Math.PI))*360;const light=1-1/(1+mag);const sat=0.7+0.3*light;"+
-"const cc=(1-Math.abs(2*light-1))*sat;const x2=cc*(1-Math.abs((hue/60)%2-1));const m=light-cc/2;let rr,gg,bb;"+
+"const fnExpr='(z^2-1)/(z^2+1)';const compiled=math.compile(fnExpr);const R=2.5;const S=256;"+
+"const cv=document.createElement('canvas');cv.width=cv.height=S;const ctx=cv.getContext('2d');const img=ctx.createImageData(S,S);"+
+"for(let py=0;py<S;py++){for(let px=0;px<S;px++){const x=(px/S-0.5)*2*R;const y=(py/S-0.5)*2*R;"+
+"try{const fz=compiled.evaluate({z:math.complex(x,y)});const arg=math.arg(fz);const mag=math.abs(fz);"+
+"const hue=((arg+Math.PI)/(2*Math.PI))*360;const L=1-1/(1+mag);const sat=0.7+0.3*L;"+
+"const cc=(1-Math.abs(2*L-1))*sat;const x2=cc*(1-Math.abs((hue/60)%2-1));const m=L-cc/2;let rr,gg,bb;"+
 "if(hue<60){rr=cc;gg=x2;bb=0}else if(hue<120){rr=x2;gg=cc;bb=0}else if(hue<180){rr=0;gg=cc;bb=x2}"+
 "else if(hue<240){rr=0;gg=x2;bb=cc}else if(hue<300){rr=x2;gg=0;bb=cc}else{rr=cc;gg=0;bb=x2};"+
-"const i=(py*texSize+px)*4;img.data[i]=Math.round((rr+m)*255);img.data[i+1]=Math.round((gg+m)*255);img.data[i+2]=Math.round((bb+m)*255);img.data[i+3]=255;}catch{}}}"+
+"const i=(py*S+px)*4;img.data[i]=Math.round((rr+m)*255);img.data[i+1]=Math.round((gg+m)*255);img.data[i+2]=Math.round((bb+m)*255);img.data[i+3]=255;}catch{}}}"+
 "ctx.putImageData(img,0,0);"+
 "const tex=new THREE.CanvasTexture(cv);tex.minFilter=THREE.LinearFilter;"+
 "scene.add(new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),new THREE.MeshBasicMaterial({map:tex})));"+
-"// Axes\n"+
 "const ax2=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-R,0,0),new THREE.Vector3(R,0,0),new THREE.Vector3(0,-R,0),new THREE.Vector3(0,R,0)]);"+
 "scene.add(new THREE.LineSegments(ax2,new THREE.LineBasicMaterial({color:0x2c2416})));"+
-"// Change fn above to explore different complex functions\n"+
 anim3D();
 
 const MODES = [
@@ -60,6 +57,26 @@ const MODES = [
   { id: '3d', label: '3D', code: C3D },
   { id: 'complex', label: 'Complex', code: CCX },
 ];
+
+const PRESETS = {
+  '2d': [
+    { label: 'Vector (3,2)', code: C2D.replace('// Add your 2D objects below:', 'scene.add(new THREE.ArrowHelper(new THREE.Vector3(3,2,0).normalize(),new THREE.Vector3(0,0,0),Math.sqrt(13),0xb5433a,0.2,0.12));') },
+    { label: 'Matrix 2x2', code: C2D.replace('// Add your 2D objects below:', 'const M=[[2,0.5],[1,1.5]];const sq=[[0,0],[1,0],[1,1],[0,1],[0,0]];const t=sq.map(([a,b])=>new THREE.Vector3(a*M[0][0]+b*M[0][1],a*M[1][0]+b*M[1][1],0.01));scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(t),new THREE.LineBasicMaterial({color:0x3d5a40})));') },
+    { label: 'y = sin(x)', code: C2D.replace('// Add your 2D objects below:', 'const pts=[];for(let i=0;i<=300;i++){const x=-4+i*8/300;pts.push(new THREE.Vector3(x,Math.sin(x)*1.5,0.02));}scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x3d5a80})));') },
+  ],
+  '3d': [
+    { label: 'Surface', code: C3D.replace('// Add your 3D objects below:', 'const nx=60,ny=60,v=new Float32Array(nx*ny*3),c=new Float32Array(nx*ny*3);let vi=0;for(let j=0;j<ny;j++){const y=-3+j*6/(ny-1);for(let i=0;i<nx;i++){const x=-3+i*6/(nx-1);const z=Math.sin(x)*Math.cos(y);v[vi]=x;v[vi+1]=z;v[vi+2]=y;const s=0.5+0.5*((z+1)/2);c[vi]=0.36*s;c[vi+1]=0.24*s;c[vi+2]=0.18*s;vi++;}}const idx=[];for(let j=0;j<ny-1;j++)for(let i=0;i<nx-1;i++){const a=j*nx+i,b=a+1,d=a+nx,e=d+1;idx.push(a,b,e,a,e,d);}const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.BufferAttribute(v,3));g.setAttribute("color",new THREE.BufferAttribute(c,3));g.setIndex(idx);g.computeVertexNormals();scene.add(new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.5,side:THREE.DoubleSide})));') },
+    { label: 'Basis Vectors', code: C3D.replace('// Add your 3D objects below:', 'const O=new THREE.Vector3(-3,-2,-3);scene.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0),O,1,0xb5433a,0.15,0.1));scene.add(new THREE.ArrowHelper(new THREE.Vector3(0,1,0),O,1,0x3d5a40,0.15,0.1));scene.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,1),O,1,0x3d5a80,0.15,0.1));') },
+    { label: 'Torus Knot', code: C3D.replace('// Add your 3D objects below:', 'scene.add(new THREE.Mesh(new THREE.TorusKnotGeometry(1,0.3,128,32),new THREE.MeshStandardMaterial({color:0x5c3d2e,roughness:0.3})));') },
+  ],
+  'complex': [
+    { label: 'z²', code: CCX.replace("const fnExpr='(z^2-1)/(z^2+1)'", "const fnExpr='z^2'") },
+    { label: 'exp(z)', code: CCX.replace("const fnExpr='(z^2-1)/(z^2+1)'", "const fnExpr='exp(z)'") },
+    { label: 'sin(z)', code: CCX.replace("const fnExpr='(z^2-1)/(z^2+1)'", "const fnExpr='sin(z)'") },
+    { label: 'z+1/z', code: CCX.replace("const fnExpr='(z^2-1)/(z^2+1)'", "const fnExpr='z+1/z'") },
+    { label: 'z³−1', code: CCX.replace("const fnExpr='(z^2-1)/(z^2+1)'", "const fnExpr='z^3-1'") },
+  ],
+};
 
 export default function Playground() {
   const editorRef = useRef(null);
@@ -113,6 +130,10 @@ export default function Playground() {
   useEffect(() => { setTimeout(() => run(C2D), 200); }, [run]);
 
   const handleRender = () => { const code = viewRef.current?.state.doc.toString() || ''; run(code); };
+  const loadCode = (code) => {
+    if (viewRef.current) viewRef.current.dispatch({ changes: { from: 0, to: viewRef.current.state.doc.length, insert: code } });
+    run(code);
+  };
 
   return (
     <main className="playground">
@@ -128,6 +149,11 @@ export default function Playground() {
             className={'playground__mode-btn' + (mode === m.id ? ' playground__mode-btn--active' : '')}
             onClick={() => switchMode(m.id)}
           >{m.label}</button>
+        ))}
+      </div>
+      <div className="playground__presets">
+        {(PRESETS[mode] || []).map((p, i) => (
+          <button key={i} className="playground__chip" onClick={() => loadCode(p.code)}>{p.label}</button>
         ))}
       </div>
       <div className="playground__split">
