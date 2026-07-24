@@ -14,7 +14,26 @@ const scene = new THREE.Scene();
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 const l = new THREE.DirectionalLight(0xffffff, 0.7);
 l.position.set(5, 10, 5);
-scene.add(l);`;
+scene.add(l);
+
+// ── Helper: create a text sprite label ─────────────────────────────────────
+function label(text, pos, color = '#2c2416', size = 0.4) {
+  const cv = document.createElement('canvas');
+  cv.width = 256; cv.height = 128;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.font = 'bold 48px "Noto Serif", "Times New Roman", serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 64);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(pos);
+  sprite.scale.set(size * 2, size, 1);
+  return sprite;
+}`;
 
 const ANIM = `let id;
 function anim() {
@@ -48,17 +67,24 @@ scene.add(new THREE.LineSegments(
   new THREE.LineBasicMaterial({ color: 0x2c2416 })
 ));
 
+// Axis labels
+scene.add(label('x', new THREE.Vector3(4.3, -0.35, 0)));
+scene.add(label('y', new THREE.Vector3(-0.3, 4.3, 0)));
+scene.add(label('O', new THREE.Vector3(-0.3, -0.35, 0)));
+
 // Example vectors
 scene.add(new THREE.ArrowHelper(
   new THREE.Vector3(3, 2, 0).normalize(),
   new THREE.Vector3(0, 0, 0),
   Math.sqrt(13), 0xb5433a, 0.18, 0.1
 ));
+scene.add(label('v₁', new THREE.Vector3(3.2, 1.9, 0.02), '#b5433a', 0.3));
 scene.add(new THREE.ArrowHelper(
   new THREE.Vector3(-1, 3, 0).normalize(),
   new THREE.Vector3(0, 0, 0),
   Math.sqrt(10), 0x3d5a80, 0.18, 0.1
 ));
+scene.add(label('v₂', new THREE.Vector3(-1.3, 3.2, 0.02), '#3d5a80', 0.3));
 
 // Curve: y = sin(x)
 const pts = [];
@@ -70,6 +96,7 @@ scene.add(new THREE.Line(
   new THREE.BufferGeometry().setFromPoints(pts),
   new THREE.LineBasicMaterial({ color: 0x3d5a40 })
 ));
+scene.add(label('y = sin(x)', new THREE.Vector3(2.5, 1.8, 0.02), '#3d5a40', 0.35));
 
 ${ANIM}`;
 
@@ -88,17 +115,25 @@ scene.add(new THREE.LineSegments(
   new THREE.LineBasicMaterial({ color: 0x2c2416 })
 ));
 
+// Axis labels
+scene.add(label('x', new THREE.Vector3(3.8, -0.3, 0)));
+scene.add(label('y', new THREE.Vector3(0, 3.8, 0)));
+scene.add(label('z', new THREE.Vector3(0, -0.3, 3.8)));
+
 // Basis vectors (i, j, k)
 const O = new THREE.Vector3(-3, -2, -3);
 scene.add(new THREE.ArrowHelper(
   new THREE.Vector3(1, 0, 0), O, 1, 0xb5433a, 0.15, 0.08
 ));
+scene.add(label('i', new THREE.Vector3(-2.3, -1.8, -3), '#b5433a', 0.25));
 scene.add(new THREE.ArrowHelper(
   new THREE.Vector3(0, 1, 0), O, 1, 0x3d5a40, 0.15, 0.08
 ));
+scene.add(label('j', new THREE.Vector3(-3.2, -1.2, -3), '#3d5a40', 0.25));
 scene.add(new THREE.ArrowHelper(
   new THREE.Vector3(0, 0, 1), O, 1, 0x3d5a80, 0.15, 0.08
 ));
+scene.add(label('k', new THREE.Vector3(-3.2, -1.8, -2.3), '#3d5a80', 0.25));
 
 // Surface: z = sin(x) * cos(y)
 const nx = 50, ny = 50;
@@ -173,6 +208,10 @@ scene.add(new THREE.LineSegments(
   new THREE.LineBasicMaterial({ color: 0x2c2416 })
 ));
 
+// Axis labels
+scene.add(label('Re', new THREE.Vector3(R + 0.3, -0.35, 0)));
+scene.add(label('Im', new THREE.Vector3(-0.3, R + 0.3, 0)));
+
 // de Moivre: (cos θ + i sin θ)^n = cos(nθ) + i sin(nθ)
 const theta = Math.PI / 6;  // angle
 const n = 3;                // power
@@ -182,12 +221,14 @@ const v1 = new THREE.Vector3(Math.cos(theta) * R, Math.sin(theta) * R, 0);
 scene.add(new THREE.ArrowHelper(
   v1.clone().normalize(), new THREE.Vector3(0, 0, 0), R, 0xb5433a, 0.2, 0.12
 ));
+scene.add(label('z', v1.clone().multiplyScalar(1.15), '#b5433a', 0.3));
 
 // Vector at angle nθ (de Moivre result)
 const v2 = new THREE.Vector3(Math.cos(n * theta) * R, Math.sin(n * theta) * R, 0);
 scene.add(new THREE.ArrowHelper(
   v2.clone().normalize(), new THREE.Vector3(0, 0, 0.02), R, 0x3d5a80, 0.2, 0.12
 ));
+scene.add(label('z³', v2.clone().multiplyScalar(1.15).add(new THREE.Vector3(0, 0, 0.02)), '#3d5a80', 0.3));
 
 // Arc showing the multiplied angle
 const arc = [];
@@ -199,6 +240,7 @@ scene.add(new THREE.Line(
   new THREE.BufferGeometry().setFromPoints(arc),
   new THREE.LineBasicMaterial({ color: 0x3d5a40 })
 ));
+scene.add(label('3θ', new THREE.Vector3(0.5, 0.35, 0.04), '#3d5a40', 0.25));
 
 ${ANIM}`;
 
