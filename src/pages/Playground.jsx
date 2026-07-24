@@ -32,10 +32,12 @@ const IFRAME_HTML = `<!DOCTYPE html>
 <div id="mathbox"></div>
 <div id="error"></div>
 <script type="importmap">
-{ "imports": { "three": "/lib/three.module.min.js" } }
+{ "imports": { "three": "/lib/three.module.min.js", "three/addons/": "/lib/three-addons/" } }
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+THREE.OrbitControls = OrbitControls;
 window.THREE = THREE;
 // Now that THREE is ready, load mathbox
 var mbScript = document.createElement('script');
