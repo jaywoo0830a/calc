@@ -540,7 +540,7 @@ export default function Viewer() {
         <nav className="calculator__nav">
           <a href="/" className="calculator__nav-tab">Calc</a>
           <span className="calculator__nav-tab calculator__nav-tab--active">Viewer</span>
-          <a href="/visualizer" className="calculator__nav-tab">Visualizer</a>
+          <a href="/playground" className="calculator__nav-tab">3D</a>
         </nav>
       )}
       {!fullscreen && zipTree && (

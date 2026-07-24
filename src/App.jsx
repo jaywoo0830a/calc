@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Calculator from './pages/Calculator.jsx';
 import Viewer from './pages/Viewer.jsx';
-import Visualizer from './pages/Visualizer.jsx';
+import Playground from './pages/Playground.jsx';
 
 export default function App() {
   return (
@@ -9,7 +9,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Calculator />} />
         <Route path="/viewer" element={<Viewer />} />
-        <Route path="/visualizer" element={<Visualizer />} />
+        <Route path="/playground" element={<Playground />} />
       </Routes>
     </BrowserRouter>
   );

@@ -1,0 +1,130 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: playground — Live 3D coding (Three.js + Mathbox2)
+// ============================================================
+
+.playground {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  outline: none;
+  gap: $sp-2;
+
+  // ---- Toolbar (presets only) -----------------------------
+  &__toolbar {
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  &__presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $sp-1;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  &__preset-chip {
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-rule-light;
+    border-radius: $radius-lg;
+    background: $c-page-dark;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    cursor: pointer;
+    transition: all $transition-fast;
+    white-space: nowrap;
+    flex-shrink: 0;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-accent-light;
+        color: $c-accent;
+        border-color: $c-accent;
+      }
+    }
+  }
+
+  // ---- Split layout ----------------------------------------
+  &__split {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    gap: $sp-2;
+
+    @media (max-width: $bp-md) {
+      flex-direction: column;
+    }
+  }
+
+  &__editor-pane {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+  }
+
+  &__editor-header {
+    padding: $sp-1 $sp-3;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-soft;
+    flex-shrink: 0;
+  }
+
+  &__editor {
+    flex: 1;
+    min-height: 0;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-paper;
+    overflow: hidden;
+  }
+
+  &__error {
+    padding: $sp-2 $sp-3;
+    background: $c-error-light;
+    color: $c-error;
+    border: $border-thin solid $c-error;
+    border-radius: $radius-md;
+    font-size: $fs-step--2;
+    font-family: monospace;
+    flex-shrink: 0;
+    max-height: 4rem;
+    overflow-y: auto;
+  }
+
+  // ---- Preview pane ----------------------------------------
+  &__preview-pane {
+    flex: 1.2;
+    min-width: 0;
+    min-height: 0;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    overflow: hidden;
+    background: $c-paper;
+  }
+
+  &__iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+
+  // ---- Help ------------------------------------------------
+  &__help {
+    flex-shrink: 0;
+    text-align: center;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-style: italic;
+    padding: $sp-1 0;
+  }
+}
