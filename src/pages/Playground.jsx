@@ -1,9 +1,23 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { EditorState } from '@codemirror/state';
-import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection, rectangularSelection } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import {
+  EditorView,
+  keymap,
+  lineNumbers,
+  highlightActiveLine,
+  drawSelection,
+  rectangularSelection,
+  highlightSpecialChars,
+} from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { javascript } from '@codemirror/lang-javascript';
-import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
+import {
+  syntaxHighlighting,
+  defaultHighlightStyle,
+  bracketMatching,
+  indentOnInput,
+} from '@codemirror/language';
+import { closeBrackets } from '@codemirror/autocomplete';
 
 // ── iframe HTML (computed once at module level — never changes) ──────────────
 const IFRAME_HTML = `<!DOCTYPE html>
@@ -120,19 +134,40 @@ export default function Playground() {
       extensions: [
         lineNumbers(),
         highlightActiveLine(),
+        highlightSpecialChars(),
         drawSelection(),
         rectangularSelection(),
         history(),
+        bracketMatching(),
+        closeBrackets(),
+        indentOnInput(),
         javascript(),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        keymap.of([
+          ...defaultKeymap,
+          ...historyKeymap,
+          indentWithTab,
+        ]),
         updateListener,
         EditorView.theme({
-          '&': { height: '100%', fontSize: '13px' },
-          '.cm-scroller': { fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace" },
+          '&': {
+            height: '100%',
+            fontSize: '13px',
+            backgroundColor: '#f8f4eb',
+          },
+          '.cm-scroller': {
+            fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', 'SF Mono', monospace",
+            lineHeight: '1.6',
+          },
           '.cm-content': { padding: '8px 0' },
-          '.cm-gutters': { borderRight: '1px solid #e5ddcc', backgroundColor: '#f8f4eb', color: '#9b907e' },
-          '.cm-activeLine': { backgroundColor: 'rgba(92,61,46,0.05)' },
+          '.cm-gutters': {
+            borderRight: '1px solid #e5ddcc',
+            backgroundColor: '#f8f4eb',
+            color: '#9b907e',
+          },
+          '.cm-activeLine': { backgroundColor: 'rgba(92,61,46,0.04)' },
+          '.cm-selectionBackground': { backgroundColor: 'rgba(92,61,46,0.15)' },
+          '.cm-cursor': { borderLeftColor: '#2c2416' },
         }),
       ],
     });
