@@ -20,27 +20,9 @@
 
     <!-- Three.js + Mathbox2 -->
     <link rel="stylesheet" href="/lib/mathbox.css" />
-    <script type="importmap">
-      { "imports": { "three": "/lib/three.module.min.js", "three/addons/": "/lib/three-addons/" } }
-    </script>
-    <script type="module">
-      import * as _THREE from 'three';
-      import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-      window.THREE = Object.assign({}, _THREE, { OrbitControls });
-      try {
-        await new Promise((resolve, reject) => {
-          const s = document.createElement('script');
-          s.src = '/lib/mathbox.min.js?v=' + Date.now();
-          s.onload = resolve;
-          s.onerror = () => reject(new Error('Failed to load /lib/mathbox.min.js'));
-          document.head.appendChild(s);
-        });
-        window._mathboxReady = true;
-      } catch (e) {
-        console.error('Mathbox2 load failed:', e.message);
-        window._mathboxError = e.message;
-      }
-    </script>
+    <script src="/lib/three.min.js"></script>
+    <script src="/lib/OrbitControls.js"></script>
+    <script src="/lib/mathbox.min.js"></script>
   </head>
   <body>
     <div id="root"></div>

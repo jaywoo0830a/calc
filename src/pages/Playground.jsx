@@ -1,32 +1,12 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect } from 'react';
 
 export default function Playground() {
   const containerRef = useRef(null);
   const cleanupRef = useRef(null);
-  const [status, setStatus] = useState('loading');
 
   useEffect(() => {
-    let attempts = 0;
-    const check = setInterval(() => {
-      attempts++;
-      if (window.mathbox && window.THREE) {
-        clearInterval(check);
-        setStatus('ready');
-        initScene();
-      } else if (attempts > 80) {
-        clearInterval(check);
-        setStatus('error');
-      }
-    }, 250);
-    return () => {
-      clearInterval(check);
-      if (cleanupRef.current) cleanupRef.current();
-    };
-  }, []);
-
-  function initScene() {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || !window.mathbox || !window.THREE) return;
 
     const root = window.mathbox({
       element: container,
@@ -44,17 +24,13 @@ export default function Playground() {
 
     view.area({
       axes: [1, 3],
-      expr: function (emit, x, y) {
-        emit(x, y, Math.sin(x) * Math.cos(y));
-      },
-      channels: 3,
-      items: 2,
-      width: 64,
-      height: 64,
+      expr: function (emit, x, y) { emit(x, y, Math.sin(x) * Math.cos(y)); },
+      channels: 3, items: 2, width: 64, height: 64,
     });
 
     cleanupRef.current = () => three.renderer.dispose();
-  }
+    return () => { if (cleanupRef.current) cleanupRef.current(); };
+  }, []);
 
   return (
     <main className="playground" tabIndex={-1}>
@@ -64,14 +40,6 @@ export default function Playground() {
         <span className="calculator__nav-tab calculator__nav-tab--active">3D</span>
       </nav>
       <div className="playground__full">
-        {status === 'loading' && (
-          <div className="playground__status">Loading Three.js + Mathbox2…</div>
-        )}
-        {status === 'error' && (
-          <div className="playground__status playground__status--err">
-            Failed to load 3D libraries. Check console.
-          </div>
-        )}
         <div ref={containerRef} className="playground__stage" />
       </div>
     </main>
