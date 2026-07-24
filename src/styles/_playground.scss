@@ -7,28 +7,26 @@
   min-height: 0;
   gap: $sp-2;
 
-  &__presets {
+  &__modes {
     display: flex;
     gap: $sp-1;
     flex-shrink: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
   }
 
-  &__chip {
-    padding: $sp-1 $sp-2;
-    border: $border-thin solid $c-rule-light;
-    border-radius: $radius-lg;
-    background: $c-page-dark;
+  &__mode-btn {
+    flex: 1;
+    padding: $sp-2 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
     color: $c-ink-soft;
     font-family: $ff;
-    font-size: $fs-step--2;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
     cursor: pointer;
-    white-space: nowrap;
     transition: all $transition-fast;
-    @media (hover: hover) { &:hover { background: $c-accent-light; color: $c-accent; border-color: $c-accent; } }
+    @media (hover: hover) { &:hover { background: $c-page-dark; color: $c-ink; } }
+    &--active { background: $c-accent; color: $c-ink-inverse; border-color: $c-accent; }
   }
 
   &__split {
