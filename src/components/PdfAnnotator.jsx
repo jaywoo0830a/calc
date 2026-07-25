@@ -67,6 +67,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const isDrawing = useRef(false);
   const currentPath = useRef([]);
   const currentPage = useRef(null);
+  const [liveStroke, setLiveStroke] = useState(null); // { pageNumber, color, pathData } | null
   const containerRef = useRef(null);
   const pageRefs = useRef({});
 
@@ -144,8 +145,9 @@ export default function PdfAnnotator({ url, filePath }) {
     isDrawing.current = true;
     currentPage.current = pageNumber;
     currentPath.current = [{ x, y }];
+    setLiveStroke({ pageNumber, color: penColor.color, pathData: `M ${x} ${y}` });
     pageEl.setPointerCapture?.(e.pointerId);
-  }, [tool]);
+  }, [tool, penColor]);
 
   const handlePointerMove = useCallback((pageNumber) => (e) => {
     if (!isDrawing.current || tool !== 'pen' || currentPage.current !== pageNumber) return;
@@ -156,6 +158,11 @@ export default function PdfAnnotator({ url, filePath }) {
     const x = (e.clientX - pageRect.left) / pageRect.width;
     const y = (e.clientY - pageRect.top) / pageRect.height;
     currentPath.current.push({ x, y });
+    // 실시간 업데이트: pathData에 새 점 추가
+    setLiveStroke((prev) => prev ? {
+      ...prev,
+      pathData: prev.pathData + ` L ${x} ${y}`,
+    } : null);
   }, [tool]);
 
   const handlePointerUp = useCallback((pageNumber) => (e) => {
@@ -163,6 +170,8 @@ export default function PdfAnnotator({ url, filePath }) {
     e.preventDefault();
     isDrawing.current = false;
     const pageEl = pageRefs.current[pageNumber];
+    setLiveStroke(null); // 실시간 미리보기 제거
+
     if (!pageEl) { currentPath.current = []; return; }
     const pageRect = pageEl.getBoundingClientRect();
     const x = (e.clientX - pageRect.left) / pageRect.width;
@@ -420,6 +429,24 @@ export default function PdfAnnotator({ url, filePath }) {
                   renderTextLayer={true}
                   renderAnnotationLayer={true}
                 />
+                {/* Live pen stroke (실시간 미리보기) */}
+                {liveStroke && liveStroke.pageNumber === pageNumber && (
+                  <svg
+                    className="pdf-annotator__pen-stroke pdf-annotator__pen-stroke--live"
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 25 }}
+                    viewBox="0 0 1 1"
+                    preserveAspectRatio="none"
+                  >
+                    <path
+                      d={liveStroke.pathData}
+                      fill="none"
+                      stroke={liveStroke.color}
+                      strokeWidth="0.003"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
                 {/* Annotation overlay */}
                 {annos.map((a) => (
                   <AnnotationOverlay
