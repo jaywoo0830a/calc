@@ -4,11 +4,9 @@ import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// ── PDF.js worker 설정 (공식 권장: import.meta.url 기반) ──────────
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString();
+// ── PDF.js worker: CDN 사용 (Vite 프로덕션 배포에서 가장 안정적) ──
+// react-pdf가 내장한 pdfjs-dist 버전과 정확히 일치하는 CDN 사용
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 const COLORS = {
   highlight: { bg: 'rgba(255, 230, 100, 0.45)', label: '🟡 형광펜' },
