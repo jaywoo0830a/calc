@@ -619,7 +619,7 @@ export default function PdfAnnotator({ url, filePath }) {
             const vh = window.innerHeight;
             const isReading = isMobile && readingMode;
             // Dynamic scaling: fit page within viewport comfortably
-            const maxW = fullscreen ? Math.min(vw * 0.85, 1400) : 800;
+            const maxW = fullscreen ? Math.min(vw * 0.9, 1600) : 700;
             const pageW = isReading
               ? vw * SECTOR_COLS
               : Math.min(vw - 16, vw * 0.98, maxW) * zoomLevel;
