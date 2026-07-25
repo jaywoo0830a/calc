@@ -83,9 +83,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [commentText, setCommentText] = useState('');
   const [loadError, setLoadError] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [layoutMode, setLayoutMode] = useState('vertical'); // 'vertical' | 'horizontal' | 'paginated'
-  const [currentPage, setCurrentPage] = useState(1);        // paginated mode current page
-  const [alignment, setAlignment] = useState('center');     // 'left' | 'center' | 'right'
+  const [currentPage, setCurrentPage] = useState(1);
   const touchStart = useRef({ x: 0, y: 0, time: 0 });
   const [toc, setToc] = useState(null);         // PDF outline
   const [tocOpen, setTocOpen] = useState(false);
@@ -103,25 +101,12 @@ export default function PdfAnnotator({ url, filePath }) {
   const documentRef = useRef(null);
   const pageRefs = useRef({});
 
-  // ── Page navigation ─────────────────────────────────────
-  const scrollToPage = useCallback((pageNumber) => {
-    if (layoutMode === 'paginated') {
-      setCurrentPage(Math.max(1, Math.min(numPages, pageNumber)));
-      return;
-    }
-    const el = pageRefs.current[pageNumber];
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: layoutMode === 'horizontal' ? 'nearest' : 'start', inline: 'start' });
-    }
-  }, [layoutMode, numPages]);
-
   // ── Swipe detection for paginated mode ──────────────────
   const handleSwipeStart = useCallback((e) => {
     touchStart.current = { x: e.touches?.[0]?.clientX || e.clientX, y: e.touches?.[0]?.clientY || e.clientY, time: Date.now() };
   }, []);
 
   const handleSwipeEnd = useCallback((e) => {
-    if (layoutMode !== 'paginated' && layoutMode !== 'horizontal') return;
     const x = e.changedTouches?.[0]?.clientX ?? e.clientX;
     const y = e.changedTouches?.[0]?.clientY ?? e.clientY;
     const dx = x - touchStart.current.x;
@@ -130,19 +115,16 @@ export default function PdfAnnotator({ url, filePath }) {
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
 
-    // Swipe threshold: 50px or fast flick (>0.3px/ms)
     if (absDx < 30 && absDy < 30) return;
 
-    if (layoutMode === 'paginated') {
-      if (absDy > absDx && absDy > 30) {
-        if (dy < -30 || (dy < -10 && dt < 300)) {
-          setCurrentPage((p) => Math.min(numPages, p + 1));
-        } else if (dy > 30 || (dy > 10 && dt < 300)) {
-          setCurrentPage((p) => Math.max(1, p - 1));
-        }
+    if (absDy > absDx && absDy > 30) {
+      if (dy < -30 || (dy < -10 && dt < 300)) {
+        setCurrentPage((p) => Math.min(numPages, p + 1));
+      } else if (dy > 30 || (dy > 10 && dt < 300)) {
+        setCurrentPage((p) => Math.max(1, p - 1));
       }
     }
-  }, [layoutMode, numPages]);
+  }, [numPages]);
 
   // ── Fullscreen API ──────────────────────────────────────
   const toggleFullscreen = useCallback(() => {
@@ -204,7 +186,7 @@ export default function PdfAnnotator({ url, filePath }) {
       });
     }
     sel.removeAllRanges();
-  }, [tool, filePath]);
+  }, [tool, filePath, highlightColor, underlineColor]);
 
   // ── Pen drawing handlers (pointer events — stylus + touch) ──
   const handlePointerDown = useCallback((pageNumber) => (e) => {
@@ -513,9 +495,9 @@ export default function PdfAnnotator({ url, filePath }) {
 
       {/* PDF Document */}
       <div
-        className={'pdf-annotator__document pdf-annotator__document--' + layoutMode + ' pdf-annotator__document--align-' + alignment}
-        onTouchStart={layoutMode === 'paginated' ? handleSwipeStart : undefined}
-        onTouchEnd={layoutMode === 'paginated' ? handleSwipeEnd : undefined}
+        className={'pdf-annotator__document pdf-annotator__document--paginated'}
+        onTouchStart={handleSwipeStart}
+        onTouchEnd={handleSwipeEnd}
       >
         {loadError ? (
           <div className="pdf-annotator__error">
@@ -546,10 +528,7 @@ export default function PdfAnnotator({ url, filePath }) {
             loading={<div className="pdf-annotator__loading">📄 Loading PDF…</div>}
             noData={<div className="pdf-annotator__error">No PDF file specified</div>}
           >
-          {(layoutMode === 'paginated'
-            ? [currentPage - 1]
-            : Array.from({ length: numPages }, (_, i) => i)
-          ).filter(i => i >= 0 && i < numPages).map((i) => {
+          {[currentPage - 1].filter(i => i >= 0 && i < numPages).map((i) => {
             const pageNumber = i + 1;
             const annos = pageAnnotations(pageNumber);
             const pageW = Math.min(window.innerWidth - 48, 800);
@@ -605,12 +584,6 @@ export default function PdfAnnotator({ url, filePath }) {
           })}
         </Document>
         )}
-        {/* Floating page indicator */}
-        {numPages > 0 && layoutMode === 'paginated' && (
-          <div className="pdf-annotator__page-pill">
-            {currentPage} / {numPages}
-          </div>
-        )}
       </div>
 
       {/* Page Navigation Bar */}
@@ -618,8 +591,8 @@ export default function PdfAnnotator({ url, filePath }) {
         <div className="pdf-annotator__nav">
           <button
             className="pdf-annotator__nav-btn"
-            onClick={() => scrollToPage(layoutMode === 'paginated' ? currentPage - 1 : 1)}
-            disabled={layoutMode === 'paginated' ? currentPage <= 1 : numPages <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
             title="Previous page"
           >
             ◀
@@ -631,13 +604,13 @@ export default function PdfAnnotator({ url, filePath }) {
               min={1}
               max={numPages}
               value={pageInput}
-              placeholder={layoutMode === 'paginated' ? String(currentPage) : '1'}
+              placeholder={String(currentPage)}
               onChange={(e) => setPageInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   const p = parseInt(e.target.value, 10);
                   if (p >= 1 && p <= numPages) {
-                    scrollToPage(p);
+                    setCurrentPage(p);
                     setPageInput('');
                   }
                 }
@@ -649,60 +622,12 @@ export default function PdfAnnotator({ url, filePath }) {
           </div>
           <button
             className="pdf-annotator__nav-btn"
-            onClick={() => scrollToPage(layoutMode === 'paginated' ? currentPage + 1 : numPages)}
-            disabled={layoutMode === 'paginated' ? currentPage >= numPages : numPages <= 1}
+            onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
+            disabled={currentPage >= numPages}
             title="Next page"
           >
             ▶
           </button>
-          {/* Layout mode selector */}
-          <div className="pdf-annotator__layout-modes">
-            <button
-              className={'pdf-annotator__layout-btn' + (layoutMode === 'vertical' ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setLayoutMode('vertical')}
-              title="Vertical scroll"
-            >
-              ⬍
-            </button>
-            <button
-              className={'pdf-annotator__layout-btn' + (layoutMode === 'horizontal' ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setLayoutMode('horizontal')}
-              title="Horizontal scroll"
-            >
-              ⬌
-            </button>
-            <button
-              className={'pdf-annotator__layout-btn' + (layoutMode === 'paginated' ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => { setLayoutMode('paginated'); setCurrentPage(1); }}
-              title="Swipe to flip"
-            >
-              📖
-            </button>
-          </div>
-          {/* Alignment selector */}
-          <div className="pdf-annotator__layout-modes">
-            <button
-              className={'pdf-annotator__layout-btn' + (alignment === 'left' ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setAlignment('left')}
-              title="Align left"
-            >
-              ◧
-            </button>
-            <button
-              className={'pdf-annotator__layout-btn' + (alignment === 'center' ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setAlignment('center')}
-              title="Align center"
-            >
-              ◰
-            </button>
-            <button
-              className={'pdf-annotator__layout-btn' + (alignment === 'right' ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setAlignment('right')}
-              title="Align right"
-            >
-              ◩
-            </button>
-          </div>
         </div>
       )}
     </div>

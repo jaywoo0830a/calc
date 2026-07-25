@@ -205,39 +205,7 @@
     }
   }
 
-  // ---- Floating page pill (paginated mode) ---------------
-  &__page-pill {
-    position: absolute;
-    bottom: $sp-4;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: $sp-1 $sp-4;
-    background: rgba(44, 36, 22, 0.72);
-    color: rgba(255, 254, 247, 0.9);
-    font-family: $ff;
-    font-size: $fs-step--1;
-    font-weight: $fw-semibold;
-    border-radius: 999px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    z-index: 30;
-    pointer-events: none;
-    letter-spacing: 0.02em;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    animation: pillFadeIn 0.3s ease;
-  }
-
-  @keyframes pillFadeIn {
-    from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-  }
-
-  // ---- Per-page number (legacy, replaced by pill) -------
-  &__page-number {
-    display: none;
-  }
-
-  // ---- Annotation marks (highlight / underline) -----------
+  // ---- Document layout modes -------------------------------
   &__mark {
     position: absolute;
     pointer-events: auto;
