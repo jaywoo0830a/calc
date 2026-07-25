@@ -85,6 +85,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [layoutMode, setLayoutMode] = useState('vertical'); // 'vertical' | 'horizontal' | 'paginated'
   const [currentPage, setCurrentPage] = useState(1);        // paginated mode current page
+  const [alignment, setAlignment] = useState('center');     // 'left' | 'center' | 'right'
   const touchStart = useRef({ x: 0, y: 0, time: 0 });
   const [toc, setToc] = useState(null);         // PDF outline
   const [tocOpen, setTocOpen] = useState(false);
@@ -514,7 +515,7 @@ export default function PdfAnnotator({ url, filePath }) {
 
       {/* PDF Document */}
       <div
-        className={'pdf-annotator__document pdf-annotator__document--' + layoutMode}
+        className={'pdf-annotator__document pdf-annotator__document--' + layoutMode + ' pdf-annotator__document--align-' + alignment}
         onTouchStart={layoutMode === 'paginated' ? handleSwipeStart : undefined}
         onTouchEnd={layoutMode === 'paginated' ? handleSwipeEnd : undefined}
       >
@@ -669,6 +670,30 @@ export default function PdfAnnotator({ url, filePath }) {
               title="Swipe to flip"
             >
               📖
+            </button>
+          </div>
+          {/* Alignment selector */}
+          <div className="pdf-annotator__layout-modes">
+            <button
+              className={'pdf-annotator__layout-btn' + (alignment === 'left' ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => setAlignment('left')}
+              title="Align left"
+            >
+              ◧
+            </button>
+            <button
+              className={'pdf-annotator__layout-btn' + (alignment === 'center' ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => setAlignment('center')}
+              title="Align center"
+            >
+              ◰
+            </button>
+            <button
+              className={'pdf-annotator__layout-btn' + (alignment === 'right' ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => setAlignment('right')}
+              title="Align right"
+            >
+              ◩
             </button>
           </div>
         </div>

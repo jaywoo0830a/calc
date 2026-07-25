@@ -686,6 +686,28 @@
         animation: pageFadeIn 0.3s ease;
       }
     }
+
+    // ── Alignment ───────────────────────────────────────
+    &--align-left {
+      .pdf-annotator__page-wrapper {
+        margin-left: 0;
+        margin-right: auto;
+      }
+    }
+
+    &--align-center {
+      .pdf-annotator__page-wrapper {
+        margin-left: auto;
+        margin-right: auto;
+      }
+    }
+
+    &--align-right {
+      .pdf-annotator__page-wrapper {
+        margin-left: auto;
+        margin-right: 0;
+      }
+    }
   }
 
   @keyframes pageFadeIn {
