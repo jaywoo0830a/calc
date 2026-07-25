@@ -85,6 +85,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [alignment, setAlignment] = useState('center');
+  const [zoom, setZoom] = useState(1); // 1 = 100%, 1.5 = 150%, etc.
   const touchStart = useRef({ x: 0, y: 0, time: 0 });
   const [toc, setToc] = useState(null);         // PDF outline
   const [tocOpen, setTocOpen] = useState(false);
@@ -118,7 +119,16 @@ export default function PdfAnnotator({ url, filePath }) {
 
     if (absDx < 30 && absDy < 30) return;
 
-    if (absDy > absDx && absDy > 30) {
+    // Support both horizontal and vertical swipes
+    if (absDx > absDy && absDx > 30) {
+      // horizontal swipe: left ← → right
+      if (dx < -30 || (dx < -10 && dt < 300)) {
+        setCurrentPage((p) => Math.min(numPages, p + 1));
+      } else if (dx > 30 || (dx > 10 && dt < 300)) {
+        setCurrentPage((p) => Math.max(1, p - 1));
+      }
+    } else if (absDy > 30) {
+      // vertical swipe: up ↑ ↓ down
       if (dy < -30 || (dy < -10 && dt < 300)) {
         setCurrentPage((p) => Math.min(numPages, p + 1));
       } else if (dy > 30 || (dy > 10 && dt < 300)) {
@@ -127,19 +137,36 @@ export default function PdfAnnotator({ url, filePath }) {
     }
   }, [numPages]);
 
-  // ── Fullscreen API ──────────────────────────────────────
+  // ── Fullscreen (native API + CSS fallback for iOS/Safari) ──
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) {
-      el.requestFullscreen?.().then(() => setFullscreen(true)).catch(() => {});
-    } else {
-      document.exitFullscreen?.().then(() => setFullscreen(false)).catch(() => {});
+
+    // Already in fullscreen (native or CSS fallback) → exit
+    if (fullscreen) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
+      setFullscreen(false);
+      return;
     }
-  }, []);
+
+    // Try native Fullscreen API first
+    if (el.requestFullscreen) {
+      el.requestFullscreen().then(() => setFullscreen(true)).catch(() => {
+        // Native failed → use CSS fallback
+        setFullscreen(true);
+      });
+    } else {
+      // No native API (iOS Safari) → use CSS fallback
+      setFullscreen(true);
+    }
+  }, [fullscreen]);
 
   useEffect(() => {
-    const onFsChange = () => setFullscreen(!!document.fullscreenElement);
+    const onFsChange = () => {
+      if (!document.fullscreenElement) setFullscreen(false);
+    };
     document.addEventListener('fullscreenchange', onFsChange);
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
@@ -497,6 +524,7 @@ export default function PdfAnnotator({ url, filePath }) {
       {/* PDF Document */}
       <div
         className={'pdf-annotator__document pdf-annotator__document--paginated pdf-annotator__document--align-' + alignment}
+        style={{ overflowX: zoom > 1 ? 'auto' : undefined }}
         onTouchStart={handleSwipeStart}
         onTouchEnd={handleSwipeEnd}
       >
@@ -532,7 +560,7 @@ export default function PdfAnnotator({ url, filePath }) {
           {[currentPage - 1].filter(i => i >= 0 && i < numPages).map((i) => {
             const pageNumber = i + 1;
             const annos = pageAnnotations(pageNumber);
-            const pageW = Math.min(window.innerWidth - 48, 800);
+            const pageW = Math.min(window.innerWidth - 16, window.innerWidth * 0.98, 900) * zoom;
             return (
               <div
                 key={pageNumber}
@@ -647,6 +675,24 @@ export default function PdfAnnotator({ url, filePath }) {
               onClick={() => setAlignment('right')}
               title="Align right"
             >◩</button>
+          </div>
+          {/* Zoom */}
+          <div className="pdf-annotator__layout-modes">
+            <button
+              className={'pdf-annotator__layout-btn' + (zoom <= 1 ? '' : ' pdf-annotator__layout-btn--active')}
+              onClick={() => setZoom(1)}
+              title="100%"
+            >1×</button>
+            <button
+              className={'pdf-annotator__layout-btn' + (zoom === 1.5 ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => setZoom(1.5)}
+              title="150%"
+            >1.5</button>
+            <button
+              className={'pdf-annotator__layout-btn' + (zoom === 2 ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => setZoom(2)}
+              title="200%"
+            >2×</button>
           </div>
         </div>
       )}
