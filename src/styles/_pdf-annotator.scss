@@ -904,51 +904,6 @@
 
 }
 
-// ── 4. ::scroll-marker / ::scroll-marker-group: paginated dots ──
-@supports (selector(::scroll-marker)) {
-  .pdf-annotator__document--paginated {
-    scroll-marker-group: after;
-    overflow: auto;
-
-    .pdf-annotator__page-wrapper {
-      scroll-marker: contain;
-    }
-  }
-
-  .pdf-annotator__document--paginated::scroll-marker-group {
-    position: fixed;
-    bottom: 4rem;
-    left: 50%;
-    translate: -50% 0;
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: rgba(255, 254, 247, 0.75);
-    backdrop-filter: blur(8px);
-    border-radius: 2rem;
-    z-index: 45;
-    border: 1px solid rgba(212, 201, 181, 0.12);
-  }
-
-  .pdf-annotator__document--paginated::scroll-marker {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%;
-    background: rgba(92, 61, 46, 0.25);
-    transition: background 0.3s ease, scale 0.3s ease;
-    cursor: pointer;
-
-    &:hover {
-      background: rgba(92, 61, 46, 0.5);
-    }
-  }
-
-  .pdf-annotator__document--paginated::scroll-marker:target-current {
-    background: $c-accent;
-    scale: 1.3;
-  }
-}
-
 // ── 5. scroll-state container queries: snap-aware styling ──
 @supports (container-type: scroll-state) {
   .pdf-annotator__document--horizontal {
