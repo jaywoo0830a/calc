@@ -7,15 +7,37 @@ import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { javascript } from '@codemirror/lang-javascript';
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching } from '@codemirror/language';
-import { C2D, C3D, CCX, PRESETS } from './playground-presets.js';
 
 const math = create(all, { number: 'number', precision: 15 });
 
-const MODES = [
-  { id: '2d', label: '2D', code: C2D },
-  { id: '3d', label: '3D', code: C3D },
-  { id: 'complex', label: 'Complex', code: CCX },
-];
+// ── Default starter template ──────────────────────────────────────────────
+const DEFAULT_CODE = `const { width, height } = container.getBoundingClientRect();
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(width, height);
+renderer.setClearColor(0xf8f4eb);
+container.appendChild(renderer.domElement);
+
+const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+camera.position.set(5, 4, 6);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+const scene = new THREE.Scene();
+
+// ── Your code here ──────────────────────────────────────────────────────
+
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+`;
 
 const EDITOR_THEME = EditorView.theme({
   '&': { height: '100%', fontSize: '13px', backgroundColor: '#f8f4eb' },
@@ -31,7 +53,6 @@ export default function Playground() {
   const canvasRef = useRef(null);
   const cleanupRef = useRef(null);
   const [error, setError] = useState(null);
-  const [mode, setMode] = useState('2d');
 
   const run = useCallback((code) => {
     setError(null);
@@ -46,22 +67,10 @@ export default function Playground() {
     } catch (e) { setError(e.message || String(e)); }
   }, []);
 
-  const switchMode = useCallback((m) => {
-    setMode(m);
-    const code = MODES.find((x) => x.id === m).code;
-    if (viewRef.current) viewRef.current.dispatch({ changes: { from: 0, to: viewRef.current.state.doc.length, insert: code } });
-    run(code);
-  }, [run]);
-
-  const loadCode = useCallback((code) => {
-    if (viewRef.current) viewRef.current.dispatch({ changes: { from: 0, to: viewRef.current.state.doc.length, insert: code } });
-    run(code);
-  }, [run]);
-
   useEffect(() => {
     if (!editorRef.current || viewRef.current) return;
     const state = EditorState.create({
-      doc: C2D,
+      doc: DEFAULT_CODE,
       extensions: [
         lineNumbers(), history(), bracketMatching(), javascript(),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
@@ -73,30 +82,20 @@ export default function Playground() {
     return () => { viewRef.current?.destroy(); viewRef.current = null; };
   }, []);
 
-  useEffect(() => { setTimeout(() => run(C2D), 200); }, [run]);
+  useEffect(() => { setTimeout(() => run(DEFAULT_CODE), 200); }, [run]);
 
   return (
     <main className="playground">
       <nav className="calculator__nav">
         <a href="/" className="calculator__nav-tab">Calc</a>
         <a href="/viewer" className="calculator__nav-tab">Viewer</a>
-        <span className="calculator__nav-tab calculator__nav-tab--active">3D</span>
+        <span className="calculator__nav-tab calculator__nav-tab--active">Three.js</span>
       </nav>
-      <div className="playground__modes">
-        {MODES.map((m) => (
-          <button key={m.id} className={'playground__mode-btn' + (mode === m.id ? ' playground__mode-btn--active' : '')} onClick={() => switchMode(m.id)}>{m.label}</button>
-        ))}
-      </div>
-      <div className="playground__presets">
-        {(PRESETS[mode] || []).map((p, i) => (
-          <button key={i} className="playground__chip" onClick={() => loadCode(p.code)}>{p.label}</button>
-        ))}
-      </div>
       <div className="playground__split">
         <div className="playground__editor-pane">
           <div className="playground__toolbar">
-            <span>JavaScript</span>
-            <button className="playground__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>Render</button>
+            <span>JavaScript + Three.js</span>
+            <button className="playground__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>▶ Render</button>
           </div>
           <div ref={editorRef} className="playground__editor" />
           {error && <div className="playground__error">{error}</div>}

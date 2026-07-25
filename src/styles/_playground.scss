@@ -7,52 +7,6 @@
   min-height: 0;
   gap: $sp-2;
 
-  &__modes {
-    display: flex;
-    gap: $sp-1;
-    flex-shrink: 0;
-  }
-
-  &__mode-btn {
-    flex: 1;
-    padding: $sp-2 $sp-3;
-    border: $border-thin solid $c-rule;
-    border-radius: $radius-md;
-    background: $c-page;
-    color: $c-ink-soft;
-    font-family: $ff;
-    font-size: $fs-step--1;
-    font-weight: $fw-semibold;
-    cursor: pointer;
-    transition: all $transition-fast;
-    @media (hover: hover) { &:hover { background: $c-page-dark; color: $c-ink; } }
-    &--active { background: $c-accent; color: $c-ink-inverse; border-color: $c-accent; }
-  }
-
-  &__presets {
-    display: flex;
-    gap: $sp-1;
-    flex-shrink: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
-  }
-
-  &__chip {
-    padding: $sp-1 $sp-2;
-    border: $border-thin solid $c-rule-light;
-    border-radius: $radius-lg;
-    background: $c-page-dark;
-    color: $c-ink-soft;
-    font-family: $ff;
-    font-size: $fs-step--2;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all $transition-fast;
-    @media (hover: hover) { &:hover { background: $c-accent-light; color: $c-accent; border-color: $c-accent; } }
-  }
-
   // ── Split: mobile-stacked → tablet+ side-by-side ───────
   &__split {
     display: flex;
@@ -134,29 +88,11 @@
     height: 100%;
   }
 
-  &__help {
-    flex-shrink: 0;
-    text-align: center;
-    font-size: $fs-step--2;
-    color: $c-ink-faint;
-    font-style: italic;
-    padding: $sp-1 0;
-  }
-
   // ==========================================================
   // Responsive — Tablet (≥ 480px): side-by-side
   // ==========================================================
   @media (min-width: $bp-sm) {
     gap: $sp-3;
-
-    &__mode-btn {
-      font-size: $fs-step-0;
-      padding: $sp-3 $sp-4;
-    }
-
-    &__chip {
-      font-size: $fs-step--1;
-    }
 
     &__split {
       flex-direction: row;      // side-by-side
@@ -192,11 +128,6 @@
   // ==========================================================
   @media (min-width: $bp-lg) {
     gap: $sp-4;
-
-    &__mode-btn {
-      font-size: $fs-step-1;
-      padding: $sp-3 $sp-5;
-    }
 
     &__split {
       gap: $sp-4;
