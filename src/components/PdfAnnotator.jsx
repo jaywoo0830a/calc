@@ -567,6 +567,7 @@ export default function PdfAnnotator({ url, filePath }) {
                       strokeWidth={liveStroke.width}
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      style={{ stroke: liveStroke.color, strokeWidth: liveStroke.width }}
                     />
                   </svg>
                 )}
@@ -680,6 +681,7 @@ const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, 
           strokeWidth={annotation.width || 0.003}
           strokeLinecap="round"
           strokeLinejoin="round"
+          style={{ stroke: annotation.color || '#2c2416', strokeWidth: annotation.width || 0.003 }}
         />
         {/* Invisible wider hit area for click-to-delete (erase mode only) */}
         {eraseMode && (

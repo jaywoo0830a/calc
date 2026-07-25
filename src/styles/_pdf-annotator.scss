@@ -818,9 +818,6 @@
     border-bottom-color: attr(data-underline-color type(<color>), #e74c3c);
   }
 
-  .pdf-annotator__pen-stroke path {
-    stroke: attr(data-pen-color type(<color>), #2c2416);
-  }
 }
 
 // ── 4. ::scroll-marker / ::scroll-marker-group: paginated dots ──
