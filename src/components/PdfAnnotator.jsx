@@ -29,7 +29,16 @@ const TOOLS = {
   highlight: { label: '🖍️ 형광펜', icon: '🖍️' },
   underline: { label: '⎁ 밑줄', icon: '⎁' },
   comment:   { label: '💬 주석', icon: '💬' },
+  pen:       { label: '✒️ 펜', icon: '✒️' },
 };
+
+const PEN_COLORS = [
+  { id: 'black',  color: '#2c2416', label: '⚫', name: '검정' },
+  { id: 'red',    color: '#e74c3c', label: '🔴', name: '빨강' },
+  { id: 'blue',   color: '#3498db', label: '🔵', name: '파랑' },
+  { id: 'green',  color: '#27ae60', label: '🟢', name: '초록' },
+  { id: 'accent', color: '#5c3d2e', label: '🟤', name: '갈색' },
+];
 
 function annoRect(a, pageEl) {
   if (!pageEl) return null;
@@ -46,13 +55,18 @@ function annoRect(a, pageEl) {
 export default function PdfAnnotator({ url, filePath }) {
   const [numPages, setNumPages] = useState(0);
   const [annotations, setAnnotations] = useState([]);
-  const [tool, setTool] = useState('highlight');
+  const [tool, setTool] = useState(null); // null = 읽기 모드 (기본)
   const [activeComment, setActiveComment] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [loadError, setLoadError] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
   const [underlineColor, setUnderlineColor] = useState(UNDERLINE_COLORS[0]);
+  const [penColor, setPenColor] = useState(PEN_COLORS[0]);
+  // pen drawing state
+  const isDrawing = useRef(false);
+  const currentPath = useRef([]);
+  const currentPage = useRef(null);
   const containerRef = useRef(null);
   const pageRefs = useRef({});
 
@@ -81,7 +95,7 @@ export default function PdfAnnotator({ url, filePath }) {
 
   // ── Text selection → highlight / underline ──────────────
   const handleMouseUp = useCallback((pageNumber) => (e) => {
-    if (tool === 'comment') return;
+    if (!tool || tool === 'comment' || tool === 'erase') return;
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
 
@@ -118,7 +132,68 @@ export default function PdfAnnotator({ url, filePath }) {
     sel.removeAllRanges();
   }, [tool, filePath]);
 
-  // ── Click → comment note OR erase annotation ────────────
+  // ── Pen drawing handlers (pointer events — stylus + touch) ──
+  const handlePointerDown = useCallback((pageNumber) => (e) => {
+    if (tool !== 'pen') return;
+    e.preventDefault();
+    const pageEl = pageRefs.current[pageNumber];
+    if (!pageEl) return;
+    const pageRect = pageEl.getBoundingClientRect();
+    const x = (e.clientX - pageRect.left) / pageRect.width;
+    const y = (e.clientY - pageRect.top) / pageRect.height;
+    isDrawing.current = true;
+    currentPage.current = pageNumber;
+    currentPath.current = [{ x, y }];
+    pageEl.setPointerCapture?.(e.pointerId);
+  }, [tool]);
+
+  const handlePointerMove = useCallback((pageNumber) => (e) => {
+    if (!isDrawing.current || tool !== 'pen' || currentPage.current !== pageNumber) return;
+    e.preventDefault();
+    const pageEl = pageRefs.current[pageNumber];
+    if (!pageEl) return;
+    const pageRect = pageEl.getBoundingClientRect();
+    const x = (e.clientX - pageRect.left) / pageRect.width;
+    const y = (e.clientY - pageRect.top) / pageRect.height;
+    currentPath.current.push({ x, y });
+  }, [tool]);
+
+  const handlePointerUp = useCallback((pageNumber) => (e) => {
+    if (!isDrawing.current || tool !== 'pen') return;
+    e.preventDefault();
+    isDrawing.current = false;
+    const pageEl = pageRefs.current[pageNumber];
+    if (!pageEl) { currentPath.current = []; return; }
+    const pageRect = pageEl.getBoundingClientRect();
+    const x = (e.clientX - pageRect.left) / pageRect.width;
+    const y = (e.clientY - pageRect.top) / pageRect.height;
+    currentPath.current.push({ x, y });
+
+    if (currentPath.current.length < 2) { currentPath.current = []; return; }
+
+    // Build SVG path data
+    const pts = currentPath.current;
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 1; i < pts.length; i++) {
+      d += ` L ${pts[i].x} ${pts[i].y}`;
+    }
+
+    const annotation = {
+      filePath,
+      pageNumber: currentPage.current,
+      type: 'pen',
+      color: penColor.color,
+      text: '',
+      pathData: d,
+      rect: { x: 0, y: 0, w: 1, h: 1 }, // full page for SVG viewBox
+    };
+    saveAnnotation(annotation).then((saved) => {
+      setAnnotations((prev) => [...prev, saved]);
+    });
+    currentPath.current = [];
+    currentPage.current = null;
+    pageEl.releasePointerCapture?.(e.pointerId);
+  }, [tool, filePath, penColor]);
   const handlePageClick = useCallback((pageNumber) => (e) => {
     if (tool === 'comment') {
       const pageEl = pageRefs.current[pageNumber];
@@ -176,6 +251,12 @@ export default function PdfAnnotator({ url, filePath }) {
       {/* Toolbar */}
       <div className="pdf-annotator__toolbar">
         <div className="pdf-annotator__tools">
+          <button
+            className={'pdf-annotator__tool' + (tool === null ? ' pdf-annotator__tool--active' : '')}
+            onClick={() => setTool(null)}
+          >
+            📖 읽기
+          </button>
           {Object.entries(TOOLS).map(([key, val]) => (
             <button
               key={key}
@@ -211,6 +292,21 @@ export default function PdfAnnotator({ url, filePath }) {
                   className={'pdf-annotator__color-swatch' + (underlineColor.id === c.id ? ' pdf-annotator__color-swatch--active' : '')}
                   style={{ borderBottom: `3px ${c.style} ${c.color}` }}
                   onClick={() => setUnderlineColor(c)}
+                  title={c.name}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {tool === 'pen' && (
+            <div className="pdf-annotator__color-picker">
+              {PEN_COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  className={'pdf-annotator__color-swatch' + (penColor.id === c.id ? ' pdf-annotator__color-swatch--active' : '')}
+                  style={{ backgroundColor: c.color }}
+                  onClick={() => setPenColor(c)}
                   title={c.name}
                 >
                   {c.label}
@@ -309,10 +405,14 @@ export default function PdfAnnotator({ url, filePath }) {
             return (
               <div
                 key={pageNumber}
-                className="pdf-annotator__page-wrapper"
+                className={'pdf-annotator__page-wrapper' + (tool === 'pen' ? ' pdf-annotator__page-wrapper--pen' : '')}
                 ref={(el) => { if (el) pageRefs.current[pageNumber] = el; }}
                 onMouseUp={handleMouseUp(pageNumber)}
                 onClick={handlePageClick(pageNumber)}
+                onPointerDown={handlePointerDown(pageNumber)}
+                onPointerMove={handlePointerMove(pageNumber)}
+                onPointerUp={handlePointerUp(pageNumber)}
+                style={{ touchAction: tool === 'pen' ? 'none' : undefined }}
               >
                 <Page
                   pageNumber={pageNumber}
@@ -345,6 +445,42 @@ export default function PdfAnnotator({ url, filePath }) {
 /** Renders a single annotation overlay */
 function AnnotationOverlay({ annotation, pageEl, onDelete }) {
   const rect = annoRect(annotation, pageEl);
+
+  // Pen strokes: render as SVG
+  if (annotation.type === 'pen' && annotation.pathData) {
+    return (
+      <svg
+        className="pdf-annotator__pen-stroke"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+        }}
+        viewBox="0 0 1 1"
+        preserveAspectRatio="none"
+      >
+        <path
+          d={annotation.pathData}
+          fill="none"
+          stroke={annotation.color || '#2c2416'}
+          strokeWidth="0.003"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* Invisible wider hit area for click-to-delete */}
+        <path
+          d={annotation.pathData}
+          fill="none"
+          stroke="transparent"
+          strokeWidth="0.02"
+          style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+          onClick={(e) => { e.stopPropagation(); onDelete(annotation.id); }}
+        />
+      </svg>
+    );
+  }
 
   if (annotation.type === 'comment') {
     return (
