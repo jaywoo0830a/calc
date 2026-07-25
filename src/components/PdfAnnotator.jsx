@@ -682,7 +682,7 @@ export default function PdfAnnotator({ url, filePath }) {
           {/* Zoom */}
           <div className="pdf-annotator__layout-modes">
             <button
-              className={'pdf-annotator__layout-btn' + (zoom <= 1 ? '' : ' pdf-annotator__layout-btn--active')}
+              className={'pdf-annotator__layout-btn' + (zoom === 1 ? ' pdf-annotator__layout-btn--active' : '')}
               onClick={() => setZoom(1)}
               title="100%"
             >1×</button>
