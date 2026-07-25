@@ -579,7 +579,7 @@ export default function PdfAnnotator({ url, filePath }) {
       {/* PDF Document */}
       <div
         className={'pdf-annotator__document pdf-annotator__document--paginated pdf-annotator__document--align-' + alignment}
-        style={{ overflowX: zoom > 1 ? 'auto' : undefined }}
+        style={{ overflow: (isMobile && readingMode) ? 'hidden' : (zoom > 1 ? 'auto' : undefined) }}
         onTouchStart={handleSwipeStart}
         onTouchEnd={handleSwipeEnd}
       >
