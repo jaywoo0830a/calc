@@ -536,10 +536,14 @@
 }
 
 // ============================================================
-// Responsive — Tablet (≥ 480px)
+// Responsive — Tablet (≥ 480px): moderate scaling
 // ============================================================
 @media (min-width: $bp-sm) {
   .calculator {
+    max-width: 32rem;
+    margin: 0 auto;
+    width: 100%;
+
     // ---- Navigation — larger tabs ---------------------------
     &__nav {
       gap: $sp-1;
@@ -552,10 +556,10 @@
       padding: $sp-2 $sp-3;
     }
 
-    // ---- Display — taller, larger text ---------------------
+    // ---- Display — slightly taller -------------------------
     &__display {
       padding: $sp-4 $sp-5;
-      min-height: 5.5rem;
+      min-height: 5rem;
       margin-bottom: $sp-3;
     }
 
@@ -567,9 +571,9 @@
       font-size: $fs-step-4;
     }
 
-    // ---- Keypad — more spacing, larger buttons -------------
+    // ---- Keypad — moderate spacing --------------------------
     &__keypad {
-      gap: $sp-3;
+      gap: $sp-2;
 
       &--sci {
         gap: $sp-2;
@@ -577,187 +581,60 @@
     }
 
     &__btn {
-      font-size: $fs-step-3;
+      font-size: $fs-step-2;
       border-radius: $radius-lg;
 
-      &--num {
-        font-size: $fs-step-4;
-      }
-
-      &--func {
-        font-size: $fs-step-2;
-      }
-
-      &--op {
-        font-size: $fs-step-4;
-      }
-
-      &--eq {
-        font-size: $fs-step-4;
-      }
-
-      &--zero {
-        border-radius: $radius-xl;
-      }
+      &--num { font-size: $fs-step-3; }
+      &--func { font-size: $fs-step-1; }
+      &--op { font-size: $fs-step-3; }
+      &--eq { font-size: $fs-step-3; }
+      &--zero { border-radius: $radius-xl; }
     }
 
-    // ---- Scientific mode adjustments -----------------------
+    // ---- Scientific mode -----------------------------------
     &--sci {
-      .calculator__keypad {
-        gap: $sp-2;
-      }
-
       .calculator__btn {
-        min-height: 3rem;
-
-        &--num { font-size: $fs-step-3; }
+        min-height: 2.75rem;
+        &--num { font-size: $fs-step-2; }
         &--func { font-size: $fs-step-1; }
-        &--op { font-size: $fs-step-3; }
-        &--eq { font-size: $fs-step-3; }
+        &--op { font-size: $fs-step-2; }
+        &--eq { font-size: $fs-step-2; }
         &--sci {
           font-size: $fs-step-0;
-          min-height: 2.5rem;
+          min-height: 2.25rem;
         }
       }
     }
 
     // ---- Toolbar -------------------------------------------
-    &__toolbar {
-      gap: $sp-2;
-      margin-top: $sp-3;
-    }
-
+    &__toolbar { gap: $sp-2; margin-top: $sp-3; }
     &__sci-toggle,
-    &__hist-toggle {
-      font-size: $fs-step-0;
-      padding: $sp-2 $sp-3;
-    }
+    &__hist-toggle { font-size: $fs-step--1; padding: $sp-2 $sp-3; }
 
     // ---- History -------------------------------------------
-    &__history {
-      margin-top: $sp-3;
-      max-height: 16rem;
-    }
-
-    &__history-header {
-      font-size: $fs-step-0;
-      padding: $sp-3 $sp-4;
-    }
-
-    &__history-item {
-      padding: $sp-3 $sp-4;
-    }
-
-    &__history-expr {
-      font-size: $fs-step-0;
-    }
-
-    &__history-result {
-      font-size: $fs-step-1;
-    }
+    &__history { margin-top: $sp-3; max-height: 14rem; }
+    &__history-header { font-size: $fs-step--1; padding: $sp-2 $sp-3; }
+    &__history-item { padding: $sp-2 $sp-3; }
+    &__history-expr { font-size: $fs-step--1; }
+    &__history-result { font-size: $fs-step-0; }
 
     // ---- Footer --------------------------------------------
-    &__footer {
-      margin-top: $sp-3;
-    }
-
-    &__info {
-      font-size: $fs-step--1;
-    }
-
-    &__mute {
-      font-size: $fs-step--1;
-      padding: $sp-2 $sp-4;
-    }
+    &__footer { margin-top: $sp-3; }
+    &__info { font-size: $fs-step--2; }
+    &__mute { font-size: $fs-step--2; padding: $sp-2 $sp-4; }
 
     // ---- Hint ----------------------------------------------
-    &__hint {
-      font-size: $fs-step-0;
-      padding: $sp-4 $sp-6;
-    }
+    &__hint { font-size: $fs-step--1; padding: $sp-3 $sp-6; }
   }
 }
 
 // ============================================================
-// Responsive — Desktop (≥ 1024px)
+// Responsive — Desktop (≥ 1024px): keep compact, center it
 // ============================================================
 @media (min-width: $bp-lg) {
   .calculator {
-    // ---- Display — even larger -----------------------------
-    &__display {
-      padding: $sp-5 $sp-6;
-      min-height: 6.5rem;
-      margin-bottom: $sp-4;
-      border-radius: $radius-2xl;
-    }
-
-    &__expression {
-      font-size: $fs-step-1;
-    }
-
-    &__result {
-      font-size: $fs-step-5;
-    }
-
-    // ---- Keypad — generous spacing -------------------------
-    &__keypad {
-      gap: $sp-4;
-
-      &--sci {
-        gap: $sp-3;
-      }
-    }
-
-    &__btn {
-      font-size: $fs-step-4;
-      border-radius: $radius-xl;
-
-      &--num {
-        font-size: $fs-step-5;
-      }
-
-      &--func {
-        font-size: $fs-step-3;
-      }
-
-      &--op {
-        font-size: $fs-step-5;
-      }
-
-      &--eq {
-        font-size: $fs-step-5;
-      }
-    }
-
-    // ---- Scientific mode desktop --------------------------
-    &--sci {
-      .calculator__keypad {
-        gap: $sp-3;
-      }
-
-      .calculator__btn {
-        min-height: 3.5rem;
-
-        &--num { font-size: $fs-step-4; }
-        &--func { font-size: $fs-step-2; }
-        &--op { font-size: $fs-step-4; }
-        &--eq { font-size: $fs-step-4; }
-        &--sci {
-          font-size: $fs-step-1;
-          min-height: 3rem;
-        }
-      }
-    }
-
-    // ---- Toolbar desktop -----------------------------------
-    &__sci-toggle,
-    &__hist-toggle {
-      font-size: $fs-step-1;
-    }
-
-    // ---- History desktop -----------------------------------
-    &__history {
-      max-height: 20rem;
-    }
+    max-width: 28rem;
+    margin: 0 auto;
+    width: 100%;
   }
 }
