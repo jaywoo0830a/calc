@@ -11,16 +11,16 @@
   min-height: 0;
   contain: layout style;               // isolate from parent layout
 
-  // ---- Toolbar (floating, semi-transparent) ------------
+  // ---- Toolbar (floating, highly transparent) ------------
   &__toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: $sp-1 $sp-2;
-    background: rgba(255, 254, 247, 0.75);  // $c-page with opacity
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-bottom: $border-thin solid rgba(212, 201, 181, 0.5);
+    background: rgba(255, 254, 247, 0.28);  // much more transparent
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: $border-thin solid rgba(212, 201, 181, 0.25);
     flex-shrink: 0;
     gap: $sp-1;
     flex-wrap: wrap;
@@ -30,7 +30,7 @@
     transition: background $transition-normal;
 
     &:hover {
-      background: rgba(255, 254, 247, 0.92);
+      background: rgba(255, 254, 247, 0.55);
     }
   }
 
@@ -41,9 +41,9 @@
 
   &__tool {
     padding: $sp-1 $sp-3;
-    border: $border-thin solid rgba(212, 201, 181, 0.5);
+    border: $border-thin solid rgba(212, 201, 181, 0.3);
     border-radius: $radius-md;
-    background: rgba(255, 254, 247, 0.6);
+    background: rgba(255, 254, 247, 0.3);
     color: $c-ink-soft;
     font-family: $ff;
     font-size: $fs-step--2;
@@ -55,7 +55,7 @@
     -webkit-backdrop-filter: blur(4px);
 
     @media (hover: hover) {
-      &:hover { background: rgba(240, 235, 224, 0.85); color: $c-ink; }
+      &:hover { background: rgba(240, 235, 224, 0.6); color: $c-ink; }
     }
 
     &--active {
@@ -80,9 +80,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: $border-thin solid rgba(212, 201, 181, 0.5);
+    border: $border-thin solid rgba(212, 201, 181, 0.3);
     border-radius: $radius-md;
-    background: rgba(255, 254, 247, 0.6);
+    background: rgba(255, 254, 247, 0.3);
     color: $c-ink-soft;
     font-size: $fs-step-1;
     cursor: pointer;
@@ -91,7 +91,7 @@
     -webkit-backdrop-filter: blur(4px);
 
     @media (hover: hover) {
-      &:hover { background: rgba(240, 235, 224, 0.85); color: $c-ink; }
+      &:hover { background: rgba(240, 235, 224, 0.6); color: $c-ink; }
     }
   }
 
@@ -141,12 +141,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: $border-md solid rgba(212, 201, 181, 0.4);
+    border: $border-md solid rgba(212, 201, 181, 0.3);
     border-radius: $radius-sm;
     cursor: pointer;
     transition: all $transition-fast;
     padding: 0;
-    background: rgba(255, 254, 247, 0.6);
+    background: rgba(255, 254, 247, 0.3);
 
     @media (hover: hover) {
       &:hover { border-color: rgba(92, 61, 46, 0.5); }
@@ -189,6 +189,8 @@
   // ---- Page wrapper (optimized) ──────────────────────────
   &__page-wrapper {
     position: relative;
+    width: fit-content;
+    max-width: 100%;
     margin: 0 auto $sp-4;
     box-shadow: $shadow-md;
     background: #fff;
@@ -204,12 +206,36 @@
     }
   }
 
+  // ---- Floating page pill (paginated mode) ---------------
+  &__page-pill {
+    position: absolute;
+    bottom: $sp-4;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: $sp-1 $sp-4;
+    background: rgba(44, 36, 22, 0.72);
+    color: rgba(255, 254, 247, 0.9);
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    border-radius: 999px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 30;
+    pointer-events: none;
+    letter-spacing: 0.02em;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    animation: pillFadeIn 0.3s ease;
+  }
+
+  @keyframes pillFadeIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  // ---- Per-page number (legacy, replaced by pill) -------
   &__page-number {
-    text-align: center;
-    font-size: $fs-step--2;
-    color: $c-ink-faint;
-    padding: $sp-1 0;
-    font-style: italic;
+    display: none;
   }
 
   // ---- Annotation marks (highlight / underline) -----------
@@ -558,7 +584,7 @@
 
     .pdf-annotator__toolbar {
       border-radius: 0;
-      background: rgba(248, 244, 235, 0.78);
+      background: rgba(248, 244, 235, 0.35);
     }
 
     .pdf-annotator__document {
@@ -577,10 +603,10 @@
     justify-content: center;
     gap: $sp-1;
     padding: $sp-2;
-    background: rgba(255, 254, 247, 0.75);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-top: $border-thin solid rgba(212, 201, 181, 0.5);
+    background: rgba(255, 254, 247, 0.28);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: $border-thin solid rgba(212, 201, 181, 0.25);
     flex-shrink: 0;
     position: sticky;
     bottom: 0;
@@ -593,9 +619,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: $border-thin solid rgba(212, 201, 181, 0.5);
+    border: $border-thin solid rgba(212, 201, 181, 0.3);
     border-radius: $radius-md;
-    background: rgba(255, 254, 247, 0.6);
+    background: rgba(255, 254, 247, 0.3);
     color: $c-ink-soft;
     font-size: $fs-step-1;
     cursor: pointer;
@@ -605,7 +631,7 @@
 
     @media (hover: hover) {
       &:hover:not(:disabled) {
-        background: rgba(240, 235, 224, 0.85);
+        background: rgba(240, 235, 224, 0.6);
         color: $c-ink;
       }
     }
@@ -615,16 +641,57 @@
     }
 
     &:disabled {
-      opacity: 0.3;
+      opacity: 0.2;
       cursor: not-allowed;
     }
+  }
+
+  &__nav-page {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  &__page-input {
+    width: 3.5rem;
+    height: 2.25rem;
+    padding: 0 $sp-2;
+    border: $border-thin solid rgba(212, 201, 181, 0.3);
+    border-radius: $radius-md;
+    background: rgba(255, 254, 247, 0.35);
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    text-align: center;
+    outline: none;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: border-color $transition-fast;
+
+    &::placeholder {
+      color: $c-ink-faint;
+      opacity: 0.6;
+    }
+
+    &:focus {
+      border-color: $c-accent;
+      background: rgba(255, 254, 247, 0.55);
+    }
+
+    // hide spinner arrows
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    -moz-appearance: textfield;
   }
 
   &__nav-info {
     font-size: $fs-step--1;
     font-weight: $fw-semibold;
     color: $c-ink-soft;
-    padding: 0 $sp-2;
     font-family: $ff;
     white-space: nowrap;
   }
@@ -644,9 +711,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: $border-thin solid rgba(212, 201, 181, 0.4);
+    border: $border-thin solid rgba(212, 201, 181, 0.3);
     border-radius: $radius-sm;
-    background: rgba(255, 254, 247, 0.6);
+    background: rgba(255, 254, 247, 0.3);
     color: $c-ink-faint;
     font-size: 0.875rem;
     cursor: pointer;
@@ -654,7 +721,7 @@
     padding: 0;
 
     @media (hover: hover) {
-      &:hover { background: rgba(240, 235, 224, 0.85); color: $c-ink; }
+      &:hover { background: rgba(240, 235, 224, 0.6); color: $c-ink; }
     }
 
     &--active {
@@ -697,19 +764,16 @@
       }
     }
 
-    // ── Alignment: use align-items on flex container ─────
+    // ── Alignment: margin-based (works through nested wrappers) ──
     &--align-left {
-      align-items: flex-start;
       .pdf-annotator__page-wrapper { margin-left: 0; margin-right: auto; }
     }
 
     &--align-center {
-      align-items: center;
       .pdf-annotator__page-wrapper { margin-left: auto; margin-right: auto; }
     }
 
     &--align-right {
-      align-items: flex-end;
       .pdf-annotator__page-wrapper { margin-left: auto; margin-right: 0; }
     }
   }

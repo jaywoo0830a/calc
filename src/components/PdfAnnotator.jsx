@@ -93,6 +93,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [underlineColor, setUnderlineColor] = useState(UNDERLINE_COLORS[0]);
   const [penColor, setPenColor] = useState(PEN_COLORS[0]);
   const [penSize, setPenSize] = useState(PEN_SIZES[1]); // medium default
+  const [pageInput, setPageInput] = useState('');
   // pen drawing state
   const isDrawing = useRef(false);
   const currentPath = useRef([]);
@@ -412,7 +413,7 @@ export default function PdfAnnotator({ url, filePath }) {
                       width: (s.width * 300) + 'rem',
                       height: (s.width * 300) + 'rem',
                       borderRadius: '50%',
-                      backgroundColor: penColor.color,
+                      backgroundColor: '#2c2416',
                     }} />
                   </button>
                 ))}
@@ -598,13 +599,16 @@ export default function PdfAnnotator({ url, filePath }) {
                     eraseMode={tool === 'erase'}
                   />
                 ))}
-                <div className="pdf-annotator__page-number">
-                  {pageNumber} / {numPages}
-                </div>
               </div>
             );
           })}
         </Document>
+        )}
+        {/* Floating page indicator */}
+        {numPages > 0 && layoutMode === 'paginated' && (
+          <div className="pdf-annotator__page-pill">
+            {currentPage} / {numPages}
+          </div>
         )}
       </div>
 
@@ -613,23 +617,35 @@ export default function PdfAnnotator({ url, filePath }) {
         <div className="pdf-annotator__nav">
           <button
             className="pdf-annotator__nav-btn"
-            onClick={() => scrollToPage(1)}
-            disabled={numPages <= 1}
-            title="First page"
-          >
-            ⟪
-          </button>
-          <button
-            className="pdf-annotator__nav-btn"
             onClick={() => scrollToPage(layoutMode === 'paginated' ? currentPage - 1 : 1)}
             disabled={layoutMode === 'paginated' ? currentPage <= 1 : numPages <= 1}
             title="Previous page"
           >
             ◀
           </button>
-          <span className="pdf-annotator__nav-info">
-            {layoutMode === 'paginated' ? `${currentPage} / ${numPages}` : `${numPages} pages`}
-          </span>
+          <div className="pdf-annotator__nav-page">
+            <input
+              className="pdf-annotator__page-input"
+              type="number"
+              min={1}
+              max={numPages}
+              value={pageInput}
+              placeholder={layoutMode === 'paginated' ? String(currentPage) : '1'}
+              onChange={(e) => setPageInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const p = parseInt(e.target.value, 10);
+                  if (p >= 1 && p <= numPages) {
+                    scrollToPage(p);
+                    setPageInput('');
+                  }
+                }
+              }}
+              onBlur={() => setPageInput('')}
+              title={`Go to page (1–${numPages})`}
+            />
+            <span className="pdf-annotator__nav-info">/ {numPages}</span>
+          </div>
           <button
             className="pdf-annotator__nav-btn"
             onClick={() => scrollToPage(layoutMode === 'paginated' ? currentPage + 1 : numPages)}
@@ -637,14 +653,6 @@ export default function PdfAnnotator({ url, filePath }) {
             title="Next page"
           >
             ▶
-          </button>
-          <button
-            className="pdf-annotator__nav-btn"
-            onClick={() => scrollToPage(numPages)}
-            disabled={numPages <= 1}
-            title="Last page"
-          >
-            ⟫
           </button>
           {/* Layout mode selector */}
           <div className="pdf-annotator__layout-modes">
