@@ -134,8 +134,12 @@ export default function PdfAnnotator({ url, filePath }) {
   const goToPage = useCallback((page) => {
     setCurrentPage(page);
     setSectorIndex(0);
-    documentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
+
+  // Scroll document to top after page renders (runs after commit, not before)
+  useEffect(() => {
+    documentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [currentPage]);
 
   const touchStart = useRef({ x: 0, y: 0, time: 0, count: 0 });
   const [toc, setToc] = useState(null);         // PDF outline
