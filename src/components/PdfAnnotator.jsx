@@ -579,7 +579,7 @@ export default function PdfAnnotator({ url, filePath }) {
       {/* PDF Document */}
       <div
         className={'pdf-annotator__document pdf-annotator__document--paginated pdf-annotator__document--align-' + alignment}
-        style={{ overflow: (isMobile && readingMode) ? 'hidden' : (zoom > 1 ? 'auto' : undefined) }}
+        style={{ overflow: (isMobile && readingMode) ? 'auto' : (zoom > 1 ? 'auto' : undefined) }}
         onTouchStart={handleSwipeStart}
         onTouchEnd={handleSwipeEnd}
       >
@@ -646,7 +646,7 @@ export default function PdfAnnotator({ url, filePath }) {
                 onPointerMove={handlePointerMove(pageNumber)}
                 onPointerUp={handlePointerUp(pageNumber)}
                 style={isReading
-                  ? { width: pageW, touchAction: 'manipulation', transform: `translate(${-col * 100 / SECTOR_COLS}%, ${-row * 100 / SECTOR_ROWS}%)`, transition: 'transform 0.3s ease' }
+                  ? { width: pageW, height: 'auto', alignItems: 'flex-start', justifyContent: 'flex-start', touchAction: 'manipulation', transform: `translate(${-col * 100 / SECTOR_COLS}%, ${-row * 100 / SECTOR_ROWS}%)`, transition: 'transform 0.3s ease' }
                   : { width: pageW, touchAction: tool === 'pen' ? 'none' : undefined }
                 }
               >
