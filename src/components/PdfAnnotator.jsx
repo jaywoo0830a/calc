@@ -94,7 +94,23 @@ export default function PdfAnnotator({ url, filePath }) {
   const SECTOR_COLS = 2;
   const SECTOR_ROWS = 4;
   const SECTORS = SECTOR_COLS * SECTOR_ROWS;
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // Stable mobile detection: use the shorter axis — works in both orientations
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const w = window.innerWidth, h = window.innerHeight;
+    return Math.min(w, h) < 768;
+  });
+
+  useEffect(() => {
+    const onResize = () => {
+      const w = window.innerWidth, h = window.innerHeight;
+      const mobile = Math.min(w, h) < 768;
+      setIsMobile(mobile);
+      if (!mobile) setReadingMode(false); // exit reading mode on tablet/desktop
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // ── Sector navigation helper ─────────────────────────────
   const navigateSector = useCallback((delta) => {
