@@ -88,6 +88,38 @@ export default function PdfAnnotator({ url, filePath }) {
   const [alignment, setAlignment] = useState('center');
   const [zoom, setZoom] = useState(1); // 1 = 100%, 1.5 = 150%, etc.
   const [chromeVisible, setChromeVisible] = useState(true);
+  // ── Reading mode (mobile: 2×4 grid sectors) ─────────────
+  const [readingMode, setReadingMode] = useState(false);
+  const [sectorIndex, setSectorIndex] = useState(0); // 0..7
+  const SECTOR_COLS = 2;
+  const SECTOR_ROWS = 4;
+  const SECTORS = SECTOR_COLS * SECTOR_ROWS;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+  // ── Sector navigation helper ─────────────────────────────
+  const navigateSector = useCallback((delta) => {
+    const next = sectorIndex + delta;
+    if (next < 0) {
+      if (currentPage > 1) {
+        setCurrentPage(p => p - 1);
+        setSectorIndex(SECTORS - 1);
+      }
+    } else if (next >= SECTORS) {
+      if (currentPage < numPages) {
+        setCurrentPage(p => p + 1);
+        setSectorIndex(0);
+      }
+    } else {
+      setSectorIndex(next);
+    }
+  }, [sectorIndex, currentPage, numPages, SECTORS]);
+
+  // Reset sector on page change
+  const goToPage = useCallback((page) => {
+    setCurrentPage(page);
+    setSectorIndex(0);
+  }, []);
+
   const touchStart = useRef({ x: 0, y: 0, time: 0 });
   const [toc, setToc] = useState(null);         // PDF outline
   const [tocOpen, setTocOpen] = useState(false);
@@ -111,6 +143,19 @@ export default function PdfAnnotator({ url, filePath }) {
   }, []);
 
   const handleSwipeEnd = useCallback((e) => {
+    if (isMobile && readingMode) {
+      const dx = (e.changedTouches?.[0]?.clientX ?? e.clientX) - touchStart.current.x;
+      const dy = (e.changedTouches?.[0]?.clientY ?? e.clientY) - touchStart.current.y;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      if (absDx < 20 && absDy < 20) return;
+      if (absDx > absDy) {
+        navigateSector(dx > 0 ? -1 : 1); // swipe right=prev, left=next
+      } else {
+        navigateSector(dy > 0 ? -1 : 1); // swipe down=prev, up=next
+      }
+      return;
+    }
     const x = e.changedTouches?.[0]?.clientX ?? e.clientX;
     const y = e.changedTouches?.[0]?.clientY ?? e.clientY;
     const dx = x - touchStart.current.x;
@@ -121,23 +166,20 @@ export default function PdfAnnotator({ url, filePath }) {
 
     if (absDx < 30 && absDy < 30) return;
 
-    // Support both horizontal and vertical swipes
     if (absDx > absDy && absDx > 30) {
-      // horizontal swipe: left ← → right
       if (dx < -30 || (dx < -10 && dt < 300)) {
         setCurrentPage((p) => Math.min(numPages, p + 1));
       } else if (dx > 30 || (dx > 10 && dt < 300)) {
         setCurrentPage((p) => Math.max(1, p - 1));
       }
     } else if (absDy > 30) {
-      // vertical swipe: up ↑ ↓ down
       if (dy < -30 || (dy < -10 && dt < 300)) {
         setCurrentPage((p) => Math.min(numPages, p + 1));
       } else if (dy > 30 || (dy > 10 && dt < 300)) {
         setCurrentPage((p) => Math.max(1, p - 1));
       }
     }
-  }, [numPages]);
+  }, [numPages, isMobile, readingMode, navigateSector]);
 
   // ── Fullscreen (native API + CSS fallback for iOS/Safari) ──
   const toggleFullscreen = useCallback(() => {
@@ -486,7 +528,7 @@ export default function PdfAnnotator({ url, filePath }) {
                   className="pdf-annotator__toc-item"
                   style={{ paddingLeft: `${0.5 + (item.depth || 1) * 0.75}rem` }}
                   onClick={() => {
-                    if (item.pageNumber) scrollToPage(item.pageNumber);
+                    if (item.pageNumber) goToPage(item.pageNumber);
                     setTocOpen(false);
                   }}
                 >
@@ -573,27 +615,49 @@ export default function PdfAnnotator({ url, filePath }) {
           {[currentPage - 1].filter(i => i >= 0 && i < numPages).map((i) => {
             const pageNumber = i + 1;
             const annos = pageAnnotations(pageNumber);
-            const pageW = Math.min(window.innerWidth - 16, window.innerWidth * 0.98, 900) * zoom;
-            return (
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const isReading = isMobile && readingMode;
+            const pageW = isReading
+              ? vw * SECTOR_COLS
+              : Math.min(vw - 16, vw * 0.98, 900) * zoom;
+            const col = sectorIndex % SECTOR_COLS;
+            const row = Math.floor(sectorIndex / SECTOR_COLS);
+            const handleSectorTap = (e) => {
+              if (!isReading) return;
+              e.stopPropagation();
+              const next = sectorIndex + 1;
+              if (next >= SECTORS) {
+                setSectorIndex(0);
+                if (currentPage < numPages) goToPage(currentPage + 1);
+              } else {
+                setSectorIndex(next);
+              }
+            };
+
+            const pageContent = (
               <div
                 key={pageNumber}
                 className={'pdf-annotator__page-wrapper' + (tool === 'pen' ? ' pdf-annotator__page-wrapper--pen' : '')}
                 ref={(el) => { if (el) pageRefs.current[pageNumber] = el; }}
                 onMouseUp={handleMouseUp(pageNumber)}
-                onClick={handlePageClick(pageNumber)}
+                onClick={isReading ? handleSectorTap : handlePageClick(pageNumber)}
                 onPointerDown={handlePointerDown(pageNumber)}
                 onPointerMove={handlePointerMove(pageNumber)}
                 onPointerUp={handlePointerUp(pageNumber)}
-                style={{ width: pageW, touchAction: tool === 'pen' ? 'none' : undefined }}
+                style={isReading
+                  ? { width: pageW, touchAction: 'manipulation', transform: `translate(${-col * 100 / SECTOR_COLS}%, ${-row * 100 / SECTOR_ROWS}%)`, transition: 'transform 0.3s ease' }
+                  : { width: pageW, touchAction: tool === 'pen' ? 'none' : undefined }
+                }
               >
                 <Page
                   pageNumber={pageNumber}
                   width={pageW}
                   devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
-                  renderTextLayer={true}
-                  renderAnnotationLayer={true}
+                  renderTextLayer={!isReading}
+                  renderAnnotationLayer={!isReading}
                 />
-                {/* Live pen stroke (real-time preview) */}
+                {/* Live pen stroke */}
                 {liveStroke && liveStroke.pageNumber === pageNumber && (
                   <svg
                     className="pdf-annotator__pen-stroke pdf-annotator__pen-stroke--live"
@@ -624,6 +688,21 @@ export default function PdfAnnotator({ url, filePath }) {
                 ))}
               </div>
             );
+
+            if (isReading) {
+              return (
+                <div key={pageNumber} className="pdf-annotator__reading-sector" style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative', flexShrink: 0 }}>
+                  {pageContent}
+                  {/* Sector dots indicator */}
+                  <div className="pdf-annotator__sector-dots">
+                    {Array.from({ length: SECTORS }, (_, j) => (
+                      <span key={j} className={'pdf-annotator__sector-dot' + (j === sectorIndex ? ' pdf-annotator__sector-dot--active' : '')} />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            return pageContent;
           })}
         </Document>
         )}
@@ -634,7 +713,7 @@ export default function PdfAnnotator({ url, filePath }) {
         <div className="pdf-annotator__nav">
           <button
             className="pdf-annotator__nav-btn"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            onClick={() => { if (isMobile && readingMode) { navigateSector(-SECTORS); } else { goToPage(Math.max(1, currentPage - 1)); } }}
             disabled={currentPage <= 1}
             title="Previous page"
           >
@@ -653,7 +732,7 @@ export default function PdfAnnotator({ url, filePath }) {
                 if (e.key === 'Enter') {
                   const p = parseInt(e.target.value, 10);
                   if (p >= 1 && p <= numPages) {
-                    setCurrentPage(p);
+                    goToPage(p);
                     setPageInput('');
                   }
                 }
@@ -665,7 +744,7 @@ export default function PdfAnnotator({ url, filePath }) {
           </div>
           <button
             className="pdf-annotator__nav-btn"
-            onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
+            onClick={() => { if (isMobile && readingMode) { navigateSector(SECTORS); } else { goToPage(Math.min(numPages, currentPage + 1)); } }}
             disabled={currentPage >= numPages}
             title="Next page"
           >
@@ -689,7 +768,18 @@ export default function PdfAnnotator({ url, filePath }) {
               title="Align right"
             >◩</button>
           </div>
+          {/* Reading mode (mobile only) */}
+          {isMobile && (
+            <div className="pdf-annotator__layout-modes">
+              <button
+                className={'pdf-annotator__layout-btn' + (readingMode ? ' pdf-annotator__layout-btn--active' : '')}
+                onClick={() => { setReadingMode(!readingMode); setSectorIndex(0); setTool(null); }}
+                title="Reading mode"
+              >📖</button>
+            </div>
+          )}
           {/* Zoom */}
+          {!readingMode && (
           <div className="pdf-annotator__layout-modes">
             <button
               className={'pdf-annotator__layout-btn' + (zoom === 1 ? ' pdf-annotator__layout-btn--active' : '')}
@@ -707,6 +797,7 @@ export default function PdfAnnotator({ url, filePath }) {
               title="200%"
             >2×</button>
           </div>
+          )}
         </div>
       )}
       {/* Floating restore button when chrome is hidden */}
