@@ -7,7 +7,6 @@
 .pdf-annotator {
   display: flex;
   flex-direction: column;
-  height: 100%;                         // fill parent (#root) — don't exceed viewport
   min-height: 0;
   contain: layout style;
 
