@@ -53,17 +53,19 @@
     @media (hover: hover) { &:hover { background: $c-accent-light; color: $c-accent; border-color: $c-accent; } }
   }
 
+  // ── Split: mobile-stacked → tablet+ side-by-side ───────
   &__split {
     display: flex;
+    flex-direction: column;    // mobile: stack
     flex: 1;
     min-height: 0;
     gap: $sp-2;
-    @media (max-width: $bp-md) { flex-direction: column; }
   }
 
   &__editor-pane {
     flex: 1;
     min-width: 0;
+    min-height: 0;              // mobile: allow shrink
     display: flex;
     flex-direction: column;
     gap: $sp-1;
@@ -97,7 +99,7 @@
 
   &__editor {
     flex: 1;
-    min-height: 0;
+    min-height: 8rem;           // mobile: 최소 높이 확보
     border: $border-thin solid $c-rule;
     border-radius: $radius-md;
     overflow: hidden;
@@ -118,9 +120,9 @@
   }
 
   &__preview-pane {
-    flex: 1.2;
+    flex: 1;
     min-width: 0;
-    min-height: 0;
+    min-height: 12rem;          // mobile: 최소 높이 확보
     border: $border-thin solid $c-rule;
     border-radius: $radius-md;
     overflow: hidden;
@@ -139,5 +141,73 @@
     color: $c-ink-faint;
     font-style: italic;
     padding: $sp-1 0;
+  }
+
+  // ==========================================================
+  // Responsive — Tablet (≥ 480px): side-by-side
+  // ==========================================================
+  @media (min-width: $bp-sm) {
+    gap: $sp-3;
+
+    &__mode-btn {
+      font-size: $fs-step-0;
+      padding: $sp-3 $sp-4;
+    }
+
+    &__chip {
+      font-size: $fs-step--1;
+    }
+
+    &__split {
+      flex-direction: row;      // side-by-side
+      gap: $sp-3;
+    }
+
+    &__editor-pane {
+      flex: 1;
+      min-height: 0;
+    }
+
+    &__preview-pane {
+      flex: 1;
+      min-height: 0;
+    }
+
+    &__editor {
+      min-height: 0;
+    }
+
+    &__toolbar {
+      font-size: $fs-step--1;
+    }
+
+    &__render-btn {
+      font-size: $fs-step--1;
+      padding: $sp-2 $sp-4;
+    }
+  }
+
+  // ==========================================================
+  // Responsive — Desktop (≥ 1024px): wider, more breathing room
+  // ==========================================================
+  @media (min-width: $bp-lg) {
+    gap: $sp-4;
+
+    &__mode-btn {
+      font-size: $fs-step-1;
+      padding: $sp-3 $sp-5;
+    }
+
+    &__split {
+      gap: $sp-4;
+    }
+
+    &__editor-pane {
+      flex: 1;
+    }
+
+    &__preview-pane {
+      flex: 1.2;                // canvas slightly larger
+    }
   }
 }

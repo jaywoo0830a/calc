@@ -45,19 +45,31 @@ body {
 
 #root {
   width: 100%;
-  max-width: $max-width;
+  max-width: $max-width-sm;
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: $sp-4;
-  overflow: hidden;             // 루트 레벨 오버플로우 차단
+  padding: $sp-2;
+  overflow: hidden;
   min-width: 0;
 
   // 모든 라우트 페이지가 flex 컨테이너를 채우도록
   > * {
     flex: 1;
     min-height: 0;
-    min-width: 0;               // flex 자식 오버플로우 방지
+    min-width: 0;
+  }
+
+  // ── Tablet: 넉넉한 여백 + 최대 너비 증가 ─────────────────
+  @media (min-width: $bp-sm) {
+    max-width: $max-width-md;
+    padding: $sp-4 $sp-5;
+  }
+
+  // ── Desktop: 더 넓은 레이아웃 ────────────────────────────
+  @media (min-width: $bp-lg) {
+    max-width: $max-width-lg;
+    padding: $sp-5 $sp-8;
   }
 }
 

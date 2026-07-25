@@ -119,14 +119,17 @@ $bp-lg: 64rem;    // 1024px
 // ============================================================
 // 9. LAYOUT
 // ============================================================
-$max-width:      26.25rem;   // 420px
-$sidebar-width:  16.25rem;   // 260px
-$sidebar-toggle: 1.75rem;    //  28px
-$toggle-width:   1.25rem;   //  20px  (스와이프 트리거)
-$toggle-height:  100dvh;    //  전체 높이
-$fullscreen-btn: 2.25rem;    //  36px
-$display-min-h:  6.25rem;    // 100px
-$scrollbar-w:    0.375rem;   //   6px
+$max-width-sm:    100%;        // mobile: full-width
+$max-width-md:    42rem;       // tablet: 672px
+$max-width-lg:    56rem;       // desktop: 896px
+$max-width:       26.25rem;    // 420px (legacy, replaced by responsive)
+$sidebar-width:   16.25rem;    // 260px
+$sidebar-toggle:  1.75rem;     //  28px
+$toggle-width:    1.25rem;     //  20px  (스와이프 트리거)
+$toggle-height:   100dvh;      //  전체 높이
+$fullscreen-btn:  2.25rem;     //  36px
+$display-min-h:   6.25rem;     // 100px
+$scrollbar-w:     0.375rem;    //   6px
 
 // ============================================================
 // 10. Z-INDEX scale
