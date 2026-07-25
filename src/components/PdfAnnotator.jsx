@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -345,7 +346,9 @@ export default function PdfAnnotator({ url, filePath }) {
     standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
   }), []);
 
-  return (
+  const isFakeFullscreen = fullscreen && !document.fullscreenElement;
+
+  const content = (
     <div className={'pdf-annotator' + (fullscreen ? ' pdf-annotator--fullscreen' : '')} ref={containerRef}>
       {/* Toolbar */}
       <div className="pdf-annotator__toolbar">
@@ -698,6 +701,8 @@ export default function PdfAnnotator({ url, filePath }) {
       )}
     </div>
   );
+
+  return isFakeFullscreen ? createPortal(content, document.body) : content;
 }
 
 /** Renders a single annotation overlay — memoized for performance */
