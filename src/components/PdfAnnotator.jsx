@@ -552,6 +552,7 @@ export default function PdfAnnotator({ url, filePath }) {
           ).filter(i => i >= 0 && i < numPages).map((i) => {
             const pageNumber = i + 1;
             const annos = pageAnnotations(pageNumber);
+            const pageW = Math.min(window.innerWidth - 48, 800);
             return (
               <div
                 key={pageNumber}
@@ -562,11 +563,11 @@ export default function PdfAnnotator({ url, filePath }) {
                 onPointerDown={handlePointerDown(pageNumber)}
                 onPointerMove={handlePointerMove(pageNumber)}
                 onPointerUp={handlePointerUp(pageNumber)}
-                style={{ touchAction: tool === 'pen' ? 'none' : undefined }}
+                style={{ width: pageW, touchAction: tool === 'pen' ? 'none' : undefined }}
               >
                 <Page
                   pageNumber={pageNumber}
-                  width={Math.min(window.innerWidth - 48, 800)}
+                  width={pageW}
                   devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
                   renderTextLayer={true}
                   renderAnnotationLayer={true}

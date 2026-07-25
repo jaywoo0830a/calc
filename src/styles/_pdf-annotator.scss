@@ -189,8 +189,6 @@
   // ---- Page wrapper (optimized) ──────────────────────────
   &__page-wrapper {
     position: relative;
-    width: fit-content;
-    max-width: 100%;
     margin: 0 auto $sp-4;
     box-shadow: $shadow-md;
     background: #fff;
@@ -199,6 +197,7 @@
     contain-intrinsic-size: auto 600px;
     contain: layout style paint;       // heavy isolation for performance
     flex-shrink: 0;
+    max-width: 100%;
 
     &--pen {
       cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='2' cy='14' r='2' fill='%232c2416'/%3E%3C/svg%3E") 2 14, crosshair;
