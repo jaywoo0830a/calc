@@ -49,6 +49,40 @@
     }
   }
 
+  // ── Toggle bar: collapse buttons (always visible) ─────
+  &__toggle-bar {
+    display: flex;
+    gap: $sp-1;
+    flex-shrink: 0;
+  }
+
+  &__toggle-btn {
+    padding: $sp-1 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+        color: $c-ink;
+      }
+    }
+
+    &--active {
+      background: $c-accent;
+      color: $c-ink-inverse;
+      border-color: $c-accent;
+    }
+  }
+
   // ── Split: mobile-stacked → tablet+ side-by-side ───────
   &__split {
     display: flex;
@@ -87,37 +121,6 @@
     font-weight: $fw-semibold;
     color: $c-ink-soft;
     flex-shrink: 0;
-    gap: $sp-2;
-  }
-
-  &__toolbar-actions {
-    display: flex;
-    align-items: center;
-    gap: $sp-1;
-  }
-
-  &__collapse-btn {
-    width: 1.75rem;
-    height: 1.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: $border-thin solid $c-rule;
-    border-radius: $radius-sm;
-    background: $c-page;
-    color: $c-ink-faint;
-    font-size: $fs-step--2;
-    cursor: pointer;
-    transition: all $transition-fast;
-    flex-shrink: 0;
-    padding: 0;
-
-    @media (hover: hover) {
-      &:hover {
-        background: $c-page-dark;
-        color: $c-ink;
-      }
-    }
   }
 
   &__render-btn {
@@ -223,7 +226,7 @@
     }
 
     &__editor-pane {
-      flex: 1.5;                // editor wider on desktop
+      flex: 3;                  // editor dominates on desktop
     }
 
     &__preview-pane {

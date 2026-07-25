@@ -177,19 +177,19 @@ Plotly.newPlot(container, [
         <button className={'mathspace__chip' + (plotType === 'scatter3d' ? ' mathspace__chip--active' : '')} onClick={() => examples('scatter3d')}>🧬 3D Curve</button>
         <button className={'mathspace__chip' + (plotType === 'scatter2d' ? ' mathspace__chip--active' : '')} onClick={() => examples('scatter2d')}>📈 2D Plot</button>
       </div>
+      <div className="mathspace__toggle-bar">
+        <button className={'mathspace__toggle-btn' + (collapsed === 'editor' ? ' mathspace__toggle-btn--active' : '')} onClick={() => setCollapsed(collapsed === 'editor' ? null : 'editor')}>
+          {collapsed === 'editor' ? '◀ Code' : 'Code ▶'}
+        </button>
+        <button className={'mathspace__toggle-btn' + (collapsed === 'preview' ? ' mathspace__toggle-btn--active' : '')} onClick={() => setCollapsed(collapsed === 'preview' ? null : 'preview')}>
+          {collapsed === 'preview' ? 'Plot ◀' : '▶ Plot'}
+        </button>
+      </div>
       <div className={'mathspace__split' + (collapsed ? ' mathspace__split--collapsed-' + collapsed : '')}>
         <div className="mathspace__editor-pane">
           <div className="mathspace__toolbar">
             <span>JavaScript + Plotly + mathjs</span>
-            <div className="mathspace__toolbar-actions">
-              <button className="mathspace__collapse-btn" onClick={() => setCollapsed(collapsed === 'editor' ? null : 'editor')} title={collapsed === 'editor' ? 'Show editor' : 'Hide editor'}>
-                {collapsed === 'editor' ? '◀' : '▶'}
-              </button>
-              <button className="mathspace__collapse-btn" onClick={() => setCollapsed(collapsed === 'preview' ? null : 'preview')} title={collapsed === 'preview' ? 'Show preview' : 'Hide preview'}>
-                {collapsed === 'preview' ? '▶' : '◀'}
-              </button>
-              <button className="mathspace__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>▶ Render</button>
-            </div>
+            <button className="mathspace__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>▶ Render</button>
           </div>
           <div ref={editorRef} className="mathspace__editor" />
           {error && <div className="mathspace__error">{error}</div>}

@@ -93,19 +93,19 @@ export default function Playground() {
         <span className="calculator__nav-tab calculator__nav-tab--active">Three.js</span>
         <a href="/math" className="calculator__nav-tab">Math Space</a>
       </nav>
+      <div className="playground__toggle-bar">
+        <button className={'playground__toggle-btn' + (collapsed === 'editor' ? ' playground__toggle-btn--active' : '')} onClick={() => setCollapsed(collapsed === 'editor' ? null : 'editor')}>
+          {collapsed === 'editor' ? '◀ Code' : 'Code ▶'}
+        </button>
+        <button className={'playground__toggle-btn' + (collapsed === 'preview' ? ' playground__toggle-btn--active' : '')} onClick={() => setCollapsed(collapsed === 'preview' ? null : 'preview')}>
+          {collapsed === 'preview' ? 'Canvas ◀' : '▶ Canvas'}
+        </button>
+      </div>
       <div className={'playground__split' + (collapsed ? ' playground__split--collapsed-' + collapsed : '')}>
         <div className="playground__editor-pane">
           <div className="playground__toolbar">
             <span>JavaScript + Three.js</span>
-            <div className="playground__toolbar-actions">
-              <button className="playground__collapse-btn" onClick={() => setCollapsed(collapsed === 'editor' ? null : 'editor')} title={collapsed === 'editor' ? 'Show editor' : 'Hide editor'}>
-                {collapsed === 'editor' ? '◀' : '▶'}
-              </button>
-              <button className="playground__collapse-btn" onClick={() => setCollapsed(collapsed === 'preview' ? null : 'preview')} title={collapsed === 'preview' ? 'Show preview' : 'Hide preview'}>
-                {collapsed === 'preview' ? '▶' : '◀'}
-              </button>
-              <button className="playground__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>▶ Render</button>
-            </div>
+            <button className="playground__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>▶ Render</button>
           </div>
           <div ref={editorRef} className="playground__editor" />
           {error && <div className="playground__error">{error}</div>}
