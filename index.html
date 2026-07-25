@@ -2,7 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover, user-scalable=yes" />
+    <meta name="description" content="A high-precision (32-digit) calculator with PDF viewer and annotation tools. Installable as a PWA for offline use." />
+    <meta name="color-scheme" content="light" />
     <title>Calc — High Precision (32 digits)</title>
 
     <link rel="manifest" href="/manifest.json" />
@@ -12,16 +14,46 @@
     <meta name="apple-mobile-web-app-title" content="Calc" />
     <meta name="apple-touch-fullscreen" content="yes" />
     <meta name="theme-color" content="#f8f4eb" />
-    <link rel="apple-touch-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
 
+    <!-- Platform detection: adds .is-ios / .is-android / .is-chrome to <html> -->
+    <script>
+      (function(){
+        var ua = navigator.userAgent || '';
+        var cls = document.documentElement.classList;
+        var iOS  = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        var android = /Android/.test(ua);
+        var chrome  = /Chrome\//.test(ua) && !/Edge\//.test(ua) && !/OPR\//.test(ua);
+        if (iOS)     cls.add('is-ios');
+        if (android) cls.add('is-android');
+        if (chrome)  cls.add('is-chrome');
+        if (!iOS && !android) cls.add('is-desktop');
+        // iOS PWA: hide URL bar via minimal-ui
+        if (iOS && !('standalone' in navigator && navigator.standalone)) {
+          cls.add('is-ios-browser');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <!-- Register service worker for PWA offline support -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(
+            (reg) => console.log('SW registered:', reg.scope),
+            (err) => console.warn('SW registration failed:', err)
+          );
+        });
+      }
+    </script>
   </body>
 </html>

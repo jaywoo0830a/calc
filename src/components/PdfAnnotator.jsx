@@ -112,6 +112,9 @@ export default function PdfAnnotator({ url, filePath }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  // Platform detection (set by inline script in index.html)
+  const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
+
   // ── Sector navigation helper ─────────────────────────────
   const navigateSector = useCallback((delta) => {
     const next = sectorIndex + delta;
@@ -662,7 +665,7 @@ export default function PdfAnnotator({ url, filePath }) {
             const pageContent = (
               <div
                 key={pageNumber}
-                className={'pdf-annotator__page-wrapper' + (tool === 'pen' ? ' pdf-annotator__page-wrapper--pen' : '')}
+                className={'pdf-annotator__page-wrapper' + (tool === 'pen' ? ' pdf-annotator__page-wrapper--pen' : '') + (isIOS ? ' pdf-annotator__page-wrapper--ios' : '')}
                 ref={(el) => { if (el) pageRefs.current[pageNumber] = el; }}
                 onMouseUp={handleMouseUp(pageNumber)}
                 onClick={isReading ? handleSectorTap : handlePageClick(pageNumber)}
@@ -854,7 +857,7 @@ const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, 
           inset: 0,
           width: '100%',
           height: '100%',
-          pointerEvents: 'none',
+          pointerEvents: eraseMode ? 'auto' : 'none',
         }}
         viewBox="0 0 1 1"
         preserveAspectRatio="none"

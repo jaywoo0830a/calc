@@ -977,3 +977,98 @@
     }
   }
 }
+
+// ============================================================
+// Platform-specific fixes
+// ============================================================
+
+// ── iOS Safari ───────────────────────────────────────────
+.is-ios {
+  .pdf-annotator {
+    // iOS needs explicit height for flex children
+    min-height: 0;
+    // Prevent iOS overscroll bounce inside the annotator
+    overscroll-behavior: none;
+  }
+
+  .pdf-annotator__document {
+    // iOS smooth momentum scroll (already set, reinforce)
+    -webkit-overflow-scrolling: touch;
+    // Prevent iOS from zooming the page on double-tap
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
+  .pdf-annotator__page-wrapper {
+    // Disable iOS callout on long-press (annotation areas)
+    -webkit-touch-callout: none;
+    // Prevent iOS text selection popover on annotations
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  // iOS: custom CSS cursor doesn't work — use default touch
+  .pdf-annotator__page-wrapper--ios.pdf-annotator__page-wrapper--pen {
+    cursor: crosshair;
+    touch-action: none;
+  }
+
+  .pdf-annotator__mark,
+  .pdf-annotator__comment-marker {
+    -webkit-touch-callout: none;
+  }
+
+  // iOS fullscreen: position:fixed behaves differently
+  .pdf-annotator--fullscreen {
+    // Use -webkit-fill-available instead of inset:0 for iOS
+    height: -webkit-fill-available;
+    width: 100%;
+    // Suppress iOS status bar overlay
+    padding-top: env(safe-area-inset-top, $sp-2);
+  }
+
+  // TOC sidebar: iOS safe height
+  .pdf-annotator__toc-sidebar {
+    height: -webkit-fill-available;
+  }
+}
+
+// ── Android Chrome ───────────────────────────────────────
+.is-android.is-chrome {
+  .pdf-annotator__document {
+    // Android Chrome: hardware-accelerated scroll
+    will-change: scroll-position;
+    // Prevent pull-to-refresh
+    overscroll-behavior-y: contain;
+  }
+
+  .pdf-annotator--fullscreen {
+    // Android status bar: use black background behind notch
+    background: $c-paper;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+// ── Desktop Chrome ───────────────────────────────────────
+.is-desktop.is-chrome {
+  .pdf-annotator__document {
+    // GPU-accelerated smooth scrolling
+    will-change: scroll-position;
+    scroll-behavior: smooth;
+  }
+
+  .pdf-annotator__page-wrapper {
+    // Chrome-only: heavy containment for paint isolation
+    content-visibility: auto;
+    contain-intrinsic-size: auto 600px;
+  }
+}
+
+// ── All Chrome: GPU layer promotion for glass morphism ──
+.is-chrome {
+  .pdf-annotator__toolbar,
+  .pdf-annotator__nav {
+    // Promote to GPU layer for smooth backdrop-filter
+    transform: translateZ(0);
+    will-change: transform;
+  }
+}

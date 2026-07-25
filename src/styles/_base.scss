@@ -17,7 +17,15 @@ html {
   -webkit-text-size-adjust: 100%;
   color-scheme: light;
   scroll-behavior: smooth;
-  scrollbar-gutter: stable;
+  // scrollbar-gutter is Chrome-only; use @supports for progressive enhancement
+  @supports (scrollbar-gutter: stable) {
+    scrollbar-gutter: stable;
+  }
+  // iOS Safari viewport fix: fill available space accounting for URL bar
+  &.is-ios {
+    height: -webkit-fill-available;
+    min-height: -webkit-fill-available;
+  }
 }
 
 body {
@@ -34,12 +42,20 @@ body {
     $c-paper;
   color: $c-ink;
   height: 100dvh;
+  // iOS fallback: -webkit-fill-available is more reliable than 100dvh
+  .is-ios & {
+    height: -webkit-fill-available;
+  }
   display: flex;
   justify-content: center;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   touch-action: manipulation;
+  // Prevent iOS rubber-band / overscroll bounce
+  overscroll-behavior: none;
+  // Prevent iOS long-press callout on interactive elements
+  -webkit-touch-callout: none;
   // PWA safe areas: prevent notch/home indicator overlap
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -57,6 +73,10 @@ body {
   padding: $sp-2;
   overflow: clip;
   min-width: 0;
+  // iOS Safari needs explicit containment for overflow:clip
+  .is-ios & {
+    overflow: hidden;
+  }
 
   // 모든 라우트 페이지가 flex 컨테이너를 채우도록
   > * {
