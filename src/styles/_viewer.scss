@@ -578,138 +578,51 @@
 }
 
 // ============================================================
-// Responsive — Tablet (≥ 480px): persistent left sidebar
+// Responsive — Tablet (≥ 480px): wider layout, overlay sidebars remain
 // ============================================================
 @media (min-width: $bp-sm) {
   .viewer {
-    // Upload zone — wider, more padding
     &__upload {
       padding: $sp-5 $sp-6;
       font-size: $fs-step-0;
     }
 
-    // ── Left sidebar → inline (not fixed overlay) ──────────
-    &__panes {
-      // Give sidebar space by adjusting panes to a row layout
-    }
-
-    &__sidebar {
-      position: relative;       // inline, not fixed
-      top: auto;
-      left: auto;
-      height: auto;
-      width: $sidebar-width;
-      z-index: auto;
-      box-shadow: none;
-      border-right: $border-thin solid $c-rule;
-      border-radius: $radius-md 0 0 $radius-md;
-      padding-top: $sp-3;
-      flex-shrink: 0;
-      transform: none !important;  // always visible
-    }
-
-    // ── Hide left-edge swipe trigger on tablet+ ───────────
-    &__sidebar-toggle {
-      display: none;
-    }
-
-    // ── Panes becomes a flex row: sidebar + preview ───────
-    &__panes {
-      flex-direction: row;
-    }
-
     &__preview {
-      border-radius: 0 $radius-md $radius-md 0;
+      padding: $sp-5 $sp-6;
     }
 
-    // ── TOC still overlay on tablet, but trigger larger ───
     &__toc-toggle {
       width: 1.5rem;
       opacity: 0.35;
     }
 
-    // ── Preview padding increase ──────────────────────────
-    &__preview {
-      padding: $sp-5 $sp-6;
-    }
-
-    // ── Fullscreen: sidebars stay inline ──────────────────
-    &--fullscreen {
-      .viewer__sidebar {
-        border-radius: 0;
-        border-right: $border-thin solid $c-rule;
-      }
-      .viewer__preview {
-        border-radius: 0;
-      }
+    &__sidebar-toggle {
+      width: 1.5rem;
     }
   }
 }
 
 // ============================================================
-// Responsive — Desktop (≥ 1024px): 3-column layout
+// Responsive — Desktop (≥ 1024px): generous padding, overlay sidebars remain
 // ============================================================
 @media (min-width: $bp-lg) {
   .viewer {
-    // ── TOC sidebar → inline on the right ─────────────────
-    &__toc-sidebar {
-      position: relative;       // inline, not fixed
-      top: auto;
-      right: auto;
-      height: auto;
-      width: $sidebar-width;
-      z-index: auto;
-      box-shadow: none;
-      border-left: $border-thin solid $c-rule;
-      border-radius: 0 $radius-md $radius-md 0;
-      padding-top: $sp-3;
-      flex-shrink: 0;
-      transform: none !important;  // always visible
-    }
-
-    // ── Hide right-edge swipe trigger ─────────────────────
-    &__toc-toggle {
-      display: none;
-    }
-
-    // ── Panes: 3-column flex ──────────────────────────────
-    // sidebar (already flex child) + preview + toc-sidebar
-    &__panes {
-      flex-direction: row;
-    }
-
-    &__preview {
-      border-radius: 0;         // middle column, no radius
-      padding: $sp-6 $sp-8;
-    }
-
-    // ── Sidebar (left) border adjustment ──────────────────
-    &__sidebar {
-      border-radius: $radius-md 0 0 $radius-md;
-    }
-
-    // ── Search area wider ─────────────────────────────────
     &__search-input {
       font-size: $fs-step-0;
     }
 
-    // ── Fullscreen adjustments ────────────────────────────
-    &--fullscreen {
-      .viewer__sidebar {
-        border-radius: 0;
-      }
-      .viewer__toc-sidebar {
-        border-radius: 0;
-      }
-      .viewer__preview {
-        border-radius: 0;
-        padding: $sp-6 $sp-10;
-      }
+    &__preview {
+      padding: $sp-6 $sp-8;
     }
 
-    // ── Content readability ───────────────────────────────
     &__content {
       font-size: $fs-step-1;
+    }
+
+    &--fullscreen {
+      .viewer__preview {
+        padding: $sp-6 $sp-10;
+      }
     }
   }
 }
