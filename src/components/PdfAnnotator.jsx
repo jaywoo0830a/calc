@@ -86,7 +86,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [alignment, setAlignment] = useState('center');
-  const [zoom, setZoom] = useState(1); // 1 = 100%, 1.5 = 150%, etc.
+  const [zoomLevel, setZoomLevel] = useState(1); // continuous 0.5–3.0
   const [chromeVisible, setChromeVisible] = useState(true);
   // ── Reading mode (mobile: 2×4 grid sectors) ─────────────
   const [readingMode, setReadingMode] = useState(false);
@@ -579,7 +579,7 @@ export default function PdfAnnotator({ url, filePath }) {
       {/* PDF Document */}
       <div
         className={'pdf-annotator__document pdf-annotator__document--paginated pdf-annotator__document--align-' + alignment}
-        style={{ overflow: (fullscreen || isMobile && readingMode || zoom > 1) ? 'auto' : undefined }}
+        style={{ overflow: (fullscreen || isMobile && readingMode || zoomLevel > 1) ? 'auto' : undefined }}
         onTouchStart={handleSwipeStart}
         onTouchEnd={handleSwipeEnd}
       >
@@ -622,7 +622,7 @@ export default function PdfAnnotator({ url, filePath }) {
             const maxW = fullscreen ? Math.min(vw * 0.85, 1400) : 800;
             const pageW = isReading
               ? vw * SECTOR_COLS
-              : Math.min(vw - 16, vw * 0.98, maxW) * zoom;
+              : Math.min(vw - 16, vw * 0.98, maxW) * zoomLevel;
             const col = sectorIndex % SECTOR_COLS;
             const row = Math.floor(sectorIndex / SECTOR_COLS);
             const handleSectorTap = (e) => {
@@ -780,24 +780,22 @@ export default function PdfAnnotator({ url, filePath }) {
               >📖</button>
             </div>
           )}
-          {/* Zoom */}
+          {/* Zoom slider */}
           {!readingMode && (
-          <div className="pdf-annotator__layout-modes">
-            <button
-              className={'pdf-annotator__layout-btn' + (zoom === 1 ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setZoom(1)}
-              title="100%"
-            >1×</button>
-            <button
-              className={'pdf-annotator__layout-btn' + (zoom === 1.5 ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setZoom(1.5)}
-              title="150%"
-            >1.5</button>
-            <button
-              className={'pdf-annotator__layout-btn' + (zoom === 2 ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setZoom(2)}
-              title="200%"
-            >2×</button>
+          <div className="pdf-annotator__zoom-slider">
+            <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.25))} title="Zoom out">−</button>
+            <input
+              type="range"
+              min="0.5"
+              max="3"
+              step="0.05"
+              value={zoomLevel}
+              onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
+              onDoubleClick={() => setZoomLevel(1)}
+              title={`${Math.round(zoomLevel * 100)}%`}
+            />
+            <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(Math.min(3, zoomLevel + 0.25))} title="Zoom in">+</button>
+            <span className="pdf-annotator__zoom-label">{Math.round(zoomLevel * 100)}%</span>
           </div>
           )}
         </div>

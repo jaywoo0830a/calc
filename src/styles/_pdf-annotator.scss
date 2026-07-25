@@ -746,6 +746,62 @@
     white-space: nowrap;
   }
 
+  // ---- Zoom slider -----------------------------------------
+  &__zoom-slider {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: $sp-2;
+    padding-left: $sp-2;
+    border-left: $border-thin solid rgba(212, 201, 181, 0.12);
+
+    input[type='range'] {
+      width: 4rem;
+      height: 1.5rem;
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+
+      &::-webkit-slider-runnable-track {
+        height: 0.25rem;
+        border-radius: 999px;
+        background: rgba(212, 201, 181, 0.3);
+      }
+      &::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        background: $c-accent;
+        margin-top: -0.375rem;
+        cursor: pointer;
+      }
+      &::-moz-range-track {
+        height: 0.25rem;
+        border-radius: 999px;
+        background: rgba(212, 201, 181, 0.3);
+      }
+      &::-moz-range-thumb {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        background: $c-accent;
+        border: none;
+        cursor: pointer;
+      }
+    }
+  }
+
+  &__zoom-label {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-soft;
+    min-width: 2.5rem;
+    text-align: center;
+    font-family: $ff;
+  }
+
   // ---- Layout mode buttons --------------------------------
   &__layout-modes {
     display: flex;
