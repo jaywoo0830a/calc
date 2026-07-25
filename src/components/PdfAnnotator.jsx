@@ -858,6 +858,7 @@ const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, 
           width: '100%',
           height: '100%',
           pointerEvents: eraseMode ? 'auto' : 'none',
+          zIndex: 10,
         }}
         viewBox="0 0 1 1"
         preserveAspectRatio="none"

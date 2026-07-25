@@ -278,6 +278,12 @@
     }
   }
 
+  // react-pdf internal layers: keep below our annotation overlays
+  .react-pdf__Page__textContent,
+  .react-pdf__Page__annotations {
+    z-index: 0;
+  }
+
   // ---- Document layout modes -------------------------------
   &__mark {
     position: absolute;
@@ -285,6 +291,7 @@
     cursor: pointer;
     border-radius: 0.125rem;
     transition: opacity $transition-fast;
+    z-index: 15; // above react-pdf text/annotation layers
 
     &:hover {
       opacity: 0.8;
@@ -308,6 +315,7 @@
     position: absolute;
     transform: translate(-50%, -50%);
     cursor: pointer;
+    z-index: 20;
     z-index: 10;
 
     &:hover .pdf-annotator__comment-tooltip {
