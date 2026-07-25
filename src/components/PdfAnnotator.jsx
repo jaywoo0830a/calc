@@ -84,6 +84,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [loadError, setLoadError] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [alignment, setAlignment] = useState('center');
   const touchStart = useRef({ x: 0, y: 0, time: 0 });
   const [toc, setToc] = useState(null);         // PDF outline
   const [tocOpen, setTocOpen] = useState(false);
@@ -495,7 +496,7 @@ export default function PdfAnnotator({ url, filePath }) {
 
       {/* PDF Document */}
       <div
-        className={'pdf-annotator__document pdf-annotator__document--paginated'}
+        className={'pdf-annotator__document pdf-annotator__document--paginated pdf-annotator__document--align-' + alignment}
         onTouchStart={handleSwipeStart}
         onTouchEnd={handleSwipeEnd}
       >
@@ -628,6 +629,24 @@ export default function PdfAnnotator({ url, filePath }) {
           >
             ▶
           </button>
+          {/* Alignment */}
+          <div className="pdf-annotator__layout-modes">
+            <button
+              className={'pdf-annotator__layout-btn' + (alignment === 'left' ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => setAlignment('left')}
+              title="Align left"
+            >◧</button>
+            <button
+              className={'pdf-annotator__layout-btn' + (alignment === 'center' ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => setAlignment('center')}
+              title="Align center"
+            >◰</button>
+            <button
+              className={'pdf-annotator__layout-btn' + (alignment === 'right' ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => setAlignment('right')}
+              title="Align right"
+            >◩</button>
+          </div>
         </div>
       )}
     </div>
