@@ -87,6 +87,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [alignment, setAlignment] = useState('center');
   const [zoom, setZoom] = useState(1); // 1 = 100%, 1.5 = 150%, etc.
+  const [chromeVisible, setChromeVisible] = useState(true);
   const touchStart = useRef({ x: 0, y: 0, time: 0 });
   const [toc, setToc] = useState(null);         // PDF outline
   const [tocOpen, setTocOpen] = useState(false);
@@ -351,6 +352,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const content = (
     <div className={'pdf-annotator' + (fullscreen ? ' pdf-annotator--fullscreen' : '')} ref={containerRef}>
       {/* Toolbar */}
+      {chromeVisible && (
       <div className="pdf-annotator__toolbar">
         <div className="pdf-annotator__tools">
           <button
@@ -458,8 +460,16 @@ export default function PdfAnnotator({ url, filePath }) {
           >
             {fullscreen ? '⊠' : '⛶'}
           </button>
+          <button
+            className="pdf-annotator__fullscreen-btn"
+            onClick={() => setChromeVisible(false)}
+            title="Hide toolbar"
+          >
+            ▴
+          </button>
         </div>
       </div>
+      )}
 
       {/* TOC Sidebar */}
       {toc && (
@@ -620,7 +630,7 @@ export default function PdfAnnotator({ url, filePath }) {
       </div>
 
       {/* Page Navigation Bar */}
-      {numPages > 0 && (
+      {numPages > 0 && chromeVisible && (
         <div className="pdf-annotator__nav">
           <button
             className="pdf-annotator__nav-btn"
@@ -698,6 +708,17 @@ export default function PdfAnnotator({ url, filePath }) {
             >2×</button>
           </div>
         </div>
+      )}
+      {/* Floating restore button when chrome is hidden */}
+      {!chromeVisible && (
+        <button
+          className="pdf-annotator__chrome-toggle"
+          onClick={() => setChromeVisible(true)}
+          title="Show toolbar"
+          aria-label="Show toolbar"
+        >
+          ▾
+        </button>
       )}
     </div>
   );
