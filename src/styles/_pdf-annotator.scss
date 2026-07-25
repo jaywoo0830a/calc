@@ -126,6 +126,38 @@
     }
   }
 
+  // ---- Pen size picker ------------------------------------
+  &__size-picker {
+    display: flex;
+    gap: 0.125rem;
+    padding: 0 $sp-1;
+    align-items: center;
+  }
+
+  &__size-btn {
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-md solid rgba(212, 201, 181, 0.4);
+    border-radius: $radius-sm;
+    cursor: pointer;
+    transition: all $transition-fast;
+    padding: 0;
+    background: rgba(255, 254, 247, 0.6);
+
+    @media (hover: hover) {
+      &:hover { border-color: rgba(92, 61, 46, 0.5); }
+    }
+
+    &--active {
+      border-color: $c-accent;
+      box-shadow: 0 0 0 0.125rem rgba(92, 61, 46, 0.3);
+      background: rgba(92, 61, 46, 0.08);
+    }
+  }
+
   &__md-btn {
     padding: $sp-1 $sp-3;
     border: $border-thin solid $c-rule;

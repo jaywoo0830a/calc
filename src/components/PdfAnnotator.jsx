@@ -40,6 +40,29 @@ const PEN_COLORS = [
   { id: 'accent', color: '#5c3d2e', label: '🟤', name: '갈색' },
 ];
 
+const PEN_SIZES = [
+  { id: 'thin',   width: 0.002,  label: '가는 펜', icon: '·' },
+  { id: 'medium', width: 0.004,  label: '중간 펜', icon: '◉' },
+  { id: 'thick',  width: 0.007,  label: '굵은 펜', icon: '●' },
+];
+
+// ── Bezier smoothing: 직선 대신 2차 베지어 곡선으로 부드럽게 ──
+function smoothPathData(pts) {
+  if (pts.length < 2) return '';
+  if (pts.length === 2) return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`;
+
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const midX = (pts[i].x + pts[i + 1].x) / 2;
+    const midY = (pts[i].y + pts[i + 1].y) / 2;
+    d += ` Q ${pts[i].x} ${pts[i].y} ${midX} ${midY}`;
+  }
+  // 마지막 점으로 직선
+  const last = pts[pts.length - 1];
+  d += ` L ${last.x} ${last.y}`;
+  return d;
+}
+
 function annoRect(a, pageEl) {
   if (!pageEl) return null;
   const pw = pageEl.offsetWidth;
@@ -63,6 +86,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
   const [underlineColor, setUnderlineColor] = useState(UNDERLINE_COLORS[0]);
   const [penColor, setPenColor] = useState(PEN_COLORS[0]);
+  const [penSize, setPenSize] = useState(PEN_SIZES[1]); // medium default
   // pen drawing state
   const isDrawing = useRef(false);
   const currentPath = useRef([]);
@@ -145,9 +169,19 @@ export default function PdfAnnotator({ url, filePath }) {
     isDrawing.current = true;
     currentPage.current = pageNumber;
     currentPath.current = [{ x, y }];
-    setLiveStroke({ pageNumber, color: penColor.color, pathData: `M ${x} ${y}` });
+    setLiveStroke({ pageNumber, color: penColor.color, pathData: `M ${x} ${y}`, width: penSize.width });
     pageEl.setPointerCapture?.(e.pointerId);
-  }, [tool, penColor]);
+  }, [tool, penColor, penSize]);
+
+  // real-time smooth path preview
+  const buildLivePath = useCallback((pts) => {
+    if (pts.length < 2) return `M ${pts[0].x} ${pts[0].y}`;
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 1; i < pts.length; i++) {
+      d += ` L ${pts[i].x} ${pts[i].y}`;
+    }
+    return d;
+  }, []);
 
   const handlePointerMove = useCallback((pageNumber) => (e) => {
     if (!isDrawing.current || tool !== 'pen' || currentPage.current !== pageNumber) return;
@@ -180,18 +214,15 @@ export default function PdfAnnotator({ url, filePath }) {
 
     if (currentPath.current.length < 2) { currentPath.current = []; return; }
 
-    // Build SVG path data
-    const pts = currentPath.current;
-    let d = `M ${pts[0].x} ${pts[0].y}`;
-    for (let i = 1; i < pts.length; i++) {
-      d += ` L ${pts[i].x} ${pts[i].y}`;
-    }
+    // Build SVG path data with bezier smoothing
+    const d = smoothPathData(currentPath.current);
 
     const annotation = {
       filePath,
       pageNumber: currentPage.current,
       type: 'pen',
       color: penColor.color,
+      width: penSize.width,
       text: '',
       pathData: d,
       rect: { x: 0, y: 0, w: 1, h: 1 }, // full page for SVG viewBox
@@ -202,7 +233,7 @@ export default function PdfAnnotator({ url, filePath }) {
     currentPath.current = [];
     currentPage.current = null;
     pageEl.releasePointerCapture?.(e.pointerId);
-  }, [tool, filePath, penColor]);
+  }, [tool, filePath, penColor, penSize]);
   const handlePageClick = useCallback((pageNumber) => (e) => {
     if (tool === 'comment') {
       const pageEl = pageRefs.current[pageNumber];
@@ -309,19 +340,39 @@ export default function PdfAnnotator({ url, filePath }) {
             </div>
           )}
           {tool === 'pen' && (
-            <div className="pdf-annotator__color-picker">
-              {PEN_COLORS.map((c) => (
-                <button
-                  key={c.id}
-                  className={'pdf-annotator__color-swatch' + (penColor.id === c.id ? ' pdf-annotator__color-swatch--active' : '')}
-                  style={{ backgroundColor: c.color }}
-                  onClick={() => setPenColor(c)}
-                  title={c.name}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="pdf-annotator__color-picker">
+                {PEN_COLORS.map((c) => (
+                  <button
+                    key={c.id}
+                    className={'pdf-annotator__color-swatch' + (penColor.id === c.id ? ' pdf-annotator__color-swatch--active' : '')}
+                    style={{ backgroundColor: c.color }}
+                    onClick={() => setPenColor(c)}
+                    title={c.name}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <div className="pdf-annotator__size-picker">
+                {PEN_SIZES.map((s) => (
+                  <button
+                    key={s.id}
+                    className={'pdf-annotator__size-btn' + (penSize.id === s.id ? ' pdf-annotator__size-btn--active' : '')}
+                    onClick={() => setPenSize(s)}
+                    title={s.label}
+                  >
+                    <span style={{
+                      display: 'inline-block',
+                      width: (s.width * 300) + 'rem',
+                      height: (s.width * 300) + 'rem',
+                      borderRadius: '50%',
+                      backgroundColor: penColor.color,
+                    }} />
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </div>
         <div className="pdf-annotator__tools">
@@ -332,21 +383,6 @@ export default function PdfAnnotator({ url, filePath }) {
           >
             🧹 지우개
           </button>
-          {annotations.length > 0 && (
-            <button
-              className="pdf-annotator__tool pdf-annotator__tool--danger"
-              onClick={() => {
-                if (confirm(`모든 어노테이션(${annotations.length}개)을 삭제할까요?`)) {
-                  import('../lib/storage.js').then(({ deleteAllAnnotations }) => {
-                    deleteAllAnnotations(filePath).then(() => setAnnotations([]));
-                  });
-                }
-              }}
-              title="모든 어노테이션 삭제"
-            >
-              🗑️ 모두 삭제
-            </button>
-          )}
           <button
             className="pdf-annotator__fullscreen-btn"
             onClick={toggleFullscreen}
@@ -441,7 +477,7 @@ export default function PdfAnnotator({ url, filePath }) {
                       d={liveStroke.pathData}
                       fill="none"
                       stroke={liveStroke.color}
-                      strokeWidth="0.003"
+                      strokeWidth={liveStroke.width}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
@@ -492,7 +528,7 @@ function AnnotationOverlay({ annotation, pageEl, onDelete }) {
           d={annotation.pathData}
           fill="none"
           stroke={annotation.color || '#2c2416'}
-          strokeWidth="0.003"
+          strokeWidth={annotation.width || 0.003}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
