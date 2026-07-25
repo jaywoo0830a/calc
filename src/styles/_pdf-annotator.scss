@@ -620,8 +620,7 @@
   &--fullscreen {
     position: fixed;
     inset: 0;
-    width: 100vw;
-    height: 100dvh;                     // dynamic viewport (iOS address bar aware)
+    // dynamic viewport (iOS address bar aware)
     z-index: $z-fullscreen;
     background: $c-paper;
     // Safe area insets for iPhone notch / home indicator
