@@ -59,6 +59,7 @@ export default function Calculator() {
         <span className="calculator__nav-tab calculator__nav-tab--active">Calc</span>
         <a href="/viewer" className="calculator__nav-tab">Viewer</a>
         <a href="/playground" className="calculator__nav-tab">Three.js</a>
+        <a href="/math" className="calculator__nav-tab">Math Space</a>
       </nav>
       <Display expression={calc.expression} result={calc.result} />
       <Keypad onAction={handleAction} sciMode={calc.sciMode} />

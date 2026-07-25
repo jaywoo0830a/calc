@@ -90,6 +90,7 @@ export default function Playground() {
         <a href="/" className="calculator__nav-tab">Calc</a>
         <a href="/viewer" className="calculator__nav-tab">Viewer</a>
         <span className="calculator__nav-tab calculator__nav-tab--active">Three.js</span>
+        <a href="/math" className="calculator__nav-tab">Math Space</a>
       </nav>
       <div className="playground__split">
         <div className="playground__editor-pane">

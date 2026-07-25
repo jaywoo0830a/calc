@@ -541,6 +541,7 @@ export default function Viewer() {
           <a href="/" className="calculator__nav-tab">Calc</a>
           <span className="calculator__nav-tab calculator__nav-tab--active">Viewer</span>
           <a href="/playground" className="calculator__nav-tab">Three.js</a>
+          <a href="/math" className="calculator__nav-tab">Math Space</a>
         </nav>
       )}
       {!fullscreen && zipTree && (
