@@ -130,13 +130,14 @@ export default function PdfAnnotator({ url, filePath }) {
     }
   }, [sectorIndex, currentPage, numPages, SECTORS]);
 
-  // Reset sector on page change
+  // Reset sector on page change + scroll to top
   const goToPage = useCallback((page) => {
     setCurrentPage(page);
     setSectorIndex(0);
+    documentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
 
-  const touchStart = useRef({ x: 0, y: 0, time: 0 });
+  const touchStart = useRef({ x: 0, y: 0, time: 0, count: 0 });
   const [toc, setToc] = useState(null);         // PDF outline
   const [tocOpen, setTocOpen] = useState(false);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
@@ -155,10 +156,14 @@ export default function PdfAnnotator({ url, filePath }) {
 
   // ── Swipe detection for paginated mode ──────────────────
   const handleSwipeStart = useCallback((e) => {
-    touchStart.current = { x: e.touches?.[0]?.clientX || e.clientX, y: e.touches?.[0]?.clientY || e.clientY, time: Date.now() };
+    const count = e.touches?.length || 1;
+    touchStart.current = { x: e.touches?.[0]?.clientX || e.clientX, y: e.touches?.[0]?.clientY || e.clientY, time: Date.now(), count };
   }, []);
 
   const handleSwipeEnd = useCallback((e) => {
+    // Ignore multi-touch (pinch-zoom) — only single-finger swipes count
+    if (touchStart.current.count > 1) return;
+    if ((e.touches?.length || 0) > 0) return; // still touching with other fingers
     if (isMobile && readingMode) {
       const dx = (e.changedTouches?.[0]?.clientX ?? e.clientX) - touchStart.current.x;
       const dy = (e.changedTouches?.[0]?.clientY ?? e.clientY) - touchStart.current.y;
@@ -186,12 +191,12 @@ export default function PdfAnnotator({ url, filePath }) {
     const MIN_PAGE_SWIPE = 60;
     if (absDx > absDy * 1.5 && absDx > MIN_PAGE_SWIPE) {
       if (dx < 0) {
-        setCurrentPage((p) => Math.min(numPages, p + 1));
+        goToPage(Math.min(numPages, currentPage + 1));
       } else {
-        setCurrentPage((p) => Math.max(1, p - 1));
+        goToPage(Math.max(1, currentPage - 1));
       }
     }
-  }, [numPages, isMobile, readingMode, navigateSector]);
+  }, [numPages, currentPage, isMobile, readingMode, navigateSector, goToPage]);
 
   // ── Fullscreen (native API + CSS fallback for iOS/Safari) ──
   const toggleFullscreen = useCallback(() => {
@@ -590,6 +595,7 @@ export default function PdfAnnotator({ url, filePath }) {
 
       {/* PDF Document */}
       <div
+        ref={documentRef}
         className={'pdf-annotator__document pdf-annotator__document--paginated pdf-annotator__document--align-' + alignment}
         style={{ overflow: (fullscreen || isMobile && readingMode || zoomLevel > 1) ? 'auto' : undefined }}
         onTouchStart={handleSwipeStart}
