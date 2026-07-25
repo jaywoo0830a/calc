@@ -14,6 +14,17 @@
     flex: 1;
     min-height: 0;
     gap: $sp-2;
+
+    // ── Collapsed states ────────────────────────────────
+    &--collapsed-editor {
+      .playground__editor-pane { display: none; }
+      .playground__preview-pane { flex: 1; }
+    }
+
+    &--collapsed-preview {
+      .playground__preview-pane { display: none; }
+      .playground__editor-pane { flex: 1; }
+    }
   }
 
   &__editor-pane {
@@ -34,6 +45,37 @@
     font-weight: $fw-semibold;
     color: $c-ink-soft;
     flex-shrink: 0;
+    gap: $sp-2;
+  }
+
+  &__toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: $sp-1;
+  }
+
+  &__collapse-btn {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    background: $c-page;
+    color: $c-ink-faint;
+    font-size: $fs-step--2;
+    cursor: pointer;
+    transition: all $transition-fast;
+    flex-shrink: 0;
+    padding: 0;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+        color: $c-ink;
+      }
+    }
   }
 
   &__render-btn {
@@ -124,7 +166,7 @@
   }
 
   // ==========================================================
-  // Responsive — Desktop (≥ 1024px): wider, more breathing room
+  // Responsive — Desktop (≥ 1024px): wider editor space
   // ==========================================================
   @media (min-width: $bp-lg) {
     gap: $sp-4;
@@ -134,11 +176,11 @@
     }
 
     &__editor-pane {
-      flex: 1;
+      flex: 1.5;                // editor wider on desktop
     }
 
     &__preview-pane {
-      flex: 1.2;                // canvas slightly larger
+      flex: 1;
     }
   }
 }

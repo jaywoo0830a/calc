@@ -53,6 +53,7 @@ export default function Playground() {
   const canvasRef = useRef(null);
   const cleanupRef = useRef(null);
   const [error, setError] = useState(null);
+  const [collapsed, setCollapsed] = useState(null); // 'editor' | 'preview' | null
 
   const run = useCallback((code) => {
     setError(null);
@@ -92,11 +93,19 @@ export default function Playground() {
         <span className="calculator__nav-tab calculator__nav-tab--active">Three.js</span>
         <a href="/math" className="calculator__nav-tab">Math Space</a>
       </nav>
-      <div className="playground__split">
+      <div className={'playground__split' + (collapsed ? ' playground__split--collapsed-' + collapsed : '')}>
         <div className="playground__editor-pane">
           <div className="playground__toolbar">
             <span>JavaScript + Three.js</span>
-            <button className="playground__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>▶ Render</button>
+            <div className="playground__toolbar-actions">
+              <button className="playground__collapse-btn" onClick={() => setCollapsed(collapsed === 'editor' ? null : 'editor')} title={collapsed === 'editor' ? 'Show editor' : 'Hide editor'}>
+                {collapsed === 'editor' ? '◀' : '▶'}
+              </button>
+              <button className="playground__collapse-btn" onClick={() => setCollapsed(collapsed === 'preview' ? null : 'preview')} title={collapsed === 'preview' ? 'Show preview' : 'Hide preview'}>
+                {collapsed === 'preview' ? '▶' : '◀'}
+              </button>
+              <button className="playground__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>▶ Render</button>
+            </div>
           </div>
           <div ref={editorRef} className="playground__editor" />
           {error && <div className="playground__error">{error}</div>}

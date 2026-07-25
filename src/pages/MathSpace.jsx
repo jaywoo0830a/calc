@@ -54,6 +54,7 @@ export default function MathSpace() {
   const plotRef = useRef(null);
   const [error, setError] = useState(null);
   const [plotType, setPlotType] = useState('surface');
+  const [collapsed, setCollapsed] = useState(null); // 'editor' | 'preview' | null
 
   const run = useCallback((code) => {
     setError(null);
@@ -176,11 +177,19 @@ Plotly.newPlot(container, [
         <button className={'mathspace__chip' + (plotType === 'scatter3d' ? ' mathspace__chip--active' : '')} onClick={() => examples('scatter3d')}>🧬 3D Curve</button>
         <button className={'mathspace__chip' + (plotType === 'scatter2d' ? ' mathspace__chip--active' : '')} onClick={() => examples('scatter2d')}>📈 2D Plot</button>
       </div>
-      <div className="mathspace__split">
+      <div className={'mathspace__split' + (collapsed ? ' mathspace__split--collapsed-' + collapsed : '')}>
         <div className="mathspace__editor-pane">
           <div className="mathspace__toolbar">
             <span>JavaScript + Plotly + mathjs</span>
-            <button className="mathspace__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>▶ Render</button>
+            <div className="mathspace__toolbar-actions">
+              <button className="mathspace__collapse-btn" onClick={() => setCollapsed(collapsed === 'editor' ? null : 'editor')} title={collapsed === 'editor' ? 'Show editor' : 'Hide editor'}>
+                {collapsed === 'editor' ? '◀' : '▶'}
+              </button>
+              <button className="mathspace__collapse-btn" onClick={() => setCollapsed(collapsed === 'preview' ? null : 'preview')} title={collapsed === 'preview' ? 'Show preview' : 'Hide preview'}>
+                {collapsed === 'preview' ? '▶' : '◀'}
+              </button>
+              <button className="mathspace__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>▶ Render</button>
+            </div>
           </div>
           <div ref={editorRef} className="mathspace__editor" />
           {error && <div className="mathspace__error">{error}</div>}
