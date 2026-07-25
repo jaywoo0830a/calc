@@ -620,25 +620,27 @@
   &--fullscreen {
     position: fixed;
     inset: 0;
-    // dynamic viewport (iOS address bar aware)
     z-index: $z-fullscreen;
     background: $c-paper;
-    // Safe area insets for iPhone notch / home indicator
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
+    // Responsive: desktop 최소 8px, mobile safe-area
+    padding: max($sp-2, env(safe-area-inset-top, 0px))
+             max($sp-2, env(safe-area-inset-right, 0px))
+             max($sp-2, env(safe-area-inset-bottom, 0px))
+             max($sp-2, env(safe-area-inset-left, 0px));
 
-    .pdf-annotator__toolbar { border-radius: $radius-xl; margin: $sp-2 $sp-2 0 $sp-2; background: rgba(248, 244, 235, 0.35);
-      padding-top: calc($sp-1 + env(safe-area-inset-top, 0px));
+    .pdf-annotator__toolbar {
+      border-radius: $radius-xl;
+      margin: 0;
+      background: rgba(248, 244, 235, 0.35);
     }
 
     .pdf-annotator__document {
       padding: $sp-3 $sp-5;
     }
 
-    .pdf-annotator__nav { border-radius: $radius-xl; margin: 0 $sp-2 $sp-2 $sp-2;
-      padding-bottom: calc($sp-2 + env(safe-area-inset-bottom, 0px));
+    .pdf-annotator__nav {
+      border-radius: $radius-xl;
+      margin: 0;
     }
   }
 
