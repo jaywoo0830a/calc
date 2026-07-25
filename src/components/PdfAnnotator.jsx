@@ -164,34 +164,30 @@ export default function PdfAnnotator({ url, filePath }) {
       const dy = (e.changedTouches?.[0]?.clientY ?? e.clientY) - touchStart.current.y;
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
-      if (absDx < 20 && absDy < 20) return;
+      // Require meaningful swipe distance — avoid accidental triggers
+      const MIN_SWIPE = 50;
+      if (absDx < MIN_SWIPE && absDy < MIN_SWIPE) return;
       if (absDx > absDy) {
-        navigateSector(dx > 0 ? -1 : 1); // swipe right=prev, left=next
+        navigateSector(dx > 0 ? -1 : 1);
       } else {
-        navigateSector(dy > 0 ? -1 : 1); // swipe down=prev, up=next
+        navigateSector(dy > 0 ? -1 : 1);
       }
       return;
     }
+    // Paginated mode: only horizontal swipes change pages (vertical = scroll)
     const x = e.changedTouches?.[0]?.clientX ?? e.clientX;
     const y = e.changedTouches?.[0]?.clientY ?? e.clientY;
     const dx = x - touchStart.current.x;
     const dy = y - touchStart.current.y;
-    const dt = Date.now() - touchStart.current.time;
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
 
-    if (absDx < 30 && absDy < 30) return;
-
-    if (absDx > absDy && absDx > 30) {
-      if (dx < -30 || (dx < -10 && dt < 300)) {
+    // Horizontal swipe must clearly dominate and exceed minimum distance
+    const MIN_PAGE_SWIPE = 60;
+    if (absDx > absDy * 1.5 && absDx > MIN_PAGE_SWIPE) {
+      if (dx < 0) {
         setCurrentPage((p) => Math.min(numPages, p + 1));
-      } else if (dx > 30 || (dx > 10 && dt < 300)) {
-        setCurrentPage((p) => Math.max(1, p - 1));
-      }
-    } else if (absDy > 30) {
-      if (dy < -30 || (dy < -10 && dt < 300)) {
-        setCurrentPage((p) => Math.min(numPages, p + 1));
-      } else if (dy > 30 || (dy > 10 && dt < 300)) {
+      } else {
         setCurrentPage((p) => Math.max(1, p - 1));
       }
     }
