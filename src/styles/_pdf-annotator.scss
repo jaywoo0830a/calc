@@ -241,9 +241,11 @@
   &__loading,
   &__error {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     height: 100%;
+    gap: $sp-2;
     font-size: $fs-step-1;
     font-style: italic;
     color: $c-ink-faint;
@@ -251,5 +253,32 @@
 
   &__error {
     color: $c-error;
+  }
+
+  &__error-detail {
+    font-size: $fs-step--2;
+    color: $c-ink-soft;
+    font-style: normal;
+    max-width: 32rem;
+    text-align: center;
+    word-break: break-all;
+  }
+
+  &__retry-btn {
+    padding: $sp-2 $sp-4;
+    border: $border-thin solid $c-accent;
+    border-radius: $radius-md;
+    background: $c-accent;
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-accent-hover;
+      }
+    }
   }
 }

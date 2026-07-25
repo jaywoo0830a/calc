@@ -1,8 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Document, Page } from 'react-pdf';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+
+// ── PDF.js worker 설정 (공식 권장: import.meta.url 기반) ──────────
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
 
 const COLORS = {
   highlight: { bg: 'rgba(255, 230, 100, 0.45)', label: '🟡 형광펜' },
@@ -28,6 +34,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [tool, setTool] = useState('highlight');
   const [activeComment, setActiveComment] = useState(null);
   const [commentText, setCommentText] = useState('');
+  const [loadError, setLoadError] = useState(null);
   const pageRefs = useRef({});
 
   // ── Load annotations from IndexedDB ─────────────────────
@@ -119,6 +126,13 @@ export default function PdfAnnotator({ url, filePath }) {
     return annotations.filter((a) => a.pageNumber === pageNumber);
   }, [annotations]);
 
+  // ── PDF.js 옵션 (cMaps, 표준 폰트 CDN) ────────────────────
+  const documentOptions = useMemo(() => ({
+    cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+    cMapPacked: true,
+    standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
+  }), []);
+
   return (
     <div className="pdf-annotator">
       {/* Toolbar */}
@@ -165,12 +179,28 @@ export default function PdfAnnotator({ url, filePath }) {
 
       {/* PDF Document */}
       <div className="pdf-annotator__document">
-        <Document
-          file={url}
-          onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-          loading={<div className="pdf-annotator__loading">PDF 불러오는 중…</div>}
-          error={<div className="pdf-annotator__error">PDF를 불러올 수 없습니다</div>}
-        >
+        {loadError ? (
+          <div className="pdf-annotator__error">
+            <p>📕 PDF를 불러올 수 없습니다</p>
+            <p className="pdf-annotator__error-detail">{loadError}</p>
+            <button className="pdf-annotator__retry-btn" onClick={() => { setLoadError(null); setNumPages(0); }}>
+              다시 시도
+            </button>
+          </div>
+        ) : (
+          <Document
+            file={url}
+            options={documentOptions}
+            onLoadSuccess={({ numPages }) => { setNumPages(numPages); setLoadError(null); }}
+            onLoadError={(err) => {
+              const msg = err?.message || String(err);
+              setLoadError(msg);
+              console.error('PDF load error:', err);
+            }}
+            onSourceError={(err) => console.error('PDF source error:', err)}
+            loading={<div className="pdf-annotator__loading">📄 PDF 불러오는 중…</div>}
+            noData={<div className="pdf-annotator__error">PDF 파일이 비어있습니다</div>}
+          >
           {Array.from({ length: numPages }, (_, i) => {
             const pageNumber = i + 1;
             const annos = pageAnnotations(pageNumber);
@@ -204,6 +234,7 @@ export default function PdfAnnotator({ url, filePath }) {
             );
           })}
         </Document>
+        )}
       </div>
     </div>
   );
