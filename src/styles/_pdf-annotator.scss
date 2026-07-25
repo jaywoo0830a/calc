@@ -397,6 +397,151 @@
     }
   }
 
+  // ---- TOC Sidebar (Viewer 스타일: 반투명 + 스와이프) ---
+  &__toc-overlay {
+    position: fixed;
+    inset: 0;
+    background: $c-overlay;
+    z-index: 98;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity $transition-normal;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+
+  // TOC가 열렸을 때 overlay 표시
+  @at-root .pdf-annotator__toc-sidebar--open ~ .pdf-annotator__toc-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  &__toc-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    width: min(18rem, 85vw);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: $sp-3;
+    padding-top: $sp-10;
+    background: rgba(255, 254, 247, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-right: $border-thin solid rgba(212, 201, 181, 0.5);
+    z-index: 99;
+    transform: translateX(-100%);
+    transition: transform $transition-normal;
+    box-shadow: $shadow-lg;
+    display: flex;
+    flex-direction: column;
+
+    &--open {
+      transform: translateX(0);
+    }
+  }
+
+  // TOC swipe trigger — left edge
+  &__toc-toggle {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 97;
+    width: 1.25rem;
+    height: 100dvh;
+    border: none;
+    border-right: $border-thin solid $c-rule;
+    border-radius: 0;
+    background: linear-gradient(to right, $c-page-dark, transparent);
+    opacity: 0.3;
+    transition: left $transition-normal, opacity $transition-fast;
+    cursor: pointer;
+
+    &:active { opacity: 0.5; }
+
+    @media (hover: hover) {
+      &:hover { opacity: 0.45; }
+    }
+  }
+
+  // TOC 열리면 토글도 오른쪽으로
+  @at-root .pdf-annotator__toc-sidebar--open ~ .pdf-annotator__toc-toggle {
+    left: min(18rem, 85vw);
+    background: linear-gradient(to right, transparent, $c-page-dark);
+    border-right: none;
+    border-left: $border-thin solid $c-rule;
+  }
+
+  &__toc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-3;
+    border-bottom: $border-thin solid $c-rule;
+    font-weight: $fw-bold;
+    font-size: $fs-step-0;
+    color: $c-ink;
+    flex-shrink: 0;
+    font-family: $ff;
+  }
+
+  &__toc-close {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: $c-ink-soft;
+    font-size: $fs-step-2;
+    cursor: pointer;
+    &:hover { background: $c-page-dark; color: $c-ink; }
+  }
+
+  &__toc-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: $sp-1 0;
+  }
+
+  &__toc-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: $sp-1 $sp-3;
+    border: none;
+    background: transparent;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    cursor: pointer;
+    text-align: left;
+    transition: background $transition-fast;
+
+    &:hover {
+      background: $c-page-dark;
+      color: $c-ink;
+    }
+  }
+
+  &__toc-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__toc-page {
+    flex-shrink: 0;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    margin-left: $sp-2;
+  }
+
   // ---- Fullscreen modifier ---------------------------------
   &--fullscreen {
     position: fixed;
@@ -412,5 +557,68 @@
     .pdf-annotator__document {
       padding: $sp-3 $sp-5;
     }
+
+    .pdf-annotator__nav {
+      border-radius: 0;
+    }
+  }
+
+  // ---- Page navigation bar (책 넘김) -----------------------
+  &__nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: $sp-1;
+    padding: $sp-2;
+    background: rgba(255, 254, 247, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-top: $border-thin solid rgba(212, 201, 181, 0.5);
+    flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
+  }
+
+  &__nav-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-thin solid rgba(212, 201, 181, 0.5);
+    border-radius: $radius-md;
+    background: rgba(255, 254, 247, 0.6);
+    color: $c-ink-soft;
+    font-size: $fs-step-1;
+    cursor: pointer;
+    transition: all $transition-fast;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background: rgba(240, 235, 224, 0.85);
+        color: $c-ink;
+      }
+    }
+
+    &:active:not(:disabled) {
+      transform: scale(0.92);
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+  }
+
+  &__nav-info {
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    color: $c-ink-soft;
+    padding: 0 $sp-2;
+    font-family: $ff;
+    white-space: nowrap;
   }
 }

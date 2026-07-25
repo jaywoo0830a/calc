@@ -83,6 +83,8 @@ export default function PdfAnnotator({ url, filePath }) {
   const [commentText, setCommentText] = useState('');
   const [loadError, setLoadError] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [toc, setToc] = useState(null);         // PDF outline
+  const [tocOpen, setTocOpen] = useState(false);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
   const [underlineColor, setUnderlineColor] = useState(UNDERLINE_COLORS[0]);
   const [penColor, setPenColor] = useState(PEN_COLORS[0]);
@@ -93,7 +95,16 @@ export default function PdfAnnotator({ url, filePath }) {
   const currentPage = useRef(null);
   const [liveStroke, setLiveStroke] = useState(null); // { pageNumber, color, pathData } | null
   const containerRef = useRef(null);
+  const documentRef = useRef(null);
   const pageRefs = useRef({});
+
+  // ── Page navigation ─────────────────────────────────────
+  const scrollToPage = useCallback((pageNumber) => {
+    const el = pageRefs.current[pageNumber];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   // ── Fullscreen API ──────────────────────────────────────
   const toggleFullscreen = useCallback(() => {
@@ -234,6 +245,7 @@ export default function PdfAnnotator({ url, filePath }) {
     currentPage.current = null;
     pageEl.releasePointerCapture?.(e.pointerId);
   }, [tool, filePath, penColor, penSize]);
+  // ── Click → comment note ────────────────────────────────
   const handlePageClick = useCallback((pageNumber) => (e) => {
     if (tool === 'comment') {
       const pageEl = pageRefs.current[pageNumber];
@@ -244,7 +256,6 @@ export default function PdfAnnotator({ url, filePath }) {
       setActiveComment({ pageNumber, x, y });
       setCommentText('');
     }
-    // erase tool: click annotation to delete (handled by AnnotationOverlay)
   }, [tool]);
 
   const submitComment = useCallback(() => {
@@ -378,11 +389,20 @@ export default function PdfAnnotator({ url, filePath }) {
         <div className="pdf-annotator__tools">
           <button
             className={'pdf-annotator__tool' + (tool === 'erase' ? ' pdf-annotator__tool--active' : '')}
-            onClick={() => setTool('erase')}
-            title="클릭한 어노테이션 삭제"
+            onClick={() => setTool(tool === 'erase' ? null : 'erase')}
+            title="어노테이션을 클릭하여 삭제"
           >
             🧹 지우개
           </button>
+          {toc && (
+            <button
+              className={'pdf-annotator__tool' + (tocOpen ? ' pdf-annotator__tool--active' : '')}
+              onClick={() => setTocOpen(!tocOpen)}
+              title="목차"
+            >
+              📑 목차
+            </button>
+          )}
           <button
             className="pdf-annotator__fullscreen-btn"
             onClick={toggleFullscreen}
@@ -392,6 +412,42 @@ export default function PdfAnnotator({ url, filePath }) {
           </button>
         </div>
       </div>
+
+      {/* TOC Sidebar */}
+      {toc && (
+        <>
+          <div className={'pdf-annotator__toc-sidebar' + (tocOpen ? ' pdf-annotator__toc-sidebar--open' : '')}>
+            <div className="pdf-annotator__toc-header">
+              <span>📑 목차</span>
+              <button className="pdf-annotator__toc-close" onClick={() => setTocOpen(false)}>×</button>
+            </div>
+            <div className="pdf-annotator__toc-list">
+              {toc.map((item, i) => (
+                <button
+                  key={i}
+                  className="pdf-annotator__toc-item"
+                  style={{ paddingLeft: `${0.5 + (item.depth || 1) * 0.75}rem` }}
+                  onClick={() => {
+                    if (item.pageNumber) scrollToPage(item.pageNumber);
+                    setTocOpen(false);
+                  }}
+                >
+                  <span className="pdf-annotator__toc-label">{item.title || `(제목 없음)`}</span>
+                  {item.pageNumber && (
+                    <span className="pdf-annotator__toc-page">{item.pageNumber}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            className="pdf-annotator__toc-toggle"
+            onClick={() => setTocOpen(!tocOpen)}
+            aria-label="목차 열기"
+          />
+          <div className="pdf-annotator__toc-overlay" onClick={() => setTocOpen(false)} />
+        </>
+      )}
 
       {/* Comment input overlay */}
       {activeComment && (
@@ -434,7 +490,14 @@ export default function PdfAnnotator({ url, filePath }) {
           <Document
             file={url}
             options={documentOptions}
-            onLoadSuccess={({ numPages }) => { setNumPages(numPages); setLoadError(null); }}
+            onLoadSuccess={async ({ numPages, getOutline }) => {
+              setNumPages(numPages);
+              setLoadError(null);
+              try {
+                const outline = await getOutline();
+                setToc(outline?.length > 0 ? outline : null);
+              } catch { setToc(null); }
+            }}
             onLoadError={(err) => {
               const msg = err?.message || String(err);
               setLoadError(msg);
@@ -490,6 +553,7 @@ export default function PdfAnnotator({ url, filePath }) {
                     annotation={a}
                     pageEl={pageRefs.current[pageNumber]}
                     onDelete={removeAnnotation}
+                    eraseMode={tool === 'erase'}
                   />
                 ))}
                 <div className="pdf-annotator__page-number">
@@ -501,13 +565,79 @@ export default function PdfAnnotator({ url, filePath }) {
         </Document>
         )}
       </div>
+
+      {/* Page Navigation Bar */}
+      {numPages > 0 && (
+        <div className="pdf-annotator__nav">
+          <button
+            className="pdf-annotator__nav-btn"
+            onClick={() => scrollToPage(1)}
+            disabled={numPages <= 1}
+            title="처음"
+          >
+            ⟪
+          </button>
+          <button
+            className="pdf-annotator__nav-btn"
+            onClick={() => {
+              const first = pageRefs.current[1];
+              if (!first) return;
+              const docEl = first.closest('.pdf-annotator__document');
+              if (!docEl) return;
+              const currentTop = docEl.scrollTop;
+              let prevPage = 1;
+              for (let i = 2; i <= numPages; i++) {
+                const el = pageRefs.current[i];
+                if (el && el.offsetTop >= currentTop) break;
+                prevPage = i;
+              }
+              scrollToPage(prevPage);
+            }}
+            title="이전 페이지"
+          >
+            ◀
+          </button>
+          <span className="pdf-annotator__nav-info">
+            {numPages} 페이지
+          </span>
+          <button
+            className="pdf-annotator__nav-btn"
+            onClick={() => {
+              const docEl = containerRef.current?.querySelector('.pdf-annotator__document');
+              if (!docEl) return;
+              const currentTop = docEl.scrollTop;
+              let nextPage = numPages;
+              for (let i = 1; i <= numPages; i++) {
+                const el = pageRefs.current[i];
+                if (el && el.offsetTop > currentTop + 10) {
+                  nextPage = i;
+                  break;
+                }
+              }
+              scrollToPage(nextPage);
+            }}
+            title="다음 페이지"
+          >
+            ▶
+          </button>
+          <button
+            className="pdf-annotator__nav-btn"
+            onClick={() => scrollToPage(numPages)}
+            disabled={numPages <= 1}
+            title="마지막"
+          >
+            ⟫
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 /** Renders a single annotation overlay */
-function AnnotationOverlay({ annotation, pageEl, onDelete }) {
+function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
   const rect = annoRect(annotation, pageEl);
+  const handleDelete = eraseMode ? (e) => { e.stopPropagation(); onDelete(annotation.id); } : undefined;
 
   // Pen strokes: render as SVG
   if (annotation.type === 'pen' && annotation.pathData) {
@@ -532,15 +662,17 @@ function AnnotationOverlay({ annotation, pageEl, onDelete }) {
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {/* Invisible wider hit area for click-to-delete */}
-        <path
-          d={annotation.pathData}
-          fill="none"
-          stroke="transparent"
-          strokeWidth="0.02"
-          style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-          onClick={(e) => { e.stopPropagation(); onDelete(annotation.id); }}
-        />
+        {/* Invisible wider hit area for click-to-delete (erase mode only) */}
+        {eraseMode && (
+          <path
+            d={annotation.pathData}
+            fill="none"
+            stroke="transparent"
+            strokeWidth="0.02"
+            style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+            onClick={handleDelete}
+          />
+        )}
       </svg>
     );
   }
@@ -553,7 +685,8 @@ function AnnotationOverlay({ annotation, pageEl, onDelete }) {
           left: rect ? rect.left : `${annotation.rect.x * 100}%`,
           top: rect ? rect.top : `${annotation.rect.y * 100}%`,
         }}
-        title={annotation.text}
+        title={annotation.text + (eraseMode ? ' — 클릭하여 삭제' : '')}
+        onClick={handleDelete}
       >
         <span className="pdf-annotator__comment-icon">💬</span>
         <span className="pdf-annotator__comment-tooltip">{annotation.text}</span>
@@ -584,7 +717,8 @@ function AnnotationOverlay({ annotation, pageEl, onDelete }) {
           ? `2px solid ${annotation.color || UNDERLINE_COLORS[0].color}`
           : (isDashed ? `2px dashed ${annotation.color}` : 'none'),
       }}
-      title={annotation.text}
+      title={annotation.text + (eraseMode ? ' — 클릭하여 삭제' : '')}
+      onClick={handleDelete}
     >
       <button
         className="pdf-annotator__delete-btn"
