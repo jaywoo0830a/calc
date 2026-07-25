@@ -4,49 +4,49 @@ import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// ── PDF.js worker: CDN 사용 (Vite 프로덕션 배포에서 가장 안정적) ──
-// react-pdf가 내장한 pdfjs-dist 버전과 정확히 일치하는 CDN 사용
+// ── PDF.js worker: CDN (most reliable for Vite production builds) ──
+// Uses the exact pdfjs-dist version bundled with react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 // ── Color palettes ───────────────────────────────────────────────────
 const HIGHLIGHT_COLORS = [
-  { id: 'yellow',  bg: 'rgba(255, 230, 100, 0.45)', label: '🟡', name: '노랑' },
-  { id: 'green',   bg: 'rgba(130, 230, 130, 0.45)', label: '🟢', name: '초록' },
-  { id: 'blue',    bg: 'rgba(130, 200, 255, 0.45)', label: '🔵', name: '파랑' },
-  { id: 'pink',    bg: 'rgba(255, 180, 200, 0.45)', label: '🩷', name: '분홍' },
-  { id: 'orange',  bg: 'rgba(255, 200, 130, 0.50)', label: '🟠', name: '주황' },
+  { id: 'yellow',  bg: 'rgba(255, 230, 100, 0.45)', label: '🟡', name: 'Yellow' },
+  { id: 'green',   bg: 'rgba(130, 230, 130, 0.45)', label: '🟢', name: 'Green' },
+  { id: 'blue',    bg: 'rgba(130, 200, 255, 0.45)', label: '🔵', name: 'Blue' },
+  { id: 'pink',    bg: 'rgba(255, 180, 200, 0.45)', label: '🩷', name: 'Pink' },
+  { id: 'orange',  bg: 'rgba(255, 200, 130, 0.50)', label: '🟠', name: 'Orange' },
 ];
 
 const UNDERLINE_COLORS = [
-  { id: 'red',     color: '#e74c3c', style: 'solid',  label: '🔴', name: '빨강 실선' },
-  { id: 'blue',    color: '#3498db', style: 'solid',  label: '🔵', name: '파랑 실선' },
-  { id: 'green',   color: '#27ae60', style: 'solid',  label: '🟢', name: '초록 실선' },
-  { id: 'red-dash',  color: '#e74c3c', style: 'dashed', label: '🔴〰', name: '빨강 점선' },
-  { id: 'blue-dash', color: '#3498db', style: 'dashed', label: '🔵〰', name: '파랑 점선' },
+  { id: 'red',     color: '#e74c3c', style: 'solid',  label: '🔴', name: 'Red Solid' },
+  { id: 'blue',    color: '#3498db', style: 'solid',  label: '🔵', name: 'Blue Solid' },
+  { id: 'green',   color: '#27ae60', style: 'solid',  label: '🟢', name: 'Green Solid' },
+  { id: 'red-dash',  color: '#e74c3c', style: 'dashed', label: '🔴〰', name: 'Red Dashed' },
+  { id: 'blue-dash', color: '#3498db', style: 'dashed', label: '🔵〰', name: 'Blue Dashed' },
 ];
 
 const TOOLS = {
-  highlight: { label: '🖍️ 형광펜', icon: '🖍️' },
-  underline: { label: '⎁ 밑줄', icon: '⎁' },
-  comment:   { label: '💬 주석', icon: '💬' },
-  pen:       { label: '✒️ 펜', icon: '✒️' },
+  highlight: { label: '🖍️ Highlight', icon: '🖍️' },
+  underline: { label: '⎁ Underline', icon: '⎁' },
+  comment:   { label: '💬 Comment', icon: '💬' },
+  pen:       { label: '✒️ Pen', icon: '✒️' },
 };
 
 const PEN_COLORS = [
-  { id: 'black',  color: '#2c2416', label: '⚫', name: '검정' },
-  { id: 'red',    color: '#e74c3c', label: '🔴', name: '빨강' },
-  { id: 'blue',   color: '#3498db', label: '🔵', name: '파랑' },
-  { id: 'green',  color: '#27ae60', label: '🟢', name: '초록' },
-  { id: 'accent', color: '#5c3d2e', label: '🟤', name: '갈색' },
+  { id: 'black',  color: '#2c2416', label: '⚫', name: 'Black' },
+  { id: 'red',    color: '#e74c3c', label: '🔴', name: 'Red' },
+  { id: 'blue',   color: '#3498db', label: '🔵', name: 'Blue' },
+  { id: 'green',  color: '#27ae60', label: '🟢', name: 'Green' },
+  { id: 'accent', color: '#5c3d2e', label: '🟤', name: 'Brown' },
 ];
 
 const PEN_SIZES = [
-  { id: 'thin',   width: 0.002,  label: '가는 펜', icon: '·' },
-  { id: 'medium', width: 0.004,  label: '중간 펜', icon: '◉' },
-  { id: 'thick',  width: 0.007,  label: '굵은 펜', icon: '●' },
+  { id: 'thin',   width: 0.002,  label: 'Thin', icon: '·' },
+  { id: 'medium', width: 0.004,  label: 'Medium', icon: '◉' },
+  { id: 'thick',  width: 0.007,  label: 'Thick', icon: '●' },
 ];
 
-// ── Bezier smoothing: 직선 대신 2차 베지어 곡선으로 부드럽게 ──
+// ── Bezier smoothing ──────────────────────────────────────────────────
 function smoothPathData(pts) {
   if (pts.length < 2) return '';
   if (pts.length === 2) return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`;
@@ -57,7 +57,7 @@ function smoothPathData(pts) {
     const midY = (pts[i].y + pts[i + 1].y) / 2;
     d += ` Q ${pts[i].x} ${pts[i].y} ${midX} ${midY}`;
   }
-  // 마지막 점으로 직선
+  // final point: straight line
   const last = pts[pts.length - 1];
   d += ` L ${last.x} ${last.y}`;
   return d;
@@ -78,11 +78,14 @@ function annoRect(a, pageEl) {
 export default function PdfAnnotator({ url, filePath }) {
   const [numPages, setNumPages] = useState(0);
   const [annotations, setAnnotations] = useState([]);
-  const [tool, setTool] = useState(null); // null = 읽기 모드 (기본)
+  const [tool, setTool] = useState(null); // null = read mode (default)
   const [activeComment, setActiveComment] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [loadError, setLoadError] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [layoutMode, setLayoutMode] = useState('vertical'); // 'vertical' | 'horizontal' | 'paginated'
+  const [currentPage, setCurrentPage] = useState(1);        // paginated mode current page
+  const touchStart = useRef({ x: 0, y: 0, time: 0 });
   const [toc, setToc] = useState(null);         // PDF outline
   const [tocOpen, setTocOpen] = useState(false);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
@@ -92,7 +95,7 @@ export default function PdfAnnotator({ url, filePath }) {
   // pen drawing state
   const isDrawing = useRef(false);
   const currentPath = useRef([]);
-  const currentPage = useRef(null);
+  const penPage = useRef(null);
   const [liveStroke, setLiveStroke] = useState(null); // { pageNumber, color, pathData } | null
   const containerRef = useRef(null);
   const documentRef = useRef(null);
@@ -100,11 +103,44 @@ export default function PdfAnnotator({ url, filePath }) {
 
   // ── Page navigation ─────────────────────────────────────
   const scrollToPage = useCallback((pageNumber) => {
+    if (layoutMode === 'paginated') {
+      setCurrentPage(Math.max(1, Math.min(numPages, pageNumber)));
+      return;
+    }
     const el = pageRefs.current[pageNumber];
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.scrollIntoView({ behavior: 'smooth', block: layoutMode === 'horizontal' ? 'nearest' : 'start', inline: 'start' });
     }
+  }, [layoutMode, numPages]);
+
+  // ── Swipe detection for paginated mode ──────────────────
+  const handleSwipeStart = useCallback((e) => {
+    touchStart.current = { x: e.touches?.[0]?.clientX || e.clientX, y: e.touches?.[0]?.clientY || e.clientY, time: Date.now() };
   }, []);
+
+  const handleSwipeEnd = useCallback((e) => {
+    if (layoutMode !== 'paginated' && layoutMode !== 'horizontal') return;
+    const x = e.changedTouches?.[0]?.clientX ?? e.clientX;
+    const y = e.changedTouches?.[0]?.clientY ?? e.clientY;
+    const dx = x - touchStart.current.x;
+    const dy = y - touchStart.current.y;
+    const dt = Date.now() - touchStart.current.time;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // Swipe threshold: 50px or fast flick (>0.3px/ms)
+    if (absDx < 30 && absDy < 30) return;
+
+    if (layoutMode === 'paginated') {
+      if (absDy > absDx && absDy > 30) {
+        if (dy < -30 || (dy < -10 && dt < 300)) {
+          setCurrentPage((p) => Math.min(numPages, p + 1));
+        } else if (dy > 30 || (dy > 10 && dt < 300)) {
+          setCurrentPage((p) => Math.max(1, p - 1));
+        }
+      }
+    }
+  }, [layoutMode, numPages]);
 
   // ── Fullscreen API ──────────────────────────────────────
   const toggleFullscreen = useCallback(() => {
@@ -178,7 +214,7 @@ export default function PdfAnnotator({ url, filePath }) {
     const x = (e.clientX - pageRect.left) / pageRect.width;
     const y = (e.clientY - pageRect.top) / pageRect.height;
     isDrawing.current = true;
-    currentPage.current = pageNumber;
+    penPage.current = pageNumber;
     currentPath.current = [{ x, y }];
     setLiveStroke({ pageNumber, color: penColor.color, pathData: `M ${x} ${y}`, width: penSize.width });
     pageEl.setPointerCapture?.(e.pointerId);
@@ -195,7 +231,7 @@ export default function PdfAnnotator({ url, filePath }) {
   }, []);
 
   const handlePointerMove = useCallback((pageNumber) => (e) => {
-    if (!isDrawing.current || tool !== 'pen' || currentPage.current !== pageNumber) return;
+    if (!isDrawing.current || tool !== 'pen' || penPage.current !== pageNumber) return;
     e.preventDefault();
     const pageEl = pageRefs.current[pageNumber];
     if (!pageEl) return;
@@ -203,7 +239,7 @@ export default function PdfAnnotator({ url, filePath }) {
     const x = (e.clientX - pageRect.left) / pageRect.width;
     const y = (e.clientY - pageRect.top) / pageRect.height;
     currentPath.current.push({ x, y });
-    // 실시간 업데이트: pathData에 새 점 추가
+    // real-time update: append point to pathData
     setLiveStroke((prev) => prev ? {
       ...prev,
       pathData: prev.pathData + ` L ${x} ${y}`,
@@ -215,7 +251,7 @@ export default function PdfAnnotator({ url, filePath }) {
     e.preventDefault();
     isDrawing.current = false;
     const pageEl = pageRefs.current[pageNumber];
-    setLiveStroke(null); // 실시간 미리보기 제거
+    setLiveStroke(null); // clear live preview
 
     if (!pageEl) { currentPath.current = []; return; }
     const pageRect = pageEl.getBoundingClientRect();
@@ -230,7 +266,7 @@ export default function PdfAnnotator({ url, filePath }) {
 
     const annotation = {
       filePath,
-      pageNumber: currentPage.current,
+      pageNumber: penPage.current,
       type: 'pen',
       color: penColor.color,
       width: penSize.width,
@@ -242,7 +278,7 @@ export default function PdfAnnotator({ url, filePath }) {
       setAnnotations((prev) => [...prev, saved]);
     });
     currentPath.current = [];
-    currentPage.current = null;
+    penPage.current = null;
     pageEl.releasePointerCapture?.(e.pointerId);
   }, [tool, filePath, penColor, penSize]);
   // ── Click → comment note ────────────────────────────────
@@ -306,7 +342,7 @@ export default function PdfAnnotator({ url, filePath }) {
             className={'pdf-annotator__tool' + (tool === null ? ' pdf-annotator__tool--active' : '')}
             onClick={() => setTool(null)}
           >
-            📖 읽기
+            📖 Read
           </button>
           {Object.entries(TOOLS).map(([key, val]) => (
             <button
@@ -390,23 +426,23 @@ export default function PdfAnnotator({ url, filePath }) {
           <button
             className={'pdf-annotator__tool' + (tool === 'erase' ? ' pdf-annotator__tool--active' : '')}
             onClick={() => setTool(tool === 'erase' ? null : 'erase')}
-            title="어노테이션을 클릭하여 삭제"
+            title="Click annotation to delete"
           >
-            🧹 지우개
+            🧹 Eraser
           </button>
           {toc && (
             <button
               className={'pdf-annotator__tool' + (tocOpen ? ' pdf-annotator__tool--active' : '')}
               onClick={() => setTocOpen(!tocOpen)}
-              title="목차"
+              title="Outline"
             >
-              📑 목차
+              📑 Outline
             </button>
           )}
           <button
             className="pdf-annotator__fullscreen-btn"
             onClick={toggleFullscreen}
-            title={fullscreen ? '전체화면 닫기' : '전체화면'}
+            title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
             {fullscreen ? '⊠' : '⛶'}
           </button>
@@ -418,7 +454,7 @@ export default function PdfAnnotator({ url, filePath }) {
         <>
           <div className={'pdf-annotator__toc-sidebar' + (tocOpen ? ' pdf-annotator__toc-sidebar--open' : '')}>
             <div className="pdf-annotator__toc-header">
-              <span>📑 목차</span>
+              <span>📑 Outline</span>
               <button className="pdf-annotator__toc-close" onClick={() => setTocOpen(false)}>×</button>
             </div>
             <div className="pdf-annotator__toc-list">
@@ -432,7 +468,7 @@ export default function PdfAnnotator({ url, filePath }) {
                     setTocOpen(false);
                   }}
                 >
-                  <span className="pdf-annotator__toc-label">{item.title || `(제목 없음)`}</span>
+                  <span className="pdf-annotator__toc-label">{item.title || `(Untitled)`}</span>
                   {item.pageNumber && (
                     <span className="pdf-annotator__toc-page">{item.pageNumber}</span>
                   )}
@@ -443,7 +479,7 @@ export default function PdfAnnotator({ url, filePath }) {
           <button
             className="pdf-annotator__toc-toggle"
             onClick={() => setTocOpen(!tocOpen)}
-            aria-label="목차 열기"
+            aria-label="Open outline"
           />
           <div className="pdf-annotator__toc-overlay" onClick={() => setTocOpen(false)} />
         </>
@@ -461,7 +497,7 @@ export default function PdfAnnotator({ url, filePath }) {
           <textarea
             autoFocus
             rows={3}
-            placeholder="주석을 입력하세요…"
+            placeholder="Enter a comment…"
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             onKeyDown={(e) => {
@@ -470,20 +506,24 @@ export default function PdfAnnotator({ url, filePath }) {
             }}
           />
           <div className="pdf-annotator__comment-actions">
-            <button onClick={submitComment}>저장</button>
-            <button onClick={() => { setActiveComment(null); setCommentText(''); }}>취소</button>
+            <button onClick={submitComment}>Save</button>
+            <button onClick={() => { setActiveComment(null); setCommentText(''); }}>Cancel</button>
           </div>
         </div>
       )}
 
       {/* PDF Document */}
-      <div className="pdf-annotator__document">
+      <div
+        className={'pdf-annotator__document pdf-annotator__document--' + layoutMode}
+        onTouchStart={layoutMode === 'paginated' ? handleSwipeStart : undefined}
+        onTouchEnd={layoutMode === 'paginated' ? handleSwipeEnd : undefined}
+      >
         {loadError ? (
           <div className="pdf-annotator__error">
-            <p>📕 PDF를 불러올 수 없습니다</p>
+            <p>📕 Failed to load PDF</p>
             <p className="pdf-annotator__error-detail">{loadError}</p>
             <button className="pdf-annotator__retry-btn" onClick={() => { setLoadError(null); setNumPages(0); }}>
-              다시 시도
+              Try Again
             </button>
           </div>
         ) : (
@@ -504,10 +544,13 @@ export default function PdfAnnotator({ url, filePath }) {
               console.error('PDF load error:', err);
             }}
             onSourceError={(err) => console.error('PDF source error:', err)}
-            loading={<div className="pdf-annotator__loading">📄 PDF 불러오는 중…</div>}
-            noData={<div className="pdf-annotator__error">PDF 파일이 비어있습니다</div>}
+            loading={<div className="pdf-annotator__loading">📄 Loading PDF…</div>}
+            noData={<div className="pdf-annotator__error">No PDF file specified</div>}
           >
-          {Array.from({ length: numPages }, (_, i) => {
+          {(layoutMode === 'paginated'
+            ? [currentPage - 1]
+            : Array.from({ length: numPages }, (_, i) => i)
+          ).filter(i => i >= 0 && i < numPages).map((i) => {
             const pageNumber = i + 1;
             const annos = pageAnnotations(pageNumber);
             return (
@@ -528,7 +571,7 @@ export default function PdfAnnotator({ url, filePath }) {
                   renderTextLayer={true}
                   renderAnnotationLayer={true}
                 />
-                {/* Live pen stroke (실시간 미리보기) */}
+                {/* Live pen stroke (real-time preview) */}
                 {liveStroke && liveStroke.pageNumber === pageNumber && (
                   <svg
                     className="pdf-annotator__pen-stroke pdf-annotator__pen-stroke--live"
@@ -573,50 +616,26 @@ export default function PdfAnnotator({ url, filePath }) {
             className="pdf-annotator__nav-btn"
             onClick={() => scrollToPage(1)}
             disabled={numPages <= 1}
-            title="처음"
+            title="First page"
           >
             ⟪
           </button>
           <button
             className="pdf-annotator__nav-btn"
-            onClick={() => {
-              const first = pageRefs.current[1];
-              if (!first) return;
-              const docEl = first.closest('.pdf-annotator__document');
-              if (!docEl) return;
-              const currentTop = docEl.scrollTop;
-              let prevPage = 1;
-              for (let i = 2; i <= numPages; i++) {
-                const el = pageRefs.current[i];
-                if (el && el.offsetTop >= currentTop) break;
-                prevPage = i;
-              }
-              scrollToPage(prevPage);
-            }}
-            title="이전 페이지"
+            onClick={() => scrollToPage(layoutMode === 'paginated' ? currentPage - 1 : 1)}
+            disabled={layoutMode === 'paginated' ? currentPage <= 1 : numPages <= 1}
+            title="Previous page"
           >
             ◀
           </button>
           <span className="pdf-annotator__nav-info">
-            {numPages} 페이지
+            {layoutMode === 'paginated' ? `${currentPage} / ${numPages}` : `${numPages} pages`}
           </span>
           <button
             className="pdf-annotator__nav-btn"
-            onClick={() => {
-              const docEl = containerRef.current?.querySelector('.pdf-annotator__document');
-              if (!docEl) return;
-              const currentTop = docEl.scrollTop;
-              let nextPage = numPages;
-              for (let i = 1; i <= numPages; i++) {
-                const el = pageRefs.current[i];
-                if (el && el.offsetTop > currentTop + 10) {
-                  nextPage = i;
-                  break;
-                }
-              }
-              scrollToPage(nextPage);
-            }}
-            title="다음 페이지"
+            onClick={() => scrollToPage(layoutMode === 'paginated' ? currentPage + 1 : numPages)}
+            disabled={layoutMode === 'paginated' ? currentPage >= numPages : numPages <= 1}
+            title="Next page"
           >
             ▶
           </button>
@@ -624,10 +643,34 @@ export default function PdfAnnotator({ url, filePath }) {
             className="pdf-annotator__nav-btn"
             onClick={() => scrollToPage(numPages)}
             disabled={numPages <= 1}
-            title="마지막"
+            title="Last page"
           >
             ⟫
           </button>
+          {/* Layout mode selector */}
+          <div className="pdf-annotator__layout-modes">
+            <button
+              className={'pdf-annotator__layout-btn' + (layoutMode === 'vertical' ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => setLayoutMode('vertical')}
+              title="Vertical scroll"
+            >
+              ⬍
+            </button>
+            <button
+              className={'pdf-annotator__layout-btn' + (layoutMode === 'horizontal' ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => setLayoutMode('horizontal')}
+              title="Horizontal scroll"
+            >
+              ⬌
+            </button>
+            <button
+              className={'pdf-annotator__layout-btn' + (layoutMode === 'paginated' ? ' pdf-annotator__layout-btn--active' : '')}
+              onClick={() => { setLayoutMode('paginated'); setCurrentPage(1); }}
+              title="Swipe to flip"
+            >
+              📖
+            </button>
+          </div>
         </div>
       )}
     </div>

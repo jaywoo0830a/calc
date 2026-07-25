@@ -621,4 +621,75 @@
     font-family: $ff;
     white-space: nowrap;
   }
+
+  // ---- Layout mode buttons --------------------------------
+  &__layout-modes {
+    display: flex;
+    gap: 0.125rem;
+    margin-left: $sp-2;
+    padding-left: $sp-2;
+    border-left: $border-thin solid rgba(212, 201, 181, 0.4);
+  }
+
+  &__layout-btn {
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-thin solid rgba(212, 201, 181, 0.4);
+    border-radius: $radius-sm;
+    background: rgba(255, 254, 247, 0.6);
+    color: $c-ink-faint;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all $transition-fast;
+    padding: 0;
+
+    @media (hover: hover) {
+      &:hover { background: rgba(240, 235, 224, 0.85); color: $c-ink; }
+    }
+
+    &--active {
+      background: rgba(92, 61, 46, 0.12);
+      color: $c-accent;
+      border-color: rgba(92, 61, 46, 0.4);
+    }
+  }
+
+  // ---- Document layout modes -------------------------------
+  &__document {
+    &--horizontal {
+      display: flex;
+      flex-direction: row;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+
+      .pdf-annotator__page-wrapper {
+        flex-shrink: 0;
+        scroll-snap-align: start;
+        min-height: 100%;
+      }
+    }
+
+    &--paginated {
+      overflow: hidden;
+
+      .pdf-annotator__page-wrapper {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        box-shadow: none;
+        animation: pageFadeIn 0.3s ease;
+      }
+    }
+  }
+
+  @keyframes pageFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 }
