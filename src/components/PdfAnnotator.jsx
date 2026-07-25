@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -367,7 +367,6 @@ export default function PdfAnnotator({ url, filePath }) {
                   onClick={() => setHighlightColor(c)}
                   title={c.name}
                 >
-                  {c.label}
                 </button>
               ))}
             </div>
@@ -381,9 +380,7 @@ export default function PdfAnnotator({ url, filePath }) {
                   style={{ borderBottom: `3px ${c.style} ${c.color}` }}
                   onClick={() => setUnderlineColor(c)}
                   title={c.name}
-                >
-                  {c.label}
-                </button>
+                />
               ))}
             </div>
           )}
@@ -398,7 +395,7 @@ export default function PdfAnnotator({ url, filePath }) {
                     onClick={() => setPenColor(c)}
                     title={c.name}
                   >
-                    {c.label}
+                    
                   </button>
                 ))}
               </div>
@@ -569,6 +566,7 @@ export default function PdfAnnotator({ url, filePath }) {
                 <Page
                   pageNumber={pageNumber}
                   width={Math.min(window.innerWidth - 48, 800)}
+                  devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
                   renderTextLayer={true}
                   renderAnnotationLayer={true}
                 />
@@ -702,8 +700,8 @@ export default function PdfAnnotator({ url, filePath }) {
   );
 }
 
-/** Renders a single annotation overlay */
-function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
+/** Renders a single annotation overlay — memoized for performance */
+const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
   const rect = annoRect(annotation, pageEl);
   const handleDelete = eraseMode ? (e) => { e.stopPropagation(); onDelete(annotation.id); } : undefined;
 
@@ -796,4 +794,4 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
       </button>
     </div>
   );
-}
+});

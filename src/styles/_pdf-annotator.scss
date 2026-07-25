@@ -9,6 +9,7 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  contain: layout style;               // isolate from parent layout
 
   // ---- Toolbar (floating, semi-transparent) ------------
   &__toolbar {
@@ -181,15 +182,21 @@
     overflow-x: hidden;
     padding: $sp-3;
     background: $c-paper;
+    will-change: scroll-position;      // optimize for scrolling
+    -webkit-overflow-scrolling: touch; // smooth iOS scroll
   }
 
-  // ---- Page wrapper — relative for overlay ───────────────
+  // ---- Page wrapper (optimized) ──────────────────────────
   &__page-wrapper {
     position: relative;
     margin: 0 auto $sp-4;
     box-shadow: $shadow-md;
     background: #fff;
     cursor: crosshair;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 600px;
+    contain: layout style paint;       // heavy isolation for performance
+    flex-shrink: 0;
 
     &--pen {
       cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='2' cy='14' r='2' fill='%232c2416'/%3E%3C/svg%3E") 2 14, crosshair;
@@ -659,8 +666,10 @@
 
   // ---- Document layout modes -------------------------------
   &__document {
+    display: flex;
+    flex-direction: column;
+
     &--horizontal {
-      display: flex;
       flex-direction: row;
       overflow-x: auto;
       overflow-y: hidden;
@@ -675,6 +684,7 @@
 
     &--paginated {
       overflow: hidden;
+      justify-content: center;
 
       .pdf-annotator__page-wrapper {
         height: 100%;
@@ -687,26 +697,20 @@
       }
     }
 
-    // ── Alignment ───────────────────────────────────────
+    // ── Alignment: use align-items on flex container ─────
     &--align-left {
-      .pdf-annotator__page-wrapper {
-        margin-left: 0;
-        margin-right: auto;
-      }
+      align-items: flex-start;
+      .pdf-annotator__page-wrapper { margin-left: 0; margin-right: auto; }
     }
 
     &--align-center {
-      .pdf-annotator__page-wrapper {
-        margin-left: auto;
-        margin-right: auto;
-      }
+      align-items: center;
+      .pdf-annotator__page-wrapper { margin-left: auto; margin-right: auto; }
     }
 
     &--align-right {
-      .pdf-annotator__page-wrapper {
-        margin-left: auto;
-        margin-right: 0;
-      }
+      align-items: flex-end;
+      .pdf-annotator__page-wrapper { margin-left: auto; margin-right: 0; }
     }
   }
 
