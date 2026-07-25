@@ -479,11 +479,6 @@ export default function Viewer() {
     } catch (e) { setContent('<p style="color:red">Read error: ' + e.message + '</p>'); }
   }, [selectedPath, imageBlobs, setContent]);
 
-  // PDF → markdown 변환 완료 시 호출
-  const handlePdfMarkdown = useCallback((md) => {
-    setContent(md);
-    setPdfUrl(''); // PDF 모드 해제 → 마크다운 모드로
-  }, [setContent]);
   const handleContentClick = useCallback((e) => {
     const a = e.target.closest('a');
     if (!a) return;
@@ -645,7 +640,7 @@ export default function Viewer() {
         )}
         <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
           {pdfUrl ? (
-            <PdfViewer url={pdfUrl} onMarkdown={handlePdfMarkdown} />
+            <PdfViewer url={pdfUrl} filePath={selectedPath} />
           ) : rendered ? (
             <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
           ) : (

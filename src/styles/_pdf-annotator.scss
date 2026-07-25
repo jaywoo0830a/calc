@@ -1,0 +1,255 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: pdf-annotator — annotatable PDF viewer
+// ============================================================
+
+.pdf-annotator {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  // ---- Toolbar --------------------------------------------
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-2 $sp-3;
+    border-bottom: $border-thin solid $c-rule;
+    background: $c-page;
+    flex-shrink: 0;
+    gap: $sp-2;
+    flex-wrap: wrap;
+  }
+
+  &__tools {
+    display: flex;
+    gap: $sp-1;
+  }
+
+  &__tool {
+    padding: $sp-1 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { background: $c-page-dark; color: $c-ink; }
+    }
+
+    &--active {
+      background: $c-accent;
+      color: $c-ink-inverse;
+      border-color: $c-accent;
+    }
+  }
+
+  &__md-btn {
+    padding: $sp-1 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { background: $c-page-dark; color: $c-ink; }
+    }
+  }
+
+  // ---- Document container ---------------------------------
+  &__document {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: $sp-3;
+    background: $c-paper;
+  }
+
+  // ---- Page wrapper — relative for overlay ───────────────
+  &__page-wrapper {
+    position: relative;
+    margin: 0 auto $sp-4;
+    box-shadow: $shadow-md;
+    background: #fff;
+    cursor: crosshair;
+  }
+
+  &__page-number {
+    text-align: center;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    padding: $sp-1 0;
+    font-style: italic;
+  }
+
+  // ---- Annotation marks (highlight / underline) -----------
+  &__mark {
+    position: absolute;
+    pointer-events: auto;
+    cursor: pointer;
+    border-radius: 0.125rem;
+    transition: opacity $transition-fast;
+
+    &:hover {
+      opacity: 0.8;
+    }
+
+    &--highlight {
+      mix-blend-mode: multiply;
+    }
+
+    &--underline {
+      // border-bottom applied inline
+    }
+  }
+
+  // ---- Comment marker -------------------------------------
+  &__comment-marker {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    z-index: 10;
+
+    &:hover .pdf-annotator__comment-tooltip {
+      display: block;
+    }
+  }
+
+  &__comment-icon {
+    font-size: 1.25rem;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+  }
+
+  &__comment-tooltip {
+    display: none;
+    position: absolute;
+    bottom: 120%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: $c-ink;
+    color: $c-ink-inverse;
+    padding: $sp-2 $sp-3;
+    border-radius: $radius-md;
+    font-size: $fs-step--2;
+    white-space: nowrap;
+    max-width: 16rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: $shadow-lg;
+    font-family: $ff;
+    z-index: 20;
+  }
+
+  // ---- Delete button on annotations -----------------------
+  &__delete-btn {
+    position: absolute;
+    top: -0.5rem;
+    right: -0.5rem;
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 50%;
+    border: $border-thin solid $c-error;
+    background: $c-page;
+    color: $c-error;
+    font-size: 0.625rem;
+    font-weight: $fw-bold;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    z-index: 30;
+
+    .pdf-annotator__mark:hover &,
+    .pdf-annotator__comment-marker:hover & {
+      display: flex;
+    }
+  }
+
+  // ---- Comment input overlay ------------------------------
+  &__comment-input {
+    position: absolute;
+    z-index: 50;
+    background: $c-page;
+    border: $border-thin solid $c-accent;
+    border-radius: $radius-md;
+    box-shadow: $shadow-lg;
+    padding: $sp-2;
+    min-width: 12rem;
+
+    textarea {
+      width: 100%;
+      border: $border-thin solid $c-rule;
+      border-radius: $radius-sm;
+      padding: $sp-1 $sp-2;
+      font-family: $ff;
+      font-size: $fs-step--1;
+      color: $c-ink;
+      resize: vertical;
+      outline: none;
+      background: $c-page;
+
+      &:focus { border-color: $c-accent; }
+    }
+  }
+
+  &__comment-actions {
+    display: flex;
+    gap: $sp-1;
+    margin-top: $sp-1;
+    justify-content: flex-end;
+
+    button {
+      padding: $sp-1 $sp-2;
+      border: $border-thin solid $c-rule;
+      border-radius: $radius-sm;
+      font-family: $ff;
+      font-size: $fs-step--2;
+      cursor: pointer;
+      background: $c-page;
+      color: $c-ink-soft;
+      transition: all $transition-fast;
+
+      &:first-child {
+        background: $c-accent;
+        color: $c-ink-inverse;
+        border-color: $c-accent;
+      }
+
+      @media (hover: hover) {
+        &:hover {
+          opacity: 0.85;
+        }
+      }
+    }
+  }
+
+  // ---- Loading / Error states -----------------------------
+  &__loading,
+  &__error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: $fs-step-1;
+    font-style: italic;
+    color: $c-ink-faint;
+  }
+
+  &__error {
+    color: $c-error;
+  }
+}
