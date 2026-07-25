@@ -51,12 +51,11 @@ body {
 #root {
   width: 100%;
   max-width: $max-width-sm;
-  height: 100%;
-  height: 100dvh;
+  height: 100%;                         // inherit from body (100dvh minus safe-area paddings)
   display: flex;
   flex-direction: column;
   padding: $sp-2;
-  overflow: clip;                       // clip instead of hidden — doesn't break sticky on iOS
+  overflow: clip;
   min-width: 0;
 
   // 모든 라우트 페이지가 flex 컨테이너를 채우도록
