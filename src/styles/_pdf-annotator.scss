@@ -741,6 +741,12 @@
       overflow-y: hidden;
       scroll-snap-type: x mandatory;
 
+      .react-pdf__Document {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+      }
+
       .pdf-annotator__page-wrapper {
         flex-shrink: 0;
         scroll-snap-align: start;
@@ -763,7 +769,7 @@
       }
     }
 
-    // ── Alignment: margin-based (works through nested wrappers) ──
+    // ── Vertical alignment: margin-based ─────────────────
     &--align-left {
       .pdf-annotator__page-wrapper { margin-left: 0; margin-right: auto; }
     }
@@ -774,6 +780,17 @@
 
     &--align-right {
       .pdf-annotator__page-wrapper { margin-left: auto; margin-right: 0; }
+    }
+
+    // ── Horizontal alignment: justify-content on flex row ─
+    &.pdf-annotator__document--horizontal.pdf-annotator__document--align-left {
+      justify-content: flex-start;
+    }
+    &.pdf-annotator__document--horizontal.pdf-annotator__document--align-center {
+      justify-content: center;
+    }
+    &.pdf-annotator__document--horizontal.pdf-annotator__document--align-right {
+      justify-content: flex-end;
     }
   }
 
