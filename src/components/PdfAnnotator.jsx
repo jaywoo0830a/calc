@@ -8,10 +8,27 @@ import 'react-pdf/dist/Page/TextLayer.css';
 // react-pdf가 내장한 pdfjs-dist 버전과 정확히 일치하는 CDN 사용
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-const COLORS = {
-  highlight: { bg: 'rgba(255, 230, 100, 0.45)', label: '🟡 형광펜' },
-  underline: { border: '2px solid #e74c3c', label: '🔴 밑줄' },
-  comment: { bg: 'rgba(255, 200, 100, 0.7)', label: '💬 주석' },
+// ── Color palettes ───────────────────────────────────────────────────
+const HIGHLIGHT_COLORS = [
+  { id: 'yellow',  bg: 'rgba(255, 230, 100, 0.45)', label: '🟡', name: '노랑' },
+  { id: 'green',   bg: 'rgba(130, 230, 130, 0.45)', label: '🟢', name: '초록' },
+  { id: 'blue',    bg: 'rgba(130, 200, 255, 0.45)', label: '🔵', name: '파랑' },
+  { id: 'pink',    bg: 'rgba(255, 180, 200, 0.45)', label: '🩷', name: '분홍' },
+  { id: 'orange',  bg: 'rgba(255, 200, 130, 0.50)', label: '🟠', name: '주황' },
+];
+
+const UNDERLINE_COLORS = [
+  { id: 'red',     color: '#e74c3c', style: 'solid',  label: '🔴', name: '빨강 실선' },
+  { id: 'blue',    color: '#3498db', style: 'solid',  label: '🔵', name: '파랑 실선' },
+  { id: 'green',   color: '#27ae60', style: 'solid',  label: '🟢', name: '초록 실선' },
+  { id: 'red-dash',  color: '#e74c3c', style: 'dashed', label: '🔴〰', name: '빨강 점선' },
+  { id: 'blue-dash', color: '#3498db', style: 'dashed', label: '🔵〰', name: '파랑 점선' },
+];
+
+const TOOLS = {
+  highlight: { label: '🖍️ 형광펜', icon: '🖍️' },
+  underline: { label: '⎁ 밑줄', icon: '⎁' },
+  comment:   { label: '💬 주석', icon: '💬' },
 };
 
 function annoRect(a, pageEl) {
@@ -33,7 +50,28 @@ export default function PdfAnnotator({ url, filePath }) {
   const [activeComment, setActiveComment] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [loadError, setLoadError] = useState(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
+  const [underlineColor, setUnderlineColor] = useState(UNDERLINE_COLORS[0]);
+  const containerRef = useRef(null);
   const pageRefs = useRef({});
+
+  // ── Fullscreen API ──────────────────────────────────────
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().then(() => setFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen?.().then(() => setFullscreen(false)).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => setFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
 
   // ── Load annotations from IndexedDB ─────────────────────
   useEffect(() => {
@@ -63,7 +101,8 @@ export default function PdfAnnotator({ url, filePath }) {
         filePath,
         pageNumber,
         type: tool,
-        color: tool === 'underline' ? '#e74c3c' : '#ffe664',
+        color: tool === 'underline' ? underlineColor.color : highlightColor.bg,
+        style: tool === 'underline' ? underlineColor.style : undefined,
         text: sel.toString().trim(),
         rect: {
           x: (r.left - pageRect.left) / pageRect.width,
@@ -79,17 +118,18 @@ export default function PdfAnnotator({ url, filePath }) {
     sel.removeAllRanges();
   }, [tool, filePath]);
 
-  // ── Click → comment note ────────────────────────────────
+  // ── Click → comment note OR erase annotation ────────────
   const handlePageClick = useCallback((pageNumber) => (e) => {
-    if (tool !== 'comment') return;
-    const pageEl = pageRefs.current[pageNumber];
-    if (!pageEl) return;
-    const pageRect = pageEl.getBoundingClientRect();
-    const x = (e.clientX - pageRect.left) / pageRect.width;
-    const y = (e.clientY - pageRect.top) / pageRect.height;
-
-    setActiveComment({ pageNumber, x, y });
-    setCommentText('');
+    if (tool === 'comment') {
+      const pageEl = pageRefs.current[pageNumber];
+      if (!pageEl) return;
+      const pageRect = pageEl.getBoundingClientRect();
+      const x = (e.clientX - pageRect.left) / pageRect.width;
+      const y = (e.clientY - pageRect.top) / pageRect.height;
+      setActiveComment({ pageNumber, x, y });
+      setCommentText('');
+    }
+    // erase tool: click annotation to delete (handled by AnnotationOverlay)
   }, [tool]);
 
   const submitComment = useCallback(() => {
@@ -132,11 +172,11 @@ export default function PdfAnnotator({ url, filePath }) {
   }), []);
 
   return (
-    <div className="pdf-annotator">
+    <div className={'pdf-annotator' + (fullscreen ? ' pdf-annotator--fullscreen' : '')} ref={containerRef}>
       {/* Toolbar */}
       <div className="pdf-annotator__toolbar">
         <div className="pdf-annotator__tools">
-          {Object.entries(COLORS).map(([key, val]) => (
+          {Object.entries(TOOLS).map(([key, val]) => (
             <button
               key={key}
               className={'pdf-annotator__tool' + (tool === key ? ' pdf-annotator__tool--active' : '')}
@@ -145,6 +185,70 @@ export default function PdfAnnotator({ url, filePath }) {
               {val.label}
             </button>
           ))}
+        </div>
+        {/* Color pickers */}
+        <div className="pdf-annotator__tools">
+          {tool === 'highlight' && (
+            <div className="pdf-annotator__color-picker">
+              {HIGHLIGHT_COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  className={'pdf-annotator__color-swatch' + (highlightColor.id === c.id ? ' pdf-annotator__color-swatch--active' : '')}
+                  style={{ backgroundColor: c.bg }}
+                  onClick={() => setHighlightColor(c)}
+                  title={c.name}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {tool === 'underline' && (
+            <div className="pdf-annotator__color-picker">
+              {UNDERLINE_COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  className={'pdf-annotator__color-swatch' + (underlineColor.id === c.id ? ' pdf-annotator__color-swatch--active' : '')}
+                  style={{ borderBottom: `3px ${c.style} ${c.color}` }}
+                  onClick={() => setUnderlineColor(c)}
+                  title={c.name}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="pdf-annotator__tools">
+          <button
+            className={'pdf-annotator__tool' + (tool === 'erase' ? ' pdf-annotator__tool--active' : '')}
+            onClick={() => setTool('erase')}
+            title="클릭한 어노테이션 삭제"
+          >
+            🧹 지우개
+          </button>
+          {annotations.length > 0 && (
+            <button
+              className="pdf-annotator__tool pdf-annotator__tool--danger"
+              onClick={() => {
+                if (confirm(`모든 어노테이션(${annotations.length}개)을 삭제할까요?`)) {
+                  import('../lib/storage.js').then(({ deleteAllAnnotations }) => {
+                    deleteAllAnnotations(filePath).then(() => setAnnotations([]));
+                  });
+                }
+              }}
+              title="모든 어노테이션 삭제"
+            >
+              🗑️ 모두 삭제
+            </button>
+          )}
+          <button
+            className="pdf-annotator__fullscreen-btn"
+            onClick={toggleFullscreen}
+            title={fullscreen ? '전체화면 닫기' : '전체화면'}
+          >
+            {fullscreen ? '⊠' : '⛶'}
+          </button>
         </div>
       </div>
 
@@ -266,16 +370,20 @@ function AnnotationOverlay({ annotation, pageEl, onDelete }) {
 
   if (!rect) return null;
 
+  const isDashed = annotation.type === 'underline' && annotation.style === 'dashed';
+
   return (
     <div
-      className={'pdf-annotator__mark pdf-annotator__mark--' + annotation.type}
+      className={'pdf-annotator__mark pdf-annotator__mark--' + annotation.type + (isDashed ? ' pdf-annotator__mark--dashed' : '')}
       style={{
         left: rect.left,
         top: rect.top,
         width: rect.width,
         height: rect.height,
-        backgroundColor: annotation.type === 'highlight' ? COLORS.highlight.bg : 'transparent',
-        borderBottom: annotation.type === 'underline' ? COLORS.underline.border : 'none',
+        backgroundColor: annotation.type === 'highlight' ? annotation.color : 'transparent',
+        borderBottom: !isDashed && annotation.type === 'underline'
+          ? `2px solid ${annotation.color || UNDERLINE_COLORS[0].color}`
+          : (isDashed ? `2px dashed ${annotation.color}` : 'none'),
       }}
       title={annotation.text}
     >
