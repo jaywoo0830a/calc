@@ -313,14 +313,9 @@
   }
 
   // react-pdf internal layers: keep below our annotation overlays
-  .react-pdf__Page__canvas {
-    position: relative;
-    z-index: 1;
-  }
-
   .react-pdf__Page__textContent,
   .react-pdf__Page__annotations {
-    z-index: 2;
+    z-index: 0;
   }
 
   // ---- Document layout modes -------------------------------

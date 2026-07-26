@@ -296,26 +296,35 @@ export default function PdfAnnotator({ url, filePath }) {
     const pageRect = pageEl.getBoundingClientRect();
     const rects = range.getClientRects();
 
+    // Merge all selection client rects into a single bounding box
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (let i = 0; i < rects.length; i++) {
       const r = rects[i];
-      const annotation = {
-        filePath,
-        pageNumber,
-        type: tool,
-        color: tool === 'underline' ? underlineColor.color : highlightColor.bg,
-        style: tool === 'underline' ? underlineColor.style : undefined,
-        text: sel.toString().trim(),
-        rect: {
-          x: (r.left - pageRect.left) / pageRect.width,
-          y: (r.top - pageRect.top) / pageRect.height,
-          w: r.width / pageRect.width,
-          h: r.height / pageRect.height,
-        },
-      };
-      saveAnnotation(annotation).then((saved) => {
-        setAnnotations((prev) => [...prev, saved]);
-      });
+      if (r.width === 0 || r.height === 0) continue;
+      minX = Math.min(minX, r.left);
+      minY = Math.min(minY, r.top);
+      maxX = Math.max(maxX, r.right);
+      maxY = Math.max(maxY, r.bottom);
     }
+    if (!isFinite(minX)) { sel.removeAllRanges(); return; }
+
+    const annotation = {
+      filePath,
+      pageNumber,
+      type: tool,
+      color: tool === 'underline' ? underlineColor.color : highlightColor.bg,
+      style: tool === 'underline' ? underlineColor.style : undefined,
+      text: sel.toString().trim(),
+      rect: {
+        x: (minX - pageRect.left) / pageRect.width,
+        y: (minY - pageRect.top) / pageRect.height,
+        w: (maxX - minX) / pageRect.width,
+        h: (maxY - minY) / pageRect.height,
+      },
+    };
+    saveAnnotation(annotation).then((saved) => {
+      setAnnotations((prev) => [...prev, saved]);
+    });
     sel.removeAllRanges();
   }, [tool, filePath, highlightColor, underlineColor]);
 
