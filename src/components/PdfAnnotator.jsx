@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage.js';
@@ -109,13 +109,15 @@ function getPageCanvasRect(pageEl) {
 
 function annoRect(a, pageEl) {
   if (!pageEl) return null;
-  const rect = getPageCanvasRect(pageEl);
-  if (!rect) return null;
+  const canvasRect = getPageCanvasRect(pageEl);
+  if (!canvasRect) return null;
+  const wrapperRect = pageEl.getBoundingClientRect();
+  // Position within page-wrapper = canvas offset + normalized coords × canvas size
   return {
-    left: a.rect.x * rect.width,
-    top: a.rect.y * rect.height,
-    width: a.rect.w * rect.width,
-    height: a.rect.h * rect.height,
+    left: (canvasRect.left - wrapperRect.left) + a.rect.x * canvasRect.width,
+    top: (canvasRect.top - wrapperRect.top) + a.rect.y * canvasRect.height,
+    width: a.rect.w * canvasRect.width,
+    height: a.rect.h * canvasRect.height,
   };
 }
 
@@ -947,8 +949,8 @@ export default function PdfAnnotator({ url, filePath }) {
   return isFakeFullscreen ? createPortal(content, document.body) : content;
 }
 
-/** Renders a single annotation overlay — memoized for performance */
-const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
+/** Renders a single annotation overlay */
+const AnnotationOverlay = function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
   const rect = annoRect(annotation, pageEl);
   const handleDelete = eraseMode ? (e) => { e.stopPropagation(); onDelete(annotation.id); } : undefined;
 
@@ -1060,4 +1062,4 @@ const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, 
       </button>
     </div>
   );
-});
+}
