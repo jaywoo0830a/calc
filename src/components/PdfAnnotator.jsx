@@ -324,8 +324,8 @@ export default function PdfAnnotator({ url, filePath }) {
 
   const handlePointerDown = useCallback((pageNumber) => (e) => {
     if (tool !== 'pen') return;
-    // Only stylus/pen draws; finger/touch passes through for scrolling
-    if (e.pointerType !== 'pen') return;
+    // Allow mouse and stylus; finger/touch passes through for scrolling
+    if (e.pointerType === 'touch') return;
     e.preventDefault();
     const pageEl = pageRefs.current[pageNumber];
     if (!pageEl) return;
@@ -740,7 +740,7 @@ export default function PdfAnnotator({ url, filePath }) {
                 onPointerUp={handlePointerUp(pageNumber)}
                 style={isReading
                   ? { width: pageW, height: 'auto', alignItems: 'flex-start', justifyContent: 'flex-start', touchAction: 'manipulation', transform: `translate(${-col * 100 / SECTOR_COLS}%, ${-row * 100 / SECTOR_ROWS}%)`, transition: 'transform 0.3s ease' }
-                  : { width: pageW, touchAction: tool === 'pen' ? 'none' : undefined }
+                  : { width: pageW, touchAction: tool === 'pen' ? 'none' : undefined, cursor: tool === 'highlight' || tool === 'underline' ? 'text' : (tool === 'pen' ? undefined : 'default') }
                 }
               >
                 <Page

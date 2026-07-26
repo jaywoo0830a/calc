@@ -265,18 +265,34 @@
     margin: 0 auto $sp-4;
     box-shadow: $shadow-md;
     background: #fff;
-    cursor: crosshair;
+    cursor: default;
     content-visibility: auto;
     contain-intrinsic-size: auto 600px;
     contain: layout style paint;       // heavy isolation for performance
     flex-shrink: 0;
     max-width: 100%;
 
+    // Allow text selection for highlight/underline tools
+    .react-pdf__Page__textContent {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
     &--pen {
       cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='2' cy='14' r='2' fill='%232c2416'/%3E%3C/svg%3E") 2 14, crosshair;
       touch-action: pan-y; // allow finger vertical scroll, pen handled via JS
       -ms-touch-action: pan-y;
       overscroll-behavior: none;
+
+      // Disable text selection while drawing with pen
+      .react-pdf__Page__textContent {
+        user-select: none;
+        -webkit-user-select: none;
+        pointer-events: none;
+      }
+      .react-pdf__Page__annotations {
+        pointer-events: none;
+      }
     }
   }
 
@@ -297,9 +313,14 @@
   }
 
   // react-pdf internal layers: keep below our annotation overlays
+  .react-pdf__Page__canvas {
+    position: relative;
+    z-index: 1;
+  }
+
   .react-pdf__Page__textContent,
   .react-pdf__Page__annotations {
-    z-index: 0;
+    z-index: 2;
   }
 
   // ---- Document layout modes -------------------------------
