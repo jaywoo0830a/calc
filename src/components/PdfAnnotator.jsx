@@ -30,6 +30,7 @@ const TOOLS = {
   underline: { label: '⎁ Underline', icon: '⎁' },
   comment:   { label: '💬 Comment', icon: '💬' },
   pen:       { label: '✒️ Pen', icon: '✒️' },
+  pan:       { label: '✋ Pan', icon: '✋' },
 };
 
 const PEN_COLORS = [
@@ -131,7 +132,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [alignment, setAlignment] = useState('center');
-  const [zoomLevel, setZoomLevel] = useState(1); // continuous 0.5–3.0
+  const [zoomLevel, setZoomLevel] = useState(1); // 0.5–1.5 (50%–150%)
   const [chromeVisible, setChromeVisible] = useState(true);
   // ── Reading mode (mobile: 2×4 grid sectors) ─────────────
   const [readingMode, setReadingMode] = useState(false);
@@ -202,6 +203,9 @@ export default function PdfAnnotator({ url, filePath }) {
   const currentPath = useRef([]);
   const penPage = useRef(null);
   const [liveStroke, setLiveStroke] = useState(null); // { pageNumber, color, pathData } | null
+  // pan state
+  const isPanning = useRef(false);
+  const panStart = useRef({ x: 0, y: 0, scrollX: 0, scrollY: 0 });
   const containerRef = useRef(null);
   const documentRef = useRef(null);
   const pageRefs = useRef({});
@@ -436,6 +440,23 @@ export default function PdfAnnotator({ url, filePath }) {
   const hasStylus = useRef(false);
 
   const handlePointerDown = useCallback((pageNumber) => (e) => {
+    // Pan tool — drag to scroll the document
+    if (tool === 'pan') {
+      e.preventDefault();
+      const doc = documentRef.current;
+      if (!doc) return;
+      isPanning.current = true;
+      panStart.current = {
+        x: e.clientX,
+        y: e.clientY,
+        scrollX: doc.scrollLeft,
+        scrollY: doc.scrollTop,
+      };
+      doc.style.cursor = 'grabbing';
+      doc.setPointerCapture?.(e.pointerId);
+      return;
+    }
+
     if (tool !== 'pen') return;
     // Allow mouse and stylus; finger/touch passes through for scrolling
     if (e.pointerType === 'touch') return;
@@ -461,6 +482,18 @@ export default function PdfAnnotator({ url, filePath }) {
   }, [tool, penColor, penSize]);
 
   const handlePointerMove = useCallback((pageNumber) => (e) => {
+    // Pan tool — scroll document by drag delta
+    if (isPanning.current && tool === 'pan') {
+      e.preventDefault();
+      const doc = documentRef.current;
+      if (!doc) return;
+      const dx = panStart.current.x - e.clientX;
+      const dy = panStart.current.y - e.clientY;
+      doc.scrollLeft = panStart.current.scrollX + dx;
+      doc.scrollTop = panStart.current.scrollY + dy;
+      return;
+    }
+
     if (!isDrawing.current || tool !== 'pen' || penPage.current !== pageNumber) return;
     e.preventDefault();
     const pageEl = pageRefs.current[pageNumber];
@@ -490,8 +523,19 @@ export default function PdfAnnotator({ url, filePath }) {
     } : null);
   }, [tool, penSize]);
 
-  // ── Pointer up: pen end ──────────────────────────────────
+  // ── Pointer up: pen end + pan end ────────────────────────
   const handlePointerUp = useCallback((pageNumber) => (e) => {
+    // Pan tool end
+    if (isPanning.current && tool === 'pan') {
+      isPanning.current = false;
+      const doc = documentRef.current;
+      if (doc) {
+        doc.style.cursor = '';
+        doc.releasePointerCapture?.(e.pointerId);
+      }
+      return;
+    }
+
     // Pen drawing end
     if (isDrawing.current && tool === 'pen') {
       e.preventDefault();
@@ -891,7 +935,7 @@ export default function PdfAnnotator({ url, filePath }) {
                       height: (fullscreen || zoomLevel > 1) ? 'auto' : undefined,
                       minHeight: (fullscreen || zoomLevel > 1) ? undefined : undefined,
                       touchAction: tool === 'pen' ? 'none' : undefined,
-                      cursor: (tool === 'highlight' || tool === 'underline') ? 'text' : undefined,
+                      cursor: tool === 'pan' ? 'grab' : (tool === 'highlight' || tool === 'underline') ? 'text' : undefined,
                     }
                 }
               >
@@ -1080,14 +1124,14 @@ export default function PdfAnnotator({ url, filePath }) {
             <input
               type="range"
               min="0.5"
-              max="3"
+              max="1.5"
               step="0.05"
               value={zoomLevel}
               onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
               onDoubleClick={() => setZoomLevel(1)}
               title={`${Math.round(zoomLevel * 100)}%`}
             />
-            <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(Math.min(3, zoomLevel + 0.25))} title="Zoom in">+</button>
+            <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(Math.min(1.5, zoomLevel + 0.25))} title="Zoom in">+</button>
             <span className="pdf-annotator__zoom-label">{Math.round(zoomLevel * 100)}%</span>
           </div>
           )}
@@ -1112,17 +1156,18 @@ export default function PdfAnnotator({ url, filePath }) {
 
 /** Renders a single annotation overlay */
 const AnnotationOverlay = function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
-  const [rect, setRect] = useState(() => annoRect(annotation, pageEl));
+  // Always find page element fresh from DOM — prop may be stale after page navigation
+  const getPageEl = () => document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
+  const [rect, setRect] = useState(() => annoRect(annotation, getPageEl()));
   const prevRectRef = useRef(null);
 
-  // Recompute position after every DOM commit — ensures correct coords after zoom
   useLayoutEffect(() => {
-    const next = annoRect(annotation, pageEl);
+    const next = annoRect(annotation, getPageEl());
     const prev = prevRectRef.current;
     if (next && prev &&
         next.left === prev.left && next.top === prev.top &&
         next.width === prev.width && next.height === prev.height) {
-      return; // no change, skip re-render
+      return;
     }
     prevRectRef.current = next;
     setRect(next);
