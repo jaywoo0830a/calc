@@ -194,11 +194,15 @@ export default function PdfAnnotator({ url, filePath }) {
 
   // ── Swipe detection for paginated mode ──────────────────
   const handleSwipeStart = useCallback((e) => {
+    // Don't interfere with active pen drawing
+    if (isDrawing.current) return;
     const count = e.touches?.length || 1;
     touchStart.current = { x: e.touches?.[0]?.clientX || e.clientX, y: e.touches?.[0]?.clientY || e.clientY, time: Date.now(), count };
   }, []);
 
   const handleSwipeEnd = useCallback((e) => {
+    // Don't interfere with active pen drawing
+    if (isDrawing.current) return;
     // Ignore multi-touch (pinch-zoom) — only single-finger swipes count
     if (touchStart.current.count > 1) return;
     if ((e.touches?.length || 0) > 0) return; // still touching with other fingers
@@ -320,9 +324,13 @@ export default function PdfAnnotator({ url, filePath }) {
 
   const handlePointerDown = useCallback((pageNumber) => (e) => {
     if (tool !== 'pen') return;
+    // Only stylus/pen draws; finger/touch passes through for scrolling
+    if (e.pointerType !== 'pen') return;
     e.preventDefault();
     const pageEl = pageRefs.current[pageNumber];
     if (!pageEl) return;
+    // Lock touch-action during active stroke (prevents browser scroll-jacking)
+    pageEl.style.touchAction = 'none';
     const pageRect = pageEl.getBoundingClientRect();
     const x = (e.clientX - pageRect.left) / pageRect.width;
     const y = (e.clientY - pageRect.top) / pageRect.height;
@@ -373,6 +381,8 @@ export default function PdfAnnotator({ url, filePath }) {
     isDrawing.current = false;
     const pageEl = pageRefs.current[pageNumber];
     setLiveStroke(null);
+    // Restore finger-scroll after stroke ends
+    if (pageEl) pageEl.style.touchAction = 'pan-y';
 
     if (!pageEl) { currentPath.current = []; return; }
     const pageRect = pageEl.getBoundingClientRect();
@@ -658,7 +668,9 @@ export default function PdfAnnotator({ url, filePath }) {
       <div
         ref={documentRef}
         className={'pdf-annotator__document pdf-annotator__document--paginated pdf-annotator__document--align-' + alignment}
-        style={{ overflow: (fullscreen || isMobile && readingMode || zoomLevel > 1) ? 'auto' : undefined }}
+        style={{
+          overflow: (fullscreen || isMobile && readingMode || zoomLevel > 1) ? 'auto' : undefined,
+        }}
         onTouchStart={handleSwipeStart}
         onTouchEnd={handleSwipeEnd}
       >

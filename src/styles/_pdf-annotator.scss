@@ -274,10 +274,8 @@
 
     &--pen {
       cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='2' cy='14' r='2' fill='%232c2416'/%3E%3C/svg%3E") 2 14, crosshair;
-      touch-action: none;
-      // Stylus optimization: disable all browser gestures during pen input
-      -ms-touch-action: none;
-      // Prevent iOS/Android from interpreting pen as scroll/zoom
+      touch-action: pan-y; // allow finger vertical scroll, pen handled via JS
+      -ms-touch-action: pan-y;
       overscroll-behavior: none;
     }
   }
