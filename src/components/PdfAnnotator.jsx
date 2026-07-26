@@ -336,9 +336,7 @@ export default function PdfAnnotator({ url, filePath }) {
       const ancestorEl = ancestor.nodeType === 3 ? ancestor.parentElement : ancestor;
       const pageEl = ancestorEl?.closest?.('.pdf-annotator__page-wrapper');
       if (!pageEl) return;
-      const pageNumber = Object.entries(pageRefs.current).find(
-        ([, el]) => el === pageEl
-      )?.[0];
+      const pageNumber = pageEl.dataset?.page;
       if (pageNumber == null) return;
 
       const canvasRect = getPageCanvasRect(pageEl);
@@ -878,6 +876,7 @@ export default function PdfAnnotator({ url, filePath }) {
             const pageContent = (
               <div
                 key={pageNumber}
+                data-page={pageNumber}
                 className={'pdf-annotator__page-wrapper' + (tool === 'pen' ? ' pdf-annotator__page-wrapper--pen' : '') + (isIOS ? ' pdf-annotator__page-wrapper--ios' : '')}
                 ref={(el) => { if (el) pageRefs.current[pageNumber] = el; }}
                 onClick={isReading ? handleSectorTap : handlePageClick(pageNumber)}
