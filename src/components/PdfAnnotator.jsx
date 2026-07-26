@@ -294,9 +294,8 @@ export default function PdfAnnotator({ url, filePath }) {
     getAnnotations(filePath).then(setAnnotations).catch(() => {});
   }, [filePath]);
 
-  // ── Text selection → highlight / underline ──────────────
-  const handleMouseUp = useCallback((pageNumber) => (e) => {
-    if (!tool || tool === 'comment' || tool === 'erase') return;
+  // ── Text selection → highlight / underline (shared helper) ──
+  const processTextSelection = useCallback((pageNumber) => {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
 
@@ -304,7 +303,6 @@ export default function PdfAnnotator({ url, filePath }) {
     const pageEl = pageRefs.current[pageNumber];
     if (!pageEl) return;
 
-    // Check selection is within this page
     if (!pageEl.contains(range.commonAncestorContainer)) return;
 
     const pageRect = getPageCanvasRect(pageEl);
@@ -312,7 +310,6 @@ export default function PdfAnnotator({ url, filePath }) {
     const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
     if (rects.length === 0) { sel.removeAllRanges(); return; }
 
-    // Group rects by line (similar top coordinate), one annotation per line
     const sorted = [...rects].sort((a, b) => a.top - b.top);
     const lineHeight = sorted[0].height;
     const tolerance = lineHeight * 0.5;
@@ -415,57 +412,65 @@ export default function PdfAnnotator({ url, filePath }) {
     } : null);
   }, [tool, penSize]);
 
+  // ── Pointer up: pen end + text selection (mouse & touch) ──
   const handlePointerUp = useCallback((pageNumber) => (e) => {
-    if (!isDrawing.current || tool !== 'pen') return;
-    e.preventDefault();
-    isDrawing.current = false;
-    const pageEl = pageRefs.current[pageNumber];
-    setLiveStroke(null);
-    // Restore finger-scroll after stroke ends
-    if (pageEl) pageEl.style.touchAction = 'pan-y';
+    // Pen drawing end
+    if (isDrawing.current && tool === 'pen') {
+      e.preventDefault();
+      isDrawing.current = false;
+      const pageEl = pageRefs.current[pageNumber];
+      setLiveStroke(null);
+      if (pageEl) pageEl.style.touchAction = 'pan-y';
 
-    if (!pageEl) { currentPath.current = []; return; }
-    const pageRect = getPageCanvasRect(pageEl);
-    if (!pageRect) { currentPath.current = []; return; }
-    const x = (e.clientX - pageRect.left) / pageRect.width;
-    const y = (e.clientY - pageRect.top) / pageRect.height;
-    const pressure = e.pressure ?? 0.5;
-    currentPath.current.push({ x, y, pressure, tiltX: e.tiltX ?? 0, tiltY: e.tiltY ?? 0 });
+      if (!pageEl) { currentPath.current = []; return; }
+      const pageRect = getPageCanvasRect(pageEl);
+      if (!pageRect) { currentPath.current = []; return; }
+      const x = (e.clientX - pageRect.left) / pageRect.width;
+      const y = (e.clientY - pageRect.top) / pageRect.height;
+      const pressure = e.pressure ?? 0.5;
+      currentPath.current.push({ x, y, pressure, tiltX: e.tiltX ?? 0, tiltY: e.tiltY ?? 0 });
 
-    if (currentPath.current.length < 2) { currentPath.current = []; return; }
+      if (currentPath.current.length < 2) { currentPath.current = []; return; }
 
-    // Build variable-width SVG: split path into pressure-based segments
-    const segments = buildPressureSegments(currentPath.current, penSize.width);
-    const avgPressure = currentPath.current.reduce((s, p) => s + (p.pressure || 0.5), 0) / currentPath.current.length;
-    const effectiveWidth = penSize.width * (0.3 + 0.7 * avgPressure);
+      const segments = buildPressureSegments(currentPath.current, penSize.width);
+      const avgPressure = currentPath.current.reduce((s, p) => s + (p.pressure || 0.5), 0) / currentPath.current.length;
+      const effectiveWidth = penSize.width * (0.3 + 0.7 * avgPressure);
+      const d = smoothPathData(currentPath.current.map(p => ({ x: p.x, y: p.y })));
 
-    // Main path for backward compatibility (uniform width approximation)
-    const d = smoothPathData(currentPath.current.map(p => ({ x: p.x, y: p.y })));
+      const annotation = {
+        filePath,
+        pageNumber: penPage.current,
+        type: 'pen',
+        color: penColor.color,
+        width: effectiveWidth,
+        text: '',
+        pathData: d,
+        segments: segments.length > 1 ? segments : undefined,
+        rect: { x: 0, y: 0, w: 1, h: 1 },
+        stylusData: hasStylus.current ? {
+          avgPressure,
+          avgTiltX: currentPath.current.reduce((s, p) => s + (p.tiltX || 0), 0) / currentPath.current.length,
+          avgTiltY: currentPath.current.reduce((s, p) => s + (p.tiltY || 0), 0) / currentPath.current.length,
+        } : undefined,
+      };
+      saveAnnotation(annotation).then((saved) => {
+        setAnnotations((prev) => [...prev, saved]);
+      });
+      currentPath.current = [];
+      penPage.current = null;
+      hasStylus.current = false;
+      pageEl.releasePointerCapture?.(e.pointerId);
+      return;
+    }
 
-    const annotation = {
-      filePath,
-      pageNumber: penPage.current,
-      type: 'pen',
-      color: penColor.color,
-      width: effectiveWidth,
-      text: '',
-      pathData: d,
-      segments: segments.length > 1 ? segments : undefined, // store per-segment data if variable
-      rect: { x: 0, y: 0, w: 1, h: 1 },
-      stylusData: hasStylus.current ? {
-        avgPressure,
-        avgTiltX: currentPath.current.reduce((s, p) => s + (p.tiltX || 0), 0) / currentPath.current.length,
-        avgTiltY: currentPath.current.reduce((s, p) => s + (p.tiltY || 0), 0) / currentPath.current.length,
-      } : undefined,
-    };
-    saveAnnotation(annotation).then((saved) => {
-      setAnnotations((prev) => [...prev, saved]);
-    });
-    currentPath.current = [];
-    penPage.current = null;
-    hasStylus.current = false;
-    pageEl.releasePointerCapture?.(e.pointerId);
-  }, [tool, filePath, penColor, penSize]);
+    // Text selection for highlight/underline — works on mouse & touch
+    if (tool === 'highlight' || tool === 'underline') {
+      // rAF lets the browser finalize the selection before we read it
+      requestAnimationFrame(() => {
+        processTextSelection(pageNumber);
+      });
+    }
+  }, [tool, filePath, penColor, penSize, processTextSelection]);
   // ── Click → comment note ────────────────────────────────
   const handlePageClick = useCallback((pageNumber) => (e) => {
     if (tool === 'comment') {
@@ -774,7 +779,6 @@ export default function PdfAnnotator({ url, filePath }) {
                 key={pageNumber}
                 className={'pdf-annotator__page-wrapper' + (tool === 'pen' ? ' pdf-annotator__page-wrapper--pen' : '') + (isIOS ? ' pdf-annotator__page-wrapper--ios' : '')}
                 ref={(el) => { if (el) pageRefs.current[pageNumber] = el; }}
-                onMouseUp={handleMouseUp(pageNumber)}
                 onClick={isReading ? handleSectorTap : handlePageClick(pageNumber)}
                 onPointerDown={handlePointerDown(pageNumber)}
                 onPointerMove={handlePointerMove(pageNumber)}
