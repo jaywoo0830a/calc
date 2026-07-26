@@ -290,6 +290,7 @@ export default function PdfAnnotator({ url, filePath }) {
 
   // ── Selection trigger (floating confirm toolbar) ──────────
   const [selTrigger, setSelTrigger] = useState(null); // { pageNumber, x, y } | null
+  const savedSelectionRef = useRef(null); // capture selection data before click clears it
 
   // Clear trigger when switching away from highlight/underline
   useEffect(() => {
@@ -309,32 +310,47 @@ export default function PdfAnnotator({ url, filePath }) {
     const onSelectionChange = () => {
       if (tool !== 'highlight' && tool !== 'underline') {
         setSelTrigger(null);
+        savedSelectionRef.current = null;
         return;
       }
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
         setSelTrigger(null);
+        savedSelectionRef.current = null;
         return;
       }
       const range = sel.getRangeAt(0);
       // Find which page this selection belongs to
       const pageEl = range.commonAncestorContainer?.closest?.('.pdf-annotator__page-wrapper');
-      if (!pageEl) { setSelTrigger(null); return; }
+      if (!pageEl) { setSelTrigger(null); savedSelectionRef.current = null; return; }
       const pageNumber = Object.entries(pageRefs.current).find(
         ([, el]) => el === pageEl
       )?.[0];
-      if (pageNumber == null) { setSelTrigger(null); return; }
+      if (pageNumber == null) { setSelTrigger(null); savedSelectionRef.current = null; return; }
 
-      // Position trigger at the end of the selection
-      const rects = range.getClientRects();
-      if (rects.length === 0) { setSelTrigger(null); return; }
-      const lastRect = rects[rects.length - 1];
       const canvasRect = getPageCanvasRect(pageEl);
-      if (!canvasRect) { setSelTrigger(null); return; }
+      if (!canvasRect) { setSelTrigger(null); savedSelectionRef.current = null; return; }
 
+      // Capture selection data NOW — button click will clear the DOM selection
+      const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
+      if (rects.length === 0) { setSelTrigger(null); savedSelectionRef.current = null; return; }
+
+      savedSelectionRef.current = {
+        pageNumber: Number(pageNumber),
+        text: sel.toString().trim(),
+        rects: rects.map(r => ({
+          x: (r.left - canvasRect.left) / canvasRect.width,
+          y: (r.top - canvasRect.top) / canvasRect.height,
+          w: r.width / canvasRect.width,
+          h: r.height / canvasRect.height,
+        })),
+        canvasRect: { left: canvasRect.left, top: canvasRect.top, width: canvasRect.width, height: canvasRect.height },
+        wrapperRect: pageEl.getBoundingClientRect(),
+      };
+
+      const lastRect = rects[rects.length - 1];
       setSelTrigger({
         pageNumber: Number(pageNumber),
-        // Viewport position (fixed) — near the end of selection
         x: lastRect.right + 8,
         y: lastRect.bottom + 6,
       });
@@ -518,11 +534,59 @@ export default function PdfAnnotator({ url, filePath }) {
 
   // ── Confirm selection trigger → create annotation ──────
   const confirmSelection = useCallback(() => {
-    if (!selTrigger) return;
-    processTextSelection(selTrigger.pageNumber);
+    const data = savedSelectionRef.current;
+    if (!data || data.rects.length === 0) return;
+
+    const isHighlight = tool === 'highlight';
+
+    // Group rects by line (similar top coordinate)
+    const sorted = [...data.rects].sort((a, b) => a.y - b.y);
+    const lineHeight = sorted[0].h || 0.01;
+    const tolerance = lineHeight * 0.5;
+    const lines = [];
+    let currentLine = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+      if (Math.abs(sorted[i].y - currentLine[0].y) < tolerance) {
+        currentLine.push(sorted[i]);
+      } else {
+        lines.push(currentLine);
+        currentLine = [sorted[i]];
+      }
+    }
+    lines.push(currentLine);
+
+    for (const lineRects of lines) {
+      let minX = Infinity, maxX = -Infinity;
+      let top = Infinity, bottom = -Infinity;
+      for (const r of lineRects) {
+        minX = Math.min(minX, r.x);
+        maxX = Math.max(maxX, r.x + r.w);
+        top = Math.min(top, r.y);
+        bottom = Math.max(bottom, r.y + r.h);
+      }
+      const annotation = {
+        filePath,
+        pageNumber: data.pageNumber,
+        type: tool,
+        color: isHighlight ? highlightColor.bg : underlineColor.color,
+        style: isHighlight ? undefined : underlineColor.style,
+        text: data.text,
+        rect: {
+          x: minX,
+          y: top,
+          w: maxX - minX,
+          h: bottom - top,
+        },
+      };
+      saveAnnotation(annotation).then((saved) => {
+        setAnnotations((prev) => [...prev, saved]);
+      });
+    }
+
     setSelTrigger(null);
+    savedSelectionRef.current = null;
     window.getSelection()?.removeAllRanges();
-  }, [selTrigger, processTextSelection]);
+  }, [tool, filePath, highlightColor, underlineColor]);
   // ── Click → comment note ────────────────────────────────
   const handlePageClick = useCallback((pageNumber) => (e) => {
     if (tool === 'comment') {
@@ -915,6 +979,7 @@ export default function PdfAnnotator({ url, filePath }) {
                 key={c.id}
                 className={'pdf-annotator__sel-swatch' + (highlightColor.id === c.id ? ' pdf-annotator__sel-swatch--active' : '')}
                 style={{ backgroundColor: c.bg }}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setHighlightColor(c)}
                 title={c.name}
               />
@@ -924,19 +989,22 @@ export default function PdfAnnotator({ url, filePath }) {
                 key={c.id}
                 className={'pdf-annotator__sel-swatch' + (underlineColor.id === c.id ? ' pdf-annotator__sel-swatch--active' : '')}
                 style={{ borderBottom: `3px solid ${c.color}` }}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setUnderlineColor(c)}
                 title={c.name}
               />
             ))}
             <button
               className="pdf-annotator__sel-confirm"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={confirmSelection}
             >
-              {tool === 'highlight' ? '🖍️' : '⎁'} 적용
+              {tool === 'highlight' ? '🖍️' : '⎁'} Apply
             </button>
             <button
               className="pdf-annotator__sel-cancel"
-              onClick={() => { setSelTrigger(null); window.getSelection()?.removeAllRanges(); }}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { setSelTrigger(null); savedSelectionRef.current = null; window.getSelection()?.removeAllRanges(); }}
             >
               ✕
             </button>
