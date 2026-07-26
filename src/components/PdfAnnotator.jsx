@@ -469,19 +469,23 @@ export default function PdfAnnotator({ url, filePath }) {
     // Text selection for highlight/underline — mouse & touch (all platforms)
     if (tool === 'highlight' || tool === 'underline') {
       const now = Date.now();
-      // Prevent double-processing within 300ms (mouseup + pointerup on desktop)
-      if (now - lastSelectionTime.current < 300) return;
+      // Prevent re-triggering the multi-attempt sequence within 500ms
+      if (now - lastSelectionTime.current < 500) return;
       lastSelectionTime.current = now;
 
-      // setTimeout yields to the event loop — more reliable than rAF on Android
+      let done = false;
       const tryProcess = () => {
+        if (done) return;
         const sel = window.getSelection();
-        if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+        if (!sel || sel.isCollapsed || !sel.toString().trim()) return; // not ready
+        done = true;
         processTextSelection(pageNumber);
       };
-      // rAF for fast path (desktop/iOS), setTimeout for slow path (Android fullscreen)
+      // Multi-attempt: rAF for fast path, staggered timeouts for slow platforms
       requestAnimationFrame(tryProcess);
-      setTimeout(tryProcess, 80);
+      setTimeout(tryProcess, 100);
+      setTimeout(tryProcess, 250);
+      setTimeout(tryProcess, 500);
     }
   }, [tool, filePath, penColor, penSize, processTextSelection]);
   // ── Click → comment note ────────────────────────────────
