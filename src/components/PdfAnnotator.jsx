@@ -291,14 +291,14 @@ export default function PdfAnnotator({ url, filePath }) {
   // ── Selection trigger (floating confirm toolbar) ──────────
   const [selTrigger, setSelTrigger] = useState(null); // { pageNumber, x, y } | null
   const savedSelectionRef = useRef(null); // capture selection data before click clears it
-  const toolRef = useRef(tool);
-  toolRef.current = tool; // always fresh — avoids stale closure in listener
+  const lastDetectedText = useRef(''); // avoid re-triggering on same selection
 
   // Clear trigger when switching away from highlight/underline
   useEffect(() => {
     if (tool !== 'highlight' && tool !== 'underline') {
       setSelTrigger(null);
       savedSelectionRef.current = null;
+      lastDetectedText.current = '';
     }
   }, [tool]);
 
@@ -308,87 +308,64 @@ export default function PdfAnnotator({ url, filePath }) {
     getAnnotations(filePath).then(setAnnotations).catch(() => {});
   }, [filePath]);
 
-  // ── Listen for text selection → show trigger ──────────
-  // Always-attached listener (empty deps) — reads tool via ref, survives page nav
+  // ── Polling: check selection every 250ms (dead simple, always works) ──
   useEffect(() => {
-    const onSelectionChange = () => {
-      const currentTool = toolRef.current;
-      if (currentTool !== 'highlight' && currentTool !== 'underline') {
-        setSelTrigger(null);
-        savedSelectionRef.current = null;
-        return;
-      }
+    if (tool !== 'highlight' && tool !== 'underline') return;
+    const id = setInterval(() => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        setSelTrigger(null);
-        savedSelectionRef.current = null;
+        // Selection gone — hide trigger
+        if (lastDetectedText.current) {
+          setSelTrigger(null);
+          savedSelectionRef.current = null;
+          lastDetectedText.current = '';
+        }
         return;
       }
+      const text = sel.toString().trim();
+      if (text === lastDetectedText.current) return; // already showing trigger for this
       const range = sel.getRangeAt(0);
-      // Find which page this selection belongs to
-      // commonAncestorContainer may be a Text node (no .closest) — get parent Element
       const ancestor = range.commonAncestorContainer;
       const ancestorEl = ancestor.nodeType === 3 ? ancestor.parentElement : ancestor;
       const pageEl = ancestorEl?.closest?.('.pdf-annotator__page-wrapper');
-      if (!pageEl) { setSelTrigger(null); savedSelectionRef.current = null; return; }
+      if (!pageEl) return;
       const pageNumber = Object.entries(pageRefs.current).find(
         ([, el]) => el === pageEl
       )?.[0];
-      if (pageNumber == null) { setSelTrigger(null); savedSelectionRef.current = null; return; }
+      if (pageNumber == null) return;
 
       const canvasRect = getPageCanvasRect(pageEl);
-      if (!canvasRect) { setSelTrigger(null); savedSelectionRef.current = null; return; }
+      if (!canvasRect) return;
 
-      // Capture selection data NOW — button click will clear the DOM selection
       const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
-      if (rects.length === 0) { setSelTrigger(null); savedSelectionRef.current = null; return; }
+      if (rects.length === 0) return;
 
+      lastDetectedText.current = text;
       savedSelectionRef.current = {
         pageNumber: Number(pageNumber),
-        text: sel.toString().trim(),
+        text,
         rects: rects.map(r => ({
           x: (r.left - canvasRect.left) / canvasRect.width,
           y: (r.top - canvasRect.top) / canvasRect.height,
           w: r.width / canvasRect.width,
           h: r.height / canvasRect.height,
         })),
-        canvasRect: { left: canvasRect.left, top: canvasRect.top, width: canvasRect.width, height: canvasRect.height },
-        wrapperRect: pageEl.getBoundingClientRect(),
       };
 
       const lastRect = rects[rects.length - 1];
-      // Clamp trigger position within viewport
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const triggerW = 280; // estimated trigger width
-      const triggerH = 40;
-      const gap = 8;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const triggerW = 280, triggerH = 40, gap = 8;
       let tx = lastRect.right + gap;
       let ty = lastRect.bottom + gap;
-      // Flip to left if overflows right edge
-      if (tx + triggerW > vw - gap) {
-        tx = lastRect.left - triggerW - gap;
-      }
-      // Clamp horizontal
+      if (tx + triggerW > vw - gap) tx = lastRect.left - triggerW - gap;
       tx = Math.max(gap, Math.min(tx, vw - triggerW - gap));
-      // Clamp vertical
-      if (ty + triggerH > vh - gap) {
-        ty = lastRect.top - triggerH - gap;
-      }
+      if (ty + triggerH > vh - gap) ty = lastRect.top - triggerH - gap;
       ty = Math.max(gap, Math.min(ty, vh - triggerH - gap));
 
-      setSelTrigger({
-        pageNumber: Number(pageNumber),
-        x: tx,
-        y: ty,
-      });
-    };
-
-    document.addEventListener('selectionchange', onSelectionChange);
-    return () => {
-      document.removeEventListener('selectionchange', onSelectionChange);
-    };
-  }, []); // always attached — tool read via toolRef
+      setSelTrigger({ pageNumber: Number(pageNumber), x: tx, y: ty });
+    }, 250);
+    return () => clearInterval(id);
+  }, [tool]);
 
   // ── Text selection → highlight / underline (shared helper) ──
   const processTextSelection = useCallback((pageNumber) => {
