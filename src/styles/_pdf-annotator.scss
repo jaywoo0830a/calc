@@ -317,6 +317,83 @@
     z-index: 0;
   }
 
+  // ---- Selection trigger (floating confirm toolbar) --------
+  &__sel-trigger {
+    animation: selTriggerIn 0.2s ease;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.15));
+
+    @keyframes selTriggerIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  }
+
+  &__sel-trigger-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.5rem;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 2rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    white-space: nowrap;
+  }
+
+  &__sel-swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 2px solid transparent;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+    flex-shrink: 0;
+
+    &:hover { transform: scale(1.15); }
+
+    &--active {
+      border-color: rgba(92, 61, 46, 0.6);
+      box-shadow: 0 0 0 2px rgba(92, 61, 46, 0.15);
+    }
+  }
+
+  &__sel-confirm {
+    padding: 0.35rem 0.75rem;
+    border: none;
+    border-radius: 2rem;
+    background: rgba(92, 61, 46, 0.85);
+    color: #fff;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+
+    &:hover { background: rgba(92, 61, 46, 1); }
+    &:active { transform: scale(0.95); }
+  }
+
+  &__sel-cancel {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.06);
+    color: #888;
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+
+    &:hover { background: rgba(0, 0, 0, 0.12); color: #555; }
+  }
+
   // ---- Document layout modes -------------------------------
   &__mark {
     position: absolute;

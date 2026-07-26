@@ -288,11 +288,63 @@ export default function PdfAnnotator({ url, filePath }) {
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
+  // ── Selection trigger (floating confirm toolbar) ──────────
+  const [selTrigger, setSelTrigger] = useState(null); // { pageNumber, x, y } | null
+
+  // Clear trigger when switching away from highlight/underline
+  useEffect(() => {
+    if (tool !== 'highlight' && tool !== 'underline') {
+      setSelTrigger(null);
+    }
+  }, [tool]);
+
   // ── Load annotations from IndexedDB ─────────────────────
   useEffect(() => {
     if (!filePath) return;
     getAnnotations(filePath).then(setAnnotations).catch(() => {});
   }, [filePath]);
+
+  // ── Listen for text selection → show trigger ──────────
+  useEffect(() => {
+    const onSelectionChange = () => {
+      if (tool !== 'highlight' && tool !== 'underline') {
+        setSelTrigger(null);
+        return;
+      }
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        setSelTrigger(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      // Find which page this selection belongs to
+      const pageEl = range.commonAncestorContainer?.closest?.('.pdf-annotator__page-wrapper');
+      if (!pageEl) { setSelTrigger(null); return; }
+      const pageNumber = Object.entries(pageRefs.current).find(
+        ([, el]) => el === pageEl
+      )?.[0];
+      if (pageNumber == null) { setSelTrigger(null); return; }
+
+      // Position trigger at the end of the selection
+      const rects = range.getClientRects();
+      if (rects.length === 0) { setSelTrigger(null); return; }
+      const lastRect = rects[rects.length - 1];
+      const canvasRect = getPageCanvasRect(pageEl);
+      if (!canvasRect) { setSelTrigger(null); return; }
+
+      setSelTrigger({
+        pageNumber: Number(pageNumber),
+        // Viewport position (fixed) — near the end of selection
+        x: lastRect.right + 8,
+        y: lastRect.bottom + 6,
+      });
+    };
+
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', onSelectionChange);
+    };
+  }, [tool]);
 
   // ── Text selection → highlight / underline (shared helper) ──
   const processTextSelection = useCallback((pageNumber) => {
@@ -412,10 +464,7 @@ export default function PdfAnnotator({ url, filePath }) {
     } : null);
   }, [tool, penSize]);
 
-  // ── Guard against double-processing text selection ────────
-  const lastSelectionTime = useRef(0);
-
-  // ── Pointer up: pen end + text selection (mouse & touch) ──
+  // ── Pointer up: pen end ──────────────────────────────────
   const handlePointerUp = useCallback((pageNumber) => (e) => {
     // Pen drawing end
     if (isDrawing.current && tool === 'pen') {
@@ -465,29 +514,15 @@ export default function PdfAnnotator({ url, filePath }) {
       pageEl.releasePointerCapture?.(e.pointerId);
       return;
     }
+  }, [tool, filePath, penColor, penSize]);
 
-    // Text selection for highlight/underline — mouse & touch (all platforms)
-    if (tool === 'highlight' || tool === 'underline') {
-      const now = Date.now();
-      // Prevent re-triggering the multi-attempt sequence within 500ms
-      if (now - lastSelectionTime.current < 500) return;
-      lastSelectionTime.current = now;
-
-      let done = false;
-      const tryProcess = () => {
-        if (done) return;
-        const sel = window.getSelection();
-        if (!sel || sel.isCollapsed || !sel.toString().trim()) return; // not ready
-        done = true;
-        processTextSelection(pageNumber);
-      };
-      // Multi-attempt: rAF for fast path, staggered timeouts for slow platforms
-      requestAnimationFrame(tryProcess);
-      setTimeout(tryProcess, 100);
-      setTimeout(tryProcess, 250);
-      setTimeout(tryProcess, 500);
-    }
-  }, [tool, filePath, penColor, penSize, processTextSelection]);
+  // ── Confirm selection trigger → create annotation ──────
+  const confirmSelection = useCallback(() => {
+    if (!selTrigger) return;
+    processTextSelection(selTrigger.pageNumber);
+    setSelTrigger(null);
+    window.getSelection()?.removeAllRanges();
+  }, [selTrigger, processTextSelection]);
   // ── Click → comment note ────────────────────────────────
   const handlePageClick = useCallback((pageNumber) => (e) => {
     if (tool === 'comment') {
@@ -862,6 +897,52 @@ export default function PdfAnnotator({ url, filePath }) {
         </Document>
         )}
       </div>
+
+      {/* Selection trigger — floating confirm toolbar */}
+      {selTrigger && (tool === 'highlight' || tool === 'underline') && (
+        <div
+          className="pdf-annotator__sel-trigger"
+          style={{
+            position: 'fixed',
+            left: selTrigger.x,
+            top: selTrigger.y,
+            zIndex: 200,
+          }}
+        >
+          <div className="pdf-annotator__sel-trigger-inner">
+            {tool === 'highlight' && HIGHLIGHT_COLORS.map((c) => (
+              <button
+                key={c.id}
+                className={'pdf-annotator__sel-swatch' + (highlightColor.id === c.id ? ' pdf-annotator__sel-swatch--active' : '')}
+                style={{ backgroundColor: c.bg }}
+                onClick={() => setHighlightColor(c)}
+                title={c.name}
+              />
+            ))}
+            {tool === 'underline' && UNDERLINE_COLORS.map((c) => (
+              <button
+                key={c.id}
+                className={'pdf-annotator__sel-swatch' + (underlineColor.id === c.id ? ' pdf-annotator__sel-swatch--active' : '')}
+                style={{ borderBottom: `3px solid ${c.color}` }}
+                onClick={() => setUnderlineColor(c)}
+                title={c.name}
+              />
+            ))}
+            <button
+              className="pdf-annotator__sel-confirm"
+              onClick={confirmSelection}
+            >
+              {tool === 'highlight' ? '🖍️' : '⎁'} 적용
+            </button>
+            <button
+              className="pdf-annotator__sel-cancel"
+              onClick={() => { setSelTrigger(null); window.getSelection()?.removeAllRanges(); }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Page Navigation Bar */}
       {numPages > 0 && chromeVisible && (
