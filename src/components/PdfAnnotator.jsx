@@ -879,7 +879,14 @@ export default function PdfAnnotator({ url, filePath }) {
                 onPointerUp={handlePointerUp(pageNumber)}
                 style={isReading
                   ? { width: pageW, height: 'auto', alignItems: 'flex-start', justifyContent: 'flex-start', touchAction: 'manipulation', transform: `translate(${-col * 100 / SECTOR_COLS}%, ${-row * 100 / SECTOR_ROWS}%)`, transition: 'transform 0.3s ease' }
-                  : { width: pageW, touchAction: tool === 'pen' ? 'none' : undefined, cursor: (tool === 'highlight' || tool === 'underline') ? 'text' : undefined }
+                  : {
+                      width: pageW,
+                      // Let page-wrapper grow with content when zoomed/fullscreen → enables panning
+                      height: (fullscreen || zoomLevel > 1) ? 'auto' : undefined,
+                      minHeight: (fullscreen || zoomLevel > 1) ? undefined : undefined,
+                      touchAction: tool === 'pen' ? 'none' : undefined,
+                      cursor: (tool === 'highlight' || tool === 'underline') ? 'text' : undefined,
+                    }
                 }
               >
                 <Page
