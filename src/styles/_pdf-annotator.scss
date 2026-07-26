@@ -275,6 +275,26 @@
     &--pen {
       cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='2' cy='14' r='2' fill='%232c2416'/%3E%3C/svg%3E") 2 14, crosshair;
       touch-action: none;
+      // Stylus optimization: disable all browser gestures during pen input
+      -ms-touch-action: none;
+      // Prevent iOS/Android from interpreting pen as scroll/zoom
+      overscroll-behavior: none;
+    }
+  }
+
+  // ── Stylus / Pen specific ──────────────────────────────
+  @media (pointer: fine) {
+    .pdf-annotator__page-wrapper--pen {
+      // Hide the default cursor when using a fine pointer (stylus)
+      // The crosshair above is more appropriate
+    }
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    // Device has a stylus or mouse — optimize rendering
+    .pdf-annotator__pen-stroke {
+      // GPU-accelerated rendering for smooth strokes
+      will-change: contents;
     }
   }
 

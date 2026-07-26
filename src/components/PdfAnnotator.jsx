@@ -58,10 +58,41 @@ function smoothPathData(pts) {
     const midY = (pts[i].y + pts[i + 1].y) / 2;
     d += ` Q ${pts[i].x} ${pts[i].y} ${midX} ${midY}`;
   }
-  // final point: straight line
   const last = pts[pts.length - 1];
   d += ` L ${last.x} ${last.y}`;
   return d;
+}
+
+// ── Pressure-based variable-width segments ─────────────────────────────
+// Groups consecutive points by pressure level → array of { pathData, width }
+function buildPressureSegments(pts, baseWidth) {
+  if (pts.length < 2) return [];
+  const segments = [];
+  let segPts = [pts[0]];
+  let segPressure = pts[0].pressure ?? 0.5;
+
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i].pressure ?? 0.5;
+    // Start new segment when pressure changes significantly (>25% delta)
+    if (Math.abs(p - segPressure) / Math.max(segPressure, 0.1) > 0.25) {
+      if (segPts.length >= 2) {
+        const d = smoothPathData(segPts.map(q => ({ x: q.x, y: q.y })));
+        segments.push({ pathData: d, width: baseWidth * (0.3 + 0.7 * segPressure) });
+      }
+      segPts = [pts[i - 1], pts[i]]; // overlap for continuity
+      segPressure = p;
+    } else {
+      segPts.push(pts[i]);
+      // Running average pressure for smooth transition
+      segPressure = segPressure * 0.7 + p * 0.3;
+    }
+  }
+  // Final segment
+  if (segPts.length >= 2) {
+    const d = smoothPathData(segPts.map(q => ({ x: q.x, y: q.y })));
+    segments.push({ pathData: d, width: baseWidth * (0.3 + 0.7 * segPressure) });
+  }
+  return segments;
 }
 
 function annoRect(a, pageEl) {
@@ -284,7 +315,9 @@ export default function PdfAnnotator({ url, filePath }) {
     sel.removeAllRanges();
   }, [tool, filePath, highlightColor, underlineColor]);
 
-  // ── Pen drawing handlers (pointer events — stylus + touch) ──
+  // ── Pen drawing handlers (pointer events — full stylus support) ──
+  const hasStylus = useRef(false);
+
   const handlePointerDown = useCallback((pageNumber) => (e) => {
     if (tool !== 'pen') return;
     e.preventDefault();
@@ -293,22 +326,17 @@ export default function PdfAnnotator({ url, filePath }) {
     const pageRect = pageEl.getBoundingClientRect();
     const x = (e.clientX - pageRect.left) / pageRect.width;
     const y = (e.clientY - pageRect.top) / pageRect.height;
+    const pressure = e.pressure ?? 0.5;
+    const tiltX = e.tiltX ?? 0;
+    const tiltY = e.tiltY ?? 0;
     isDrawing.current = true;
     penPage.current = pageNumber;
-    currentPath.current = [{ x, y }];
-    setLiveStroke({ pageNumber, color: penColor.color, pathData: `M ${x} ${y}`, width: penSize.width });
+    hasStylus.current = e.pointerType === 'pen';
+    currentPath.current = [{ x, y, pressure, tiltX, tiltY }];
+    const w = penSize.width * (0.3 + 0.7 * pressure); // pressure → width
+    setLiveStroke({ pageNumber, color: penColor.color, pathData: `M ${x} ${y}`, width: w });
     pageEl.setPointerCapture?.(e.pointerId);
   }, [tool, penColor, penSize]);
-
-  // real-time smooth path preview
-  const buildLivePath = useCallback((pts) => {
-    if (pts.length < 2) return `M ${pts[0].x} ${pts[0].y}`;
-    let d = `M ${pts[0].x} ${pts[0].y}`;
-    for (let i = 1; i < pts.length; i++) {
-      d += ` L ${pts[i].x} ${pts[i].y}`;
-    }
-    return d;
-  }, []);
 
   const handlePointerMove = useCallback((pageNumber) => (e) => {
     if (!isDrawing.current || tool !== 'pen' || penPage.current !== pageNumber) return;
@@ -316,49 +344,75 @@ export default function PdfAnnotator({ url, filePath }) {
     const pageEl = pageRefs.current[pageNumber];
     if (!pageEl) return;
     const pageRect = pageEl.getBoundingClientRect();
-    const x = (e.clientX - pageRect.left) / pageRect.width;
-    const y = (e.clientY - pageRect.top) / pageRect.height;
-    currentPath.current.push({ x, y });
-    // real-time update: append point to pathData
+
+    // Use getCoalescedEvents for high-frequency stylus input (smoother lines)
+    const events = e.getCoalescedEvents?.() || [e];
+    for (const ce of events) {
+      const x = (ce.clientX - pageRect.left) / pageRect.width;
+      const y = (ce.clientY - pageRect.top) / pageRect.height;
+      const pressure = ce.pressure ?? 0.5;
+      const tiltX = ce.tiltX ?? 0;
+      const tiltY = ce.tiltY ?? 0;
+      currentPath.current.push({ x, y, pressure, tiltX, tiltY });
+    }
+    // Live preview: use last event for real-time rendering
+    const last = events[events.length - 1];
+    const lx = (last.clientX - pageRect.left) / pageRect.width;
+    const ly = (last.clientY - pageRect.top) / pageRect.height;
+    const lp = last.pressure ?? 0.5;
     setLiveStroke((prev) => prev ? {
       ...prev,
-      pathData: prev.pathData + ` L ${x} ${y}`,
+      pathData: prev.pathData + ` L ${lx} ${ly}`,
+      width: penSize.width * (0.3 + 0.7 * lp),
     } : null);
-  }, [tool]);
+  }, [tool, penSize]);
 
   const handlePointerUp = useCallback((pageNumber) => (e) => {
     if (!isDrawing.current || tool !== 'pen') return;
     e.preventDefault();
     isDrawing.current = false;
     const pageEl = pageRefs.current[pageNumber];
-    setLiveStroke(null); // clear live preview
+    setLiveStroke(null);
 
     if (!pageEl) { currentPath.current = []; return; }
     const pageRect = pageEl.getBoundingClientRect();
     const x = (e.clientX - pageRect.left) / pageRect.width;
     const y = (e.clientY - pageRect.top) / pageRect.height;
-    currentPath.current.push({ x, y });
+    const pressure = e.pressure ?? 0.5;
+    currentPath.current.push({ x, y, pressure, tiltX: e.tiltX ?? 0, tiltY: e.tiltY ?? 0 });
 
     if (currentPath.current.length < 2) { currentPath.current = []; return; }
 
-    // Build SVG path data with bezier smoothing
-    const d = smoothPathData(currentPath.current);
+    // Build variable-width SVG: split path into pressure-based segments
+    const segments = buildPressureSegments(currentPath.current, penSize.width);
+    const avgPressure = currentPath.current.reduce((s, p) => s + (p.pressure || 0.5), 0) / currentPath.current.length;
+    const effectiveWidth = penSize.width * (0.3 + 0.7 * avgPressure);
+
+    // Main path for backward compatibility (uniform width approximation)
+    const d = smoothPathData(currentPath.current.map(p => ({ x: p.x, y: p.y })));
 
     const annotation = {
       filePath,
       pageNumber: penPage.current,
       type: 'pen',
       color: penColor.color,
-      width: penSize.width,
+      width: effectiveWidth,
       text: '',
       pathData: d,
-      rect: { x: 0, y: 0, w: 1, h: 1 }, // full page for SVG viewBox
+      segments: segments.length > 1 ? segments : undefined, // store per-segment data if variable
+      rect: { x: 0, y: 0, w: 1, h: 1 },
+      stylusData: hasStylus.current ? {
+        avgPressure,
+        avgTiltX: currentPath.current.reduce((s, p) => s + (p.tiltX || 0), 0) / currentPath.current.length,
+        avgTiltY: currentPath.current.reduce((s, p) => s + (p.tiltY || 0), 0) / currentPath.current.length,
+      } : undefined,
     };
     saveAnnotation(annotation).then((saved) => {
       setAnnotations((prev) => [...prev, saved]);
     });
     currentPath.current = [];
     penPage.current = null;
+    hasStylus.current = false;
     pageEl.releasePointerCapture?.(e.pointerId);
   }, [tool, filePath, penColor, penSize]);
   // ── Click → comment note ────────────────────────────────
@@ -863,15 +917,32 @@ const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, 
         viewBox="0 0 1 1"
         preserveAspectRatio="none"
       >
-        <path
-          d={annotation.pathData}
-          fill="none"
-          stroke={annotation.color || '#2c2416'}
-          strokeWidth={annotation.width || 0.003}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ stroke: annotation.color || '#2c2416', strokeWidth: annotation.width || 0.003 }}
-        />
+        {annotation.segments && annotation.segments.length > 1 ? (
+          // Variable-width rendering: one path per pressure segment
+          annotation.segments.map((seg, i) => (
+            <path
+              key={i}
+              d={seg.pathData}
+              fill="none"
+              stroke={annotation.color || '#2c2416'}
+              strokeWidth={seg.width}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ stroke: annotation.color || '#2c2416', strokeWidth: seg.width }}
+            />
+          ))
+        ) : (
+          // Uniform width (fallback / backward compatibility)
+          <path
+            d={annotation.pathData}
+            fill="none"
+            stroke={annotation.color || '#2c2416'}
+            strokeWidth={annotation.width || 0.003}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ stroke: annotation.color || '#2c2416', strokeWidth: annotation.width || 0.003 }}
+          />
+        )}
         {/* Invisible wider hit area for click-to-delete (erase mode only) */}
         {eraseMode && (
           <path
