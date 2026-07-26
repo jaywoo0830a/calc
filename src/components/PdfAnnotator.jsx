@@ -291,11 +291,14 @@ export default function PdfAnnotator({ url, filePath }) {
   // ── Selection trigger (floating confirm toolbar) ──────────
   const [selTrigger, setSelTrigger] = useState(null); // { pageNumber, x, y } | null
   const savedSelectionRef = useRef(null); // capture selection data before click clears it
+  const toolRef = useRef(tool);
+  toolRef.current = tool; // always fresh — avoids stale closure in listener
 
   // Clear trigger when switching away from highlight/underline
   useEffect(() => {
     if (tool !== 'highlight' && tool !== 'underline') {
       setSelTrigger(null);
+      savedSelectionRef.current = null;
     }
   }, [tool]);
 
@@ -306,9 +309,11 @@ export default function PdfAnnotator({ url, filePath }) {
   }, [filePath]);
 
   // ── Listen for text selection → show trigger ──────────
+  // Always-attached listener (empty deps) — reads tool via ref, survives page nav
   useEffect(() => {
     const onSelectionChange = () => {
-      if (tool !== 'highlight' && tool !== 'underline') {
+      const currentTool = toolRef.current;
+      if (currentTool !== 'highlight' && currentTool !== 'underline') {
         setSelTrigger(null);
         savedSelectionRef.current = null;
         return;
@@ -383,7 +388,7 @@ export default function PdfAnnotator({ url, filePath }) {
     return () => {
       document.removeEventListener('selectionchange', onSelectionChange);
     };
-  }, [tool]);
+  }, []); // always attached — tool read via toolRef
 
   // ── Text selection → highlight / underline (shared helper) ──
   const processTextSelection = useCallback((pageNumber) => {
