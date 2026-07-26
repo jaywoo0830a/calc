@@ -302,6 +302,13 @@ export default function PdfAnnotator({ url, filePath }) {
     }
   }, [tool]);
 
+  // Reset detection state on page change — fresh start for new page
+  useEffect(() => {
+    setSelTrigger(null);
+    savedSelectionRef.current = null;
+    lastDetectedText.current = '';
+  }, [currentPage]);
+
   // ── Load annotations from IndexedDB ─────────────────────
   useEffect(() => {
     if (!filePath) return;
