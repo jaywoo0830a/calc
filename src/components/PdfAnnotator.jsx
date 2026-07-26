@@ -94,15 +94,29 @@ function buildPressureSegments(pts, baseWidth) {
   return segments;
 }
 
+/** Get the PDF page canvas bounding rect — stable across zoom levels */
+function getPageCanvasRect(pageEl) {
+  if (!pageEl) return null;
+  // The react-pdf Page wrapper maintains the correct PDF aspect ratio
+  const pageDiv = pageEl.querySelector('.react-pdf__Page');
+  if (pageDiv) return pageDiv.getBoundingClientRect();
+  // Fallback: use the canvas element
+  const canvas = pageEl.querySelector('canvas');
+  if (canvas) return canvas.getBoundingClientRect();
+  // Last resort: page-wrapper itself
+  return pageEl.getBoundingClientRect();
+}
+
 function annoRect(a, pageEl) {
   if (!pageEl) return null;
-  const pw = pageEl.offsetWidth;
-  const ph = pageEl.offsetHeight;
+  const rect = getPageCanvasRect(pageEl);
+  if (!rect) return null;
   return {
-    left: a.rect.x * pw,
-    top: a.rect.y * ph,
-    width: a.rect.w * pw,
-    height: a.rect.h * ph,
+    left: a.rect.x * rect.width,
+    top: a.rect.y * rect.height,
+    width: a.rect.w * rect.width,
+    height: a.rect.h * rect.height,
+  };
   };
 }
 
@@ -292,7 +306,8 @@ export default function PdfAnnotator({ url, filePath }) {
     // Check selection is within this page
     if (!pageEl.contains(range.commonAncestorContainer)) return;
 
-    const pageRect = pageEl.getBoundingClientRect();
+    const pageRect = getPageCanvasRect(pageEl);
+    if (!pageRect) { sel.removeAllRanges(); return; }
     const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
     if (rects.length === 0) { sel.removeAllRanges(); return; }
 
@@ -353,7 +368,8 @@ export default function PdfAnnotator({ url, filePath }) {
     if (!pageEl) return;
     // Lock touch-action during active stroke (prevents browser scroll-jacking)
     pageEl.style.touchAction = 'none';
-    const pageRect = pageEl.getBoundingClientRect();
+    const pageRect = getPageCanvasRect(pageEl);
+    if (!pageRect) return;
     const x = (e.clientX - pageRect.left) / pageRect.width;
     const y = (e.clientY - pageRect.top) / pageRect.height;
     const pressure = e.pressure ?? 0.5;
@@ -373,7 +389,8 @@ export default function PdfAnnotator({ url, filePath }) {
     e.preventDefault();
     const pageEl = pageRefs.current[pageNumber];
     if (!pageEl) return;
-    const pageRect = pageEl.getBoundingClientRect();
+    const pageRect = getPageCanvasRect(pageEl);
+    if (!pageRect) return;
 
     // Use getCoalescedEvents for high-frequency stylus input (smoother lines)
     const events = e.getCoalescedEvents?.() || [e];
@@ -407,7 +424,8 @@ export default function PdfAnnotator({ url, filePath }) {
     if (pageEl) pageEl.style.touchAction = 'pan-y';
 
     if (!pageEl) { currentPath.current = []; return; }
-    const pageRect = pageEl.getBoundingClientRect();
+    const pageRect = getPageCanvasRect(pageEl);
+    if (!pageRect) { currentPath.current = []; return; }
     const x = (e.clientX - pageRect.left) / pageRect.width;
     const y = (e.clientY - pageRect.top) / pageRect.height;
     const pressure = e.pressure ?? 0.5;
