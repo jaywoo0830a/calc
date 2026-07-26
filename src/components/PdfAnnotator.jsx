@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage.js';
@@ -951,7 +951,22 @@ export default function PdfAnnotator({ url, filePath }) {
 
 /** Renders a single annotation overlay */
 const AnnotationOverlay = function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
-  const rect = annoRect(annotation, pageEl);
+  const [rect, setRect] = useState(() => annoRect(annotation, pageEl));
+  const prevRectRef = useRef(null);
+
+  // Recompute position after every DOM commit — ensures correct coords after zoom
+  useLayoutEffect(() => {
+    const next = annoRect(annotation, pageEl);
+    const prev = prevRectRef.current;
+    if (next && prev &&
+        next.left === prev.left && next.top === prev.top &&
+        next.width === prev.width && next.height === prev.height) {
+      return; // no change, skip re-render
+    }
+    prevRectRef.current = next;
+    setRect(next);
+  });
+
   const handleDelete = eraseMode ? (e) => { e.stopPropagation(); onDelete(annotation.id); } : undefined;
 
   // Pen strokes: render as SVG
