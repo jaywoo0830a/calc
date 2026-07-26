@@ -117,7 +117,6 @@ function annoRect(a, pageEl) {
     width: a.rect.w * rect.width,
     height: a.rect.h * rect.height,
   };
-  };
 }
 
 export default function PdfAnnotator({ url, filePath }) {
