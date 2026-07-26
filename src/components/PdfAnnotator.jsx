@@ -19,11 +19,10 @@ const HIGHLIGHT_COLORS = [
 ];
 
 const UNDERLINE_COLORS = [
-  { id: 'red',     color: '#e74c3c', style: 'solid',  label: '🔴', name: 'Red Solid' },
-  { id: 'blue',    color: '#3498db', style: 'solid',  label: '🔵', name: 'Blue Solid' },
-  { id: 'green',   color: '#27ae60', style: 'solid',  label: '🟢', name: 'Green Solid' },
-  { id: 'red-dash',  color: '#e74c3c', style: 'dashed', label: '🔴〰', name: 'Red Dashed' },
-  { id: 'blue-dash', color: '#3498db', style: 'dashed', label: '🔵〰', name: 'Blue Dashed' },
+  { id: 'pencil',  color: '#3d3528', style: 'solid', label: '✏️', name: 'Pencil Black' },
+  { id: 'pen',     color: '#1c1c2e', style: 'solid', label: '🖊️', name: 'Pen Black' },
+  { id: 'red',     color: '#e74c3c', style: 'solid', label: '🔴', name: 'Red' },
+  { id: 'blue',    color: '#3498db', style: 'solid', label: '🔵', name: 'Blue' },
 ];
 
 const TOOLS = {
@@ -297,72 +296,47 @@ export default function PdfAnnotator({ url, filePath }) {
     const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
     if (rects.length === 0) { sel.removeAllRanges(); return; }
 
-    if (tool === 'highlight') {
-      // Highlight: merge all rects into a single bounding box
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const r of rects) {
+    // Group rects by line (similar top coordinate), one annotation per line
+    const sorted = [...rects].sort((a, b) => a.top - b.top);
+    const lineHeight = sorted[0].height;
+    const tolerance = lineHeight * 0.5;
+    const lines = [];
+    let currentLine = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+      if (Math.abs(sorted[i].top - currentLine[0].top) < tolerance) {
+        currentLine.push(sorted[i]);
+      } else {
+        lines.push(currentLine);
+        currentLine = [sorted[i]];
+      }
+    }
+    lines.push(currentLine);
+
+    const isHighlight = tool === 'highlight';
+    for (const lineRects of lines) {
+      let minX = Infinity, maxX = -Infinity;
+      let top = Infinity, bottom = -Infinity;
+      for (const r of lineRects) {
         minX = Math.min(minX, r.left);
-        minY = Math.min(minY, r.top);
         maxX = Math.max(maxX, r.right);
-        maxY = Math.max(maxY, r.bottom);
+        top = Math.min(top, r.top);
+        bottom = Math.max(bottom, r.bottom);
       }
       const annotation = {
         filePath, pageNumber, type: tool,
-        color: highlightColor.bg,
+        color: isHighlight ? highlightColor.bg : underlineColor.color,
+        style: isHighlight ? undefined : underlineColor.style,
         text: sel.toString().trim(),
         rect: {
           x: (minX - pageRect.left) / pageRect.width,
-          y: (minY - pageRect.top) / pageRect.height,
+          y: (top - pageRect.top) / pageRect.height,
           w: (maxX - minX) / pageRect.width,
-          h: (maxY - minY) / pageRect.height,
+          h: (bottom - top) / pageRect.height,
         },
       };
       saveAnnotation(annotation).then((saved) => {
         setAnnotations((prev) => [...prev, saved]);
       });
-    } else {
-      // Underline: group rects by line, one annotation per line
-      // Sort rects by vertical position, then group by similar top coordinate
-      const sorted = [...rects].sort((a, b) => a.top - b.top);
-      const lineHeight = sorted.length > 0 ? sorted[0].height : 1;
-      const tolerance = lineHeight * 0.5;
-      const lines = [];
-      let currentLine = [sorted[0]];
-      for (let i = 1; i < sorted.length; i++) {
-        if (Math.abs(sorted[i].top - currentLine[0].top) < tolerance) {
-          currentLine.push(sorted[i]);
-        } else {
-          lines.push(currentLine);
-          currentLine = [sorted[i]];
-        }
-      }
-      lines.push(currentLine);
-
-      for (const lineRects of lines) {
-        let minX = Infinity, maxX = -Infinity;
-        let top = Infinity, bottom = -Infinity;
-        for (const r of lineRects) {
-          minX = Math.min(minX, r.left);
-          maxX = Math.max(maxX, r.right);
-          top = Math.min(top, r.top);
-          bottom = Math.max(bottom, r.bottom);
-        }
-        const annotation = {
-          filePath, pageNumber, type: tool,
-          color: underlineColor.color,
-          style: underlineColor.style,
-          text: sel.toString().trim(),
-          rect: {
-            x: (minX - pageRect.left) / pageRect.width,
-            y: (top - pageRect.top) / pageRect.height,
-            w: (maxX - minX) / pageRect.width,
-            h: (bottom - top) / pageRect.height,
-          },
-        };
-        saveAnnotation(annotation).then((saved) => {
-          setAnnotations((prev) => [...prev, saved]);
-        });
-      }
     }
     sel.removeAllRanges();
   }, [tool, filePath, highlightColor, underlineColor]);
