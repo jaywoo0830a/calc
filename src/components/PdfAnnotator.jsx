@@ -412,6 +412,9 @@ export default function PdfAnnotator({ url, filePath }) {
     } : null);
   }, [tool, penSize]);
 
+  // ── Guard against double-processing text selection ────────
+  const lastSelectionTime = useRef(0);
+
   // ── Pointer up: pen end + text selection (mouse & touch) ──
   const handlePointerUp = useCallback((pageNumber) => (e) => {
     // Pen drawing end
@@ -463,12 +466,22 @@ export default function PdfAnnotator({ url, filePath }) {
       return;
     }
 
-    // Text selection for highlight/underline — works on mouse & touch
+    // Text selection for highlight/underline — mouse & touch (all platforms)
     if (tool === 'highlight' || tool === 'underline') {
-      // rAF lets the browser finalize the selection before we read it
-      requestAnimationFrame(() => {
+      const now = Date.now();
+      // Prevent double-processing within 300ms (mouseup + pointerup on desktop)
+      if (now - lastSelectionTime.current < 300) return;
+      lastSelectionTime.current = now;
+
+      // setTimeout yields to the event loop — more reliable than rAF on Android
+      const tryProcess = () => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
         processTextSelection(pageNumber);
-      });
+      };
+      // rAF for fast path (desktop/iOS), setTimeout for slow path (Android fullscreen)
+      requestAnimationFrame(tryProcess);
+      setTimeout(tryProcess, 80);
     }
   }, [tool, filePath, penColor, penSize, processTextSelection]);
   // ── Click → comment note ────────────────────────────────
