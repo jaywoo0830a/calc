@@ -321,7 +321,10 @@ export default function PdfAnnotator({ url, filePath }) {
       }
       const range = sel.getRangeAt(0);
       // Find which page this selection belongs to
-      const pageEl = range.commonAncestorContainer?.closest?.('.pdf-annotator__page-wrapper');
+      // commonAncestorContainer may be a Text node (no .closest) — get parent Element
+      const ancestor = range.commonAncestorContainer;
+      const ancestorEl = ancestor.nodeType === 3 ? ancestor.parentElement : ancestor;
+      const pageEl = ancestorEl?.closest?.('.pdf-annotator__page-wrapper');
       if (!pageEl) { setSelTrigger(null); savedSelectionRef.current = null; return; }
       const pageNumber = Object.entries(pageRefs.current).find(
         ([, el]) => el === pageEl
@@ -349,10 +352,30 @@ export default function PdfAnnotator({ url, filePath }) {
       };
 
       const lastRect = rects[rects.length - 1];
+      // Clamp trigger position within viewport
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const triggerW = 280; // estimated trigger width
+      const triggerH = 40;
+      const gap = 8;
+      let tx = lastRect.right + gap;
+      let ty = lastRect.bottom + gap;
+      // Flip to left if overflows right edge
+      if (tx + triggerW > vw - gap) {
+        tx = lastRect.left - triggerW - gap;
+      }
+      // Clamp horizontal
+      tx = Math.max(gap, Math.min(tx, vw - triggerW - gap));
+      // Clamp vertical
+      if (ty + triggerH > vh - gap) {
+        ty = lastRect.top - triggerH - gap;
+      }
+      ty = Math.max(gap, Math.min(ty, vh - triggerH - gap));
+
       setSelTrigger({
         pageNumber: Number(pageNumber),
-        x: lastRect.right + 8,
-        y: lastRect.bottom + 6,
+        x: tx,
+        y: ty,
       });
     };
 
@@ -663,35 +686,8 @@ export default function PdfAnnotator({ url, filePath }) {
             </button>
           ))}
         </div>
-        {/* Color pickers */}
+        {/* Color pickers — pen only (highlight/underline use selection trigger) */}
         <div className="pdf-annotator__tools">
-          {tool === 'highlight' && (
-            <div className="pdf-annotator__color-picker">
-              {HIGHLIGHT_COLORS.map((c) => (
-                <button
-                  key={c.id}
-                  className={'pdf-annotator__color-swatch' + (highlightColor.id === c.id ? ' pdf-annotator__color-swatch--active' : '')}
-                  style={{ backgroundColor: c.bg }}
-                  onClick={() => setHighlightColor(c)}
-                  title={c.name}
-                >
-                </button>
-              ))}
-            </div>
-          )}
-          {tool === 'underline' && (
-            <div className="pdf-annotator__color-picker">
-              {UNDERLINE_COLORS.map((c) => (
-                <button
-                  key={c.id}
-                  className={'pdf-annotator__color-swatch' + (underlineColor.id === c.id ? ' pdf-annotator__color-swatch--active' : '')}
-                  style={{ borderBottom: `3px ${c.style} ${c.color}` }}
-                  onClick={() => setUnderlineColor(c)}
-                  title={c.name}
-                />
-              ))}
-            </div>
-          )}
           {tool === 'pen' && (
             <>
               <div className="pdf-annotator__color-picker">
