@@ -294,37 +294,76 @@ export default function PdfAnnotator({ url, filePath }) {
     if (!pageEl.contains(range.commonAncestorContainer)) return;
 
     const pageRect = pageEl.getBoundingClientRect();
-    const rects = range.getClientRects();
+    const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
+    if (rects.length === 0) { sel.removeAllRanges(); return; }
 
-    // Merge all selection client rects into a single bounding box
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (let i = 0; i < rects.length; i++) {
-      const r = rects[i];
-      if (r.width === 0 || r.height === 0) continue;
-      minX = Math.min(minX, r.left);
-      minY = Math.min(minY, r.top);
-      maxX = Math.max(maxX, r.right);
-      maxY = Math.max(maxY, r.bottom);
+    if (tool === 'highlight') {
+      // Highlight: merge all rects into a single bounding box
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const r of rects) {
+        minX = Math.min(minX, r.left);
+        minY = Math.min(minY, r.top);
+        maxX = Math.max(maxX, r.right);
+        maxY = Math.max(maxY, r.bottom);
+      }
+      const annotation = {
+        filePath, pageNumber, type: tool,
+        color: highlightColor.bg,
+        text: sel.toString().trim(),
+        rect: {
+          x: (minX - pageRect.left) / pageRect.width,
+          y: (minY - pageRect.top) / pageRect.height,
+          w: (maxX - minX) / pageRect.width,
+          h: (maxY - minY) / pageRect.height,
+        },
+      };
+      saveAnnotation(annotation).then((saved) => {
+        setAnnotations((prev) => [...prev, saved]);
+      });
+    } else {
+      // Underline: group rects by line, one annotation per line
+      // Sort rects by vertical position, then group by similar top coordinate
+      const sorted = [...rects].sort((a, b) => a.top - b.top);
+      const lineHeight = sorted.length > 0 ? sorted[0].height : 1;
+      const tolerance = lineHeight * 0.5;
+      const lines = [];
+      let currentLine = [sorted[0]];
+      for (let i = 1; i < sorted.length; i++) {
+        if (Math.abs(sorted[i].top - currentLine[0].top) < tolerance) {
+          currentLine.push(sorted[i]);
+        } else {
+          lines.push(currentLine);
+          currentLine = [sorted[i]];
+        }
+      }
+      lines.push(currentLine);
+
+      for (const lineRects of lines) {
+        let minX = Infinity, maxX = -Infinity;
+        let top = Infinity, bottom = -Infinity;
+        for (const r of lineRects) {
+          minX = Math.min(minX, r.left);
+          maxX = Math.max(maxX, r.right);
+          top = Math.min(top, r.top);
+          bottom = Math.max(bottom, r.bottom);
+        }
+        const annotation = {
+          filePath, pageNumber, type: tool,
+          color: underlineColor.color,
+          style: underlineColor.style,
+          text: sel.toString().trim(),
+          rect: {
+            x: (minX - pageRect.left) / pageRect.width,
+            y: (top - pageRect.top) / pageRect.height,
+            w: (maxX - minX) / pageRect.width,
+            h: (bottom - top) / pageRect.height,
+          },
+        };
+        saveAnnotation(annotation).then((saved) => {
+          setAnnotations((prev) => [...prev, saved]);
+        });
+      }
     }
-    if (!isFinite(minX)) { sel.removeAllRanges(); return; }
-
-    const annotation = {
-      filePath,
-      pageNumber,
-      type: tool,
-      color: tool === 'underline' ? underlineColor.color : highlightColor.bg,
-      style: tool === 'underline' ? underlineColor.style : undefined,
-      text: sel.toString().trim(),
-      rect: {
-        x: (minX - pageRect.left) / pageRect.width,
-        y: (minY - pageRect.top) / pageRect.height,
-        w: (maxX - minX) / pageRect.width,
-        h: (maxY - minY) / pageRect.height,
-      },
-    };
-    saveAnnotation(annotation).then((saved) => {
-      setAnnotations((prev) => [...prev, saved]);
-    });
     sel.removeAllRanges();
   }, [tool, filePath, highlightColor, underlineColor]);
 
