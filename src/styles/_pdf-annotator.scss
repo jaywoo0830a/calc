@@ -265,7 +265,6 @@
     margin: 0 auto $sp-4;
     box-shadow: $shadow-md;
     background: #fff;
-    cursor: default;
     content-visibility: auto;
     contain-intrinsic-size: auto 600px;
     contain: layout style paint;       // heavy isolation for performance
@@ -321,14 +320,19 @@
   // ---- Document layout modes -------------------------------
   &__mark {
     position: absolute;
-    pointer-events: auto;
-    cursor: pointer;
+    pointer-events: none;          // don't block text selection / mouse drag
+    cursor: default;
     border-radius: 0.125rem;
-    transition: opacity $transition-fast;
     z-index: 15; // above react-pdf text/annotation layers
 
-    &:hover {
-      opacity: 0.8;
+    &--erasable {
+      pointer-events: auto;
+      cursor: pointer;
+      transition: opacity $transition-fast;
+
+      &:hover {
+        opacity: 0.8;
+      }
     }
 
     &--highlight {
@@ -348,12 +352,17 @@
   &__comment-marker {
     position: absolute;
     transform: translate(-50%, -50%);
-    cursor: pointer;
+    pointer-events: none;          // don't block text selection
+    cursor: default;
     z-index: 20;
-    z-index: 10;
 
-    &:hover .pdf-annotator__comment-tooltip {
-      display: block;
+    &--erasable {
+      pointer-events: auto;
+      cursor: pointer;
+
+      &:hover .pdf-annotator__comment-tooltip {
+        display: block;
+      }
     }
   }
 
@@ -403,8 +412,8 @@
     padding: 0;
     z-index: 30;
 
-    .pdf-annotator__mark:hover &,
-    .pdf-annotator__comment-marker:hover & {
+    .pdf-annotator__mark--erasable:hover &,
+    .pdf-annotator__comment-marker--erasable:hover & {
       display: flex;
     }
   }

@@ -762,7 +762,7 @@ export default function PdfAnnotator({ url, filePath }) {
                 onPointerUp={handlePointerUp(pageNumber)}
                 style={isReading
                   ? { width: pageW, height: 'auto', alignItems: 'flex-start', justifyContent: 'flex-start', touchAction: 'manipulation', transform: `translate(${-col * 100 / SECTOR_COLS}%, ${-row * 100 / SECTOR_ROWS}%)`, transition: 'transform 0.3s ease' }
-                  : { width: pageW, touchAction: tool === 'pen' ? 'none' : undefined, cursor: tool === 'highlight' || tool === 'underline' ? 'text' : (tool === 'pen' ? undefined : 'default') }
+                  : { width: pageW, touchAction: tool === 'pen' ? 'none' : undefined, cursor: (tool === 'highlight' || tool === 'underline') ? 'text' : undefined }
                 }
               >
                 <Page
@@ -995,7 +995,7 @@ const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, 
   if (annotation.type === 'comment') {
     return (
       <div
-        className="pdf-annotator__comment-marker"
+        className={'pdf-annotator__comment-marker' + (eraseMode ? ' pdf-annotator__comment-marker--erasable' : '')}
         style={{
           left: rect ? rect.left : `${annotation.rect.x * 100}%`,
           top: rect ? rect.top : `${annotation.rect.y * 100}%`,
@@ -1021,7 +1021,7 @@ const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, 
 
   return (
     <div
-      className={'pdf-annotator__mark pdf-annotator__mark--' + annotation.type + (isDashed ? ' pdf-annotator__mark--dashed' : '')}
+      className={'pdf-annotator__mark pdf-annotator__mark--' + annotation.type + (isDashed ? ' pdf-annotator__mark--dashed' : '') + (eraseMode ? ' pdf-annotator__mark--erasable' : '')}
       style={{
         left: rect.left,
         top: rect.top,
