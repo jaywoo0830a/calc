@@ -46,7 +46,7 @@ export function injectAnnotations(html, annotations) {
  * Markdown content annotator — adds highlight, underline, and bookmark support
  * to rendered HTML content, persisted via IndexedDB.
  */
-export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkClick }) {
+export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkClick, fullscreen }) {
   const [tool, setTool] = useState(null); // null=read, 'highlight', 'underline', 'erase'
   const [annotations, setAnnotations] = useState([]);
   const [bookmarks, setBookmarks] = useState([]);
@@ -56,6 +56,7 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
   const [selTrigger, setSelTrigger] = useState(null);
   const savedSelectionRef = useRef(null);
   const lastDetectedText = useRef('');
+  const hideDebounce = useRef(null);
   const contentRef = useRef(null);
 
   // ── Load annotations & bookmarks ──────────────────────
@@ -94,18 +95,25 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
       setSelTrigger(null);
       savedSelectionRef.current = null;
       lastDetectedText.current = '';
+      if (hideDebounce.current) clearTimeout(hideDebounce.current);
       return;
     }
     const id = setInterval(() => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        if (lastDetectedText.current) {
-          setSelTrigger(null);
-          savedSelectionRef.current = null;
-          lastDetectedText.current = '';
+        // Debounce hiding — on Android selection may briefly collapse
+        if (lastDetectedText.current && !hideDebounce.current) {
+          hideDebounce.current = setTimeout(() => {
+            setSelTrigger(null);
+            savedSelectionRef.current = null;
+            lastDetectedText.current = '';
+            hideDebounce.current = null;
+          }, 400);
         }
         return;
       }
+      // Selection is active — cancel any pending hide
+      if (hideDebounce.current) { clearTimeout(hideDebounce.current); hideDebounce.current = null; }
       const text = sel.toString().trim();
       if (text === lastDetectedText.current) return;
       const range = sel.getRangeAt(0);
@@ -179,7 +187,8 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
 
   return (
     <div className="md-annotator">
-      {/* Toolbar */}
+      {/* Toolbar — hidden in fullscreen */}
+      {!fullscreen && (
       <div className="md-annotator__toolbar">
         <button className={'md-annotator__btn' + (tool === null ? ' md-annotator__btn--active' : '')} onClick={() => setTool(null)}>📖 Read</button>
         <button className={'md-annotator__btn' + (tool === 'highlight' ? ' md-annotator__btn--active' : '')} onClick={() => setTool('highlight')}>🖍️ Highlight</button>
@@ -187,6 +196,7 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
         <button className={'md-annotator__btn' + (tool === 'erase' ? ' md-annotator__btn--active' : '')} onClick={() => setTool(tool === 'erase' ? null : 'erase')}>🧹 Eraser</button>
         <button className={'md-annotator__btn' + (bookmarksOpen ? ' md-annotator__btn--active' : '')} onClick={() => setBookmarksOpen(!bookmarksOpen)}>🔖 Bookmarks</button>
       </div>
+      )}
 
       {/* Bookmarks sidebar */}
       <div className={'md-annotator__bm-sidebar' + (bookmarksOpen ? ' md-annotator__bm-sidebar--open' : '')}>
