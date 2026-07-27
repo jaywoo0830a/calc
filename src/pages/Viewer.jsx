@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import hljs from 'highlight.js';
 import ZipTree from '../components/ZipTree.jsx';
 import PdfViewer from '../components/PdfViewer.jsx';
+import MarkdownAnnotator from '../components/MarkdownAnnotator.jsx';
 import { listZips, saveZip, loadZip as loadZipFromDB, deleteZip } from '../lib/storage.js';
 
 import 'katex/contrib/auto-render';
@@ -666,7 +667,7 @@ export default function Viewer() {
           {pdfUrl ? (
             <PdfViewer url={pdfUrl} filePath={selectedPath} />
           ) : rendered ? (
-            <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
+            <MarkdownAnnotator html={rendered} filePath={selectedPath} previewRef={previewRef} onLinkClick={navigateTo} />
           ) : (
             <div className="viewer__empty">Upload a ZIP archive to get started</div>
           )}

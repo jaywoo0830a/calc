@@ -1,0 +1,270 @@
+@use 'variables' as *;
+
+// ============================================================
+// Markdown Annotator — highlight, underline, bookmarks
+// ============================================================
+
+.md-annotator {
+  position: relative;
+  height: 100%;
+
+  // ---- Toolbar ------------------------------------------------
+  &__toolbar {
+    display: flex;
+    gap: $sp-1;
+    padding: $sp-2 $sp-3;
+    background: rgba(255, 254, 247, 0.18);
+    backdrop-filter: blur(20px) saturate(120%);
+    -webkit-backdrop-filter: blur(20px) saturate(120%);
+    border: $border-thin solid rgba(255, 255, 255, 0.25);
+    border-radius: $radius-xl;
+    margin-bottom: $sp-3;
+    position: sticky;
+    top: $sp-2;
+    z-index: 30;
+    flex-shrink: 0;
+  }
+
+  &__btn {
+    padding: $sp-1 $sp-3;
+    border: $border-thin solid rgba(255, 255, 255, 0.2);
+    border-radius: $radius-md;
+    background: rgba(255, 254, 247, 0.15);
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { background: rgba(255, 254, 247, 0.3); color: $c-ink; }
+    }
+
+    &--active {
+      background: rgba(92, 61, 46, 0.82);
+      color: $c-ink-inverse;
+    }
+  }
+
+  // ---- Content area ------------------------------------------
+  &__content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    max-width: 48rem;
+    margin: 0 auto;
+
+    &--selectable {
+      user-select: text;
+      -webkit-user-select: text;
+      cursor: text;
+    }
+  }
+
+  // ---- Annotation marks (inside rendered HTML) ---------------
+  .md-anno {
+    &--highlight {
+      cursor: default;
+    }
+    &--underline {
+      cursor: default;
+    }
+
+    .md-annotator__btn--active & {
+      cursor: pointer;
+    }
+  }
+
+  // ---- Bookmarks sidebar ------------------------------------
+  &__bm-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100dvh;
+    width: min(18rem, 85vw);
+    overflow-y: auto;
+    padding: $sp-3;
+    padding-top: $sp-10;
+    background: rgba(255, 254, 247, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-left: $border-thin solid rgba(212, 201, 181, 0.15);
+    z-index: 99;
+    transform: translateX(100%);
+    transition: transform $transition-normal;
+    box-shadow: $shadow-lg;
+    display: flex;
+    flex-direction: column;
+
+    &--open {
+      transform: translateX(0);
+    }
+  }
+
+  &__bm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-3;
+    border-bottom: $border-thin solid $c-rule;
+    font-weight: $fw-bold;
+    font-size: $fs-step-0;
+    color: $c-ink;
+    flex-shrink: 0;
+    font-family: $ff;
+  }
+
+  &__bm-close {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: $c-ink-soft;
+    font-size: $fs-step-2;
+    cursor: pointer;
+    &:hover { background: $c-page-dark; color: $c-ink; }
+  }
+
+  &__bm-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: $sp-1 0;
+  }
+
+  &__bm-empty {
+    padding: $sp-3;
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+    font-style: italic;
+  }
+
+  &__bm-item {
+    display: flex;
+    align-items: center;
+    border-bottom: $border-thin solid $c-rule-light;
+
+    &:hover { background: $c-page-dark; }
+  }
+
+  &__bm-goto {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-2 $sp-3;
+    border: none;
+    background: transparent;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  &__bm-pos {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    margin-left: $sp-2;
+    flex-shrink: 0;
+  }
+
+  &__bm-del {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: $c-ink-faint;
+    font-size: $fs-step-1;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-right: $sp-2;
+
+    &:hover { color: $c-error; background: $c-error-light; }
+  }
+
+  &__bm-overlay {
+    position: fixed;
+    inset: 0;
+    background: $c-overlay;
+    z-index: 98;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity $transition-normal;
+
+    .md-annotator__bm-sidebar--open ~ & {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  // ---- Selection trigger (floating confirm toolbar) ---------
+  &__sel-trigger {
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.15));
+    animation: mdSelIn 0.2s ease;
+
+    @keyframes mdSelIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  }
+
+  &__sel-inner {
+    display: flex;
+    gap: 0.125rem;
+    padding: $sp-1;
+    background: rgba(255, 254, 247, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: $border-thin solid rgba(212, 201, 181, 0.2);
+    border-radius: $radius-lg;
+    align-items: center;
+  }
+
+  &__sel-swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: $border-md solid transparent;
+    border-radius: $radius-sm;
+    cursor: pointer;
+    padding: 0;
+    transition: all $transition-fast;
+
+    &:hover { transform: scale(1.15); }
+    &--active { border-color: $c-accent; box-shadow: 0 0 0 0.125rem rgba(92, 61, 46, 0.3); }
+  }
+
+  &__sel-confirm {
+    padding: $sp-1 $sp-3;
+    border: $border-thin solid $c-accent;
+    border-radius: $radius-md;
+    background: $c-accent;
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    margin-left: $sp-1;
+    white-space: nowrap;
+  }
+
+  &__sel-cancel {
+    padding: $sp-1 $sp-2;
+    border: none;
+    border-radius: $radius-md;
+    background: transparent;
+    color: $c-ink-faint;
+    font-size: $fs-step-0;
+    cursor: pointer;
+    &:hover { color: $c-error; }
+  }
+}
