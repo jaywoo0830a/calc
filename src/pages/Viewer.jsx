@@ -667,7 +667,7 @@ export default function Viewer() {
           {pdfUrl ? (
             <PdfViewer url={pdfUrl} filePath={selectedPath} />
           ) : rendered ? (
-            <MarkdownAnnotator html={rendered} filePath={selectedPath} onLinkClick={navigateTo} />
+            <MarkdownAnnotator html={rendered} filePath={selectedPath} previewRef={previewRef} layoutKey={`${fullscreen}-${readability}`} onLinkClick={navigateTo} />
           ) : (
             <div className="viewer__empty">Upload a ZIP archive to get started</div>
           )}

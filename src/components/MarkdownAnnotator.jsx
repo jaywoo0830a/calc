@@ -15,7 +15,7 @@ const UNDERLINE_COLORS = [
   { id: 'blue',    color: '#3498db', label: '🔵' },
 ];
 
-export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
+export default function MarkdownAnnotator({ html, filePath, previewRef, layoutKey, onLinkClick }) {
   const [tool, setTool] = useState(null);
   const [annotations, setAnnotations] = useState([]);
   const [chromeVisible, setChromeVisible] = useState(true);
@@ -27,6 +27,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
   const [renderTick, setRenderTick] = useState(0);
   // ── Two-tap selection state ────────────────────────────
   const firstTapRef = useRef(null); // { x, y, range } | null
+  const [firstTapActive, setFirstTapActive] = useState(false);
 
   useEffect(() => {
     if (!filePath) return;
@@ -39,6 +40,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
       setSelTrigger(null);
       savedSelectionRef.current = null;
       firstTapRef.current = null;
+      setFirstTapActive(false);
     }
   }, [tool]);
 
@@ -61,13 +63,12 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
       // First tap — store position
       if (!range) return;
       firstTapRef.current = { x, y, range };
-      // Show a brief indicator (we use a simple state-less approach via CSS class)
-      if (contentRef.current) contentRef.current.classList.add('md-annotator__content--first-tap');
+      setFirstTapActive(true);
       return;
     }
 
-    // Second tap — compute range between the two points
-    if (contentRef.current) contentRef.current.classList.remove('md-annotator__content--first-tap');
+    // Second tap
+    setFirstTapActive(false);
     firstTapRef.current = null;
 
     if (!range) return;
@@ -90,19 +91,29 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
       }
       sel.addRange(newRange);
 
-      // Now compute rects and show trigger (like polling did)
+      // Store text anchor: prefix + text + suffix for robust re-location
+      const fullText = container.textContent || '';
+      const selText = sel.toString().trim();
+      const idx = fullText.indexOf(selText);
+      const prefix = idx > 0 ? fullText.slice(Math.max(0, idx - 50), idx) : '';
+      const suffix = idx >= 0 ? fullText.slice(idx + selText.length, idx + selText.length + 50) : '';
+
+      // Also keep geometric fallback
       const rects = Array.from(newRange.getClientRects()).filter(r => r.width > 0 && r.height > 0);
-      if (rects.length === 0) return;
       const cr = container.getBoundingClientRect();
       savedSelectionRef.current = {
-        text: sel.toString().trim(),
-        rects: rects.map(r => ({
+        text: selText,
+        prefix,
+        suffix,
+        rects: rects.length > 0 ? rects.map(r => ({
           x: (r.left - cr.left) / cr.width,
-          y: (r.top - cr.top) / cr.height,
+          y: (r.top - cr.top + (previewRef?.current?.scrollTop || 0)) / (previewRef?.current?.scrollHeight || cr.height),
           w: r.width / cr.width,
-          h: r.height / cr.height,
-        })),
+          h: r.height / (previewRef?.current?.scrollHeight || cr.height),
+        })) : [],
       };
+
+      if (rects.length === 0) return;
       const lr = rects[rects.length - 1];
       const vw = window.innerWidth, vh = window.innerHeight, gap = 8;
       let tx = lr.right + gap, ty = lr.bottom + gap;
@@ -154,6 +165,8 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
         color: isHL ? highlightColor.bg : underlineColor.color,
         style: isHL ? undefined : 'solid',
         text: data.text,
+        prefix: data.prefix || '',
+        suffix: data.suffix || '',
         rect: { x: mx, y: t, w: Mx - mx, h: b - t },
         pageNumber: 0,
       }).then(saved => setAnnotations(prev => [...prev, saved]));
@@ -161,7 +174,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
     setSelTrigger(null);
     savedSelectionRef.current = null;
     firstTapRef.current = null;
-    if (contentRef.current) contentRef.current.classList.remove('md-annotator__content--first-tap');
+    setFirstTapActive(false);
     window.getSelection()?.removeAllRanges();
   }, [tool, filePath, highlightColor, underlineColor]);
 
@@ -169,7 +182,11 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
     deleteAnnotation(id).then(() => setAnnotations(prev => prev.filter(a => a.id !== id)));
   }, []);
 
-  // Recalculate overlays on resize only (debounced). Scroll is automatic via position:absolute.
+  // Recalculate overlays on resize, fullscreen, or readability change
+  useEffect(() => {
+    setRenderTick(t => t + 1);
+  }, [layoutKey]);
+
   useEffect(() => {
     let timer;
     const onResize = () => { clearTimeout(timer); timer = setTimeout(() => setRenderTick(t => t + 1), 150); };
@@ -212,13 +229,13 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
 
       <div
         ref={contentRef}
-        className={'md-annotator__content markdown-body' + (tool === 'highlight' || tool === 'underline' ? ' md-annotator__content--selectable' : '')}
+        className={'md-annotator__content markdown-body' + (tool === 'highlight' || tool === 'underline' ? ' md-annotator__content--selectable' : '') + (firstTapActive ? ' md-annotator__content--first-tap' : '')}
         onClick={(e) => { handleTwoTap(e); handleContentClick(e); }}
         onTouchEnd={handleTwoTap}
       >
         <div dangerouslySetInnerHTML={{ __html: html }} />
         {fileAnnotations.map(a => (
-          <MdAnnotationOverlay key={a.id} annotation={a} containerEl={contentRef.current} eraseMode={tool === 'erase'} onDelete={removeAnnotation} />
+          <MdAnnotationOverlay key={a.id} annotation={a} containerEl={contentRef.current} previewEl={previewRef?.current} eraseMode={tool === 'erase'} onDelete={removeAnnotation} />
         ))}
       </div>
 
@@ -234,7 +251,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
             <button className="md-annotator__sel-confirm" onMouseDown={e => e.preventDefault()} onClick={confirmSelection}>
               {tool === 'highlight' ? '🖍️ Apply' : '⎁ Apply'}
             </button>
-            <button className="md-annotator__sel-cancel" onMouseDown={e => e.preventDefault()} onClick={() => { setSelTrigger(null); savedSelectionRef.current = null; firstTapRef.current = null; if (contentRef.current) contentRef.current.classList.remove('md-annotator__content--first-tap'); window.getSelection()?.removeAllRanges(); }}>✕</button>
+            <button className="md-annotator__sel-cancel" onMouseDown={e => e.preventDefault()} onClick={() => { setSelTrigger(null); savedSelectionRef.current = null; firstTapRef.current = null; setFirstTapActive(false); window.getSelection()?.removeAllRanges(); }}>✕</button>
           </div>
         </div>
       )}
@@ -242,25 +259,64 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
   );
 }
 
-const MdAnnotationOverlay = memo(function MdAnnotationOverlay({ annotation, containerEl, eraseMode, onDelete }) {
+const MdAnnotationOverlay = memo(function MdAnnotationOverlay({ annotation, containerEl, previewEl, eraseMode, onDelete }) {
   const [rect, setRect] = useState(null);
   const prevRef = useRef(null);
 
   useLayoutEffect(() => {
     const el = containerEl;
     if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
-    if (width === 0 || height === 0) return;
-    const next = {
-      left: annotation.rect.x * width,
-      top: annotation.rect.y * height,
-      width: annotation.rect.w * width,
-      height: annotation.rect.h * height,
-    };
-    const prev = prevRef.current;
-    if (prev && prev.left === next.left && prev.top === next.top && prev.width === next.width && prev.height === next.height) return;
-    prevRef.current = next;
-    setRect(next);
+    const cw = el.getBoundingClientRect().width;
+    if (cw === 0) return;
+
+    // Try text anchoring first (prefix+text+suffix → find in DOM)
+    let found = false;
+    if (annotation.prefix !== undefined && annotation.text) {
+      const fullText = el.textContent || '';
+      const anchor = (annotation.prefix || '') + annotation.text + (annotation.suffix || '');
+      const idx = fullText.indexOf(anchor);
+      if (idx >= 0) {
+        const startOffset = idx + (annotation.prefix || '').length;
+        const endOffset = startOffset + annotation.text.length;
+        const range = textOffsetToRange(el, startOffset, endOffset);
+        if (range) {
+          const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
+          if (rects.length > 0) {
+            const cr = el.getBoundingClientRect();
+            let mx = Infinity, Mx = -Infinity, t = Infinity, b = -Infinity;
+            for (const r of rects) {
+              mx = Math.min(mx, r.left - cr.left);
+              Mx = Math.max(Mx, r.right - cr.left);
+              t = Math.min(t, r.top - cr.top);
+              b = Math.max(b, r.bottom - cr.top);
+            }
+            const next = { left: mx, top: t, width: Mx - mx, height: b - t };
+            const prev = prevRef.current;
+            if (!prev || prev.left !== next.left || prev.top !== next.top || prev.width !== next.width || prev.height !== next.height) {
+              prevRef.current = next;
+              setRect(next);
+            }
+            found = true;
+          }
+        }
+      }
+    }
+
+    // Fallback: geometric coordinates
+    if (!found) {
+      const scrollH = previewEl?.scrollHeight || el.getBoundingClientRect().height || 1;
+      const next = {
+        left: annotation.rect.x * cw,
+        top: annotation.rect.y * scrollH,
+        width: annotation.rect.w * cw,
+        height: annotation.rect.h * scrollH,
+      };
+      const prev = prevRef.current;
+      if (!prev || prev.left !== next.left || prev.top !== next.top || prev.width !== next.width || prev.height !== next.height) {
+        prevRef.current = next;
+        setRect(next);
+      }
+    }
   });
 
   if (!rect) return null;
@@ -287,3 +343,33 @@ const MdAnnotationOverlay = memo(function MdAnnotationOverlay({ annotation, cont
     />
   );
 });
+
+/** Walk DOM text nodes to find a Range at the given character offsets */
+function textOffsetToRange(rootEl, startOffset, endOffset) {
+  const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => n.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP,
+  });
+  let current = 0;
+  let startNode, startNodeOff, endNode, endNodeOff;
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const len = node.textContent.length;
+    if (!startNode && current + len >= startOffset) {
+      startNode = node;
+      startNodeOff = startOffset - current;
+    }
+    if (!endNode && current + len >= endOffset) {
+      endNode = node;
+      endNodeOff = endOffset - current;
+      break;
+    }
+    current += len;
+  }
+  if (startNode && endNode) {
+    const range = document.createRange();
+    range.setStart(startNode, Math.min(startNodeOff, startNode.textContent.length));
+    range.setEnd(endNode, Math.min(endNodeOff, endNode.textContent.length));
+    return range;
+  }
+  return null;
+}
