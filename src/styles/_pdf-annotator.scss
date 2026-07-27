@@ -132,70 +132,6 @@
     }
   }
 
-  // ---- Color picker ---------------------------------------
-  &__color-picker {
-    display: flex;
-    gap: 0.125rem;
-    padding: 0 $sp-1;
-  }
-
-  &__color-swatch {
-    width: 1.75rem;
-    height: 1.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: $border-md solid rgba(212, 201, 181, 0.12);
-    border-radius: $radius-sm;
-    cursor: pointer;
-    font-size: 0.75rem;
-    transition: all $transition-fast;
-    padding: 0;
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
-
-    @media (hover: hover) {
-      &:hover { transform: scale(1.15); border-color: rgba(92, 61, 46, 0.5); }
-    }
-
-    &--active {
-      border-color: $c-accent;
-      box-shadow: 0 0 0 0.125rem rgba(92, 61, 46, 0.3);
-    }
-  }
-
-  // ---- Pen size picker ------------------------------------
-  &__size-picker {
-    display: flex;
-    gap: 0.125rem;
-    padding: 0 $sp-1;
-    align-items: center;
-  }
-
-  &__size-btn {
-    width: 2rem;
-    height: 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: $border-md solid rgba(212, 201, 181, 0.1);
-    border-radius: $radius-sm;
-    cursor: pointer;
-    transition: all $transition-fast;
-    padding: 0;
-    background: rgba(255, 254, 247, 0.1);
-
-    @media (hover: hover) {
-      &:hover { border-color: rgba(92, 61, 46, 0.5); }
-    }
-
-    &--active {
-      border-color: $c-accent;
-      box-shadow: 0 0 0 0.125rem rgba(92, 61, 46, 0.3);
-      background: rgba(92, 61, 46, 0.08);
-    }
-  }
-
   &__md-btn {
     padding: $sp-1 $sp-3;
     border: $border-thin solid $c-rule;
@@ -256,22 +192,6 @@
       .react-pdf__Page__annotations {
         pointer-events: none;
       }
-    }
-  }
-
-  // ── Stylus / Pen specific ──────────────────────────────
-  @media (pointer: fine) {
-    .pdf-annotator__page-wrapper--pen {
-      // Hide the default cursor when using a fine pointer (stylus)
-      // The crosshair above is more appropriate
-    }
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    // Device has a stylus or mouse — optimize rendering
-    .pdf-annotator__pen-stroke {
-      // GPU-accelerated rendering for smooth strokes
-      will-change: contents;
     }
   }
 
@@ -1114,12 +1034,6 @@
     // Prevent iOS text selection popover on annotations
     -webkit-user-select: none;
     user-select: none;
-  }
-
-  // iOS: custom CSS cursor doesn't work — use default touch
-  .pdf-annotator__page-wrapper--ios.pdf-annotator__page-wrapper--pen {
-    cursor: crosshair;
-    touch-action: none;
   }
 
   .pdf-annotator__mark,
