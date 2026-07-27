@@ -10,8 +10,8 @@
     "display": "standalone",
     "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
     "orientation": "any",
-    "background_color": "#5c3d2e",
-    "theme_color": "#5c3d2e",
+    "background_color": "#f8f4eb",
+    "theme_color": "#f8f4eb",
     "launch_handler": {
         "client_mode": ["navigate-existing", "auto"]
     },

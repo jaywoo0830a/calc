@@ -1,0 +1,19 @@
+@use '../styles/variables' as *;
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $sp-2 $sp-4;
+  padding-bottom: calc($sp-2 + env(safe-area-inset-bottom, 0px));
+  border-top: $border-thin solid $c-rule-light;
+  background: transparent;
+  flex-shrink: 0;
+
+  &__text {
+    font-family: $ff;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    letter-spacing: 0.02em;
+  }
+}
