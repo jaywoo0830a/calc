@@ -14,20 +14,44 @@ const UL = [
   { id: 'blue',   color: '#3498db' },
 ];
 
-function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-
 function injectAnnotations(html, annos) {
   if (!annos || !annos.length) return html;
-  const segs = html.split(/(<[^>]+>)/g);
+  const segs = html.split(/(<[^>]+>)/g); // alternating text, tag, text, tag...
   for (const a of annos) {
     if (!a.text || a.text.length < 2) continue;
+    // Build full text from all text segments to find cross-element matches
+    const textOnly = segs.filter((_, i) => i % 2 === 0).join('');
+    const idx = textOnly.indexOf(a.text);
+    if (idx < 0) continue;
+
+    // Map character offset back to segment positions
     const hl = a.type === 'highlight';
     const st = hl
       ? 'background-color:' + a.color + ';border-radius:2px'
       : 'border-bottom:2px solid ' + (a.color || '#e74c3c');
-    const tag = '<span class="md-anno md-anno--' + a.type + '" style="' + st + '" data-id="' + a.id + '">' + a.text + '</span>';
+    const openTag = '<span class="md-anno md-anno--' + a.type + '" style="' + st + '" data-id="' + a.id + '">';
+    const closeTag = '</span>';
+
+    // Find start and end positions across segments
+    let charPos = 0;
+    let startSeg = -1, startOff = 0, endSeg = -1, endOff = 0;
     for (let i = 0; i < segs.length; i += 2) {
-      if (segs[i].includes(a.text)) { segs[i] = segs[i].replace(new RegExp(esc(a.text), 'g'), tag); break; }
+      const len = segs[i].length;
+      if (startSeg < 0 && charPos + len > idx) { startSeg = i; startOff = idx - charPos; }
+      if (charPos + len >= idx + a.text.length) { endSeg = i; endOff = idx + a.text.length - charPos; break; }
+      charPos += len;
+    }
+    if (startSeg < 0 || endSeg < 0) continue;
+
+    // Inject into segments
+    if (startSeg === endSeg) {
+      const before = segs[startSeg].slice(0, startOff);
+      const match = segs[startSeg].slice(startOff, endOff);
+      const after = segs[startSeg].slice(endOff);
+      segs[startSeg] = before + openTag + match + closeTag + after;
+    } else {
+      segs[startSeg] = segs[startSeg].slice(0, startOff) + openTag + segs[startSeg].slice(startOff);
+      segs[endSeg] = segs[endSeg].slice(0, endOff) + closeTag + segs[endSeg].slice(endOff);
     }
   }
   return segs.join('');
