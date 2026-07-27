@@ -15,7 +15,7 @@ const UNDERLINE_COLORS = [
   { id: 'blue',    color: '#3498db', label: '🔵' },
 ];
 
-export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkClick }) {
+export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
   const [tool, setTool] = useState(null);
   const [annotations, setAnnotations] = useState([]);
   const [chromeVisible, setChromeVisible] = useState(true);
@@ -31,15 +31,17 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
     getAnnotations(filePath).then(xs => setAnnotations(xs.filter(a => a.type !== 'comment' && a.type !== 'pen'))).catch(() => {});
   }, [filePath]);
 
-  useEffect(() => {
-    if (tool !== 'highlight' && tool !== 'underline') {
-      setSelTrigger(null);
-      savedSelectionRef.current = null;
-      return;
-    }
-    const onSelectionChange = () => {
+  // ── Simple selection: check on mouseup/touchend ──────────
+  const handleSelectionCheck = useCallback(() => {
+    if (tool !== 'highlight' && tool !== 'underline') return;
+    // Small delay so the browser finishes updating the selection
+    setTimeout(() => {
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        setSelTrigger(null);
+        savedSelectionRef.current = null;
+        return;
+      }
       const range = sel.getRangeAt(0);
       const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
       if (rects.length === 0) return;
@@ -63,9 +65,15 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
       if (ty + 40 > vh - gap) ty = lr.top - 40 - gap;
       ty = Math.max(gap, Math.min(ty, vh - 40 - gap));
       setSelTrigger({ x: tx, y: ty });
-    };
-    document.addEventListener('selectionchange', onSelectionChange);
-    return () => document.removeEventListener('selectionchange', onSelectionChange);
+    }, 0);
+  }, [tool]);
+
+  // Reset trigger when leaving annotation mode
+  useEffect(() => {
+    if (tool !== 'highlight' && tool !== 'underline') {
+      setSelTrigger(null);
+      savedSelectionRef.current = null;
+    }
   }, [tool]);
 
   const confirmSelection = useCallback(() => {
@@ -151,7 +159,8 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
         ref={contentRef}
         className={'md-annotator__content markdown-body' + (tool === 'highlight' || tool === 'underline' ? ' md-annotator__content--selectable' : '')}
         onClick={handleContentClick}
-        onContextMenu={tool === 'highlight' || tool === 'underline' ? (e) => e.preventDefault() : undefined}
+        onMouseUp={handleSelectionCheck}
+        onTouchEnd={handleSelectionCheck}
       >
         <div dangerouslySetInnerHTML={{ __html: html }} />
         {fileAnnotations.map(a => (
