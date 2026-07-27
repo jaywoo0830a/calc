@@ -66,7 +66,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [alignment, setAlignment] = useState('center');
-  const [zoomLevel, setZoomLevel] = useState(1); // 0.5–1.5 (50%–150%)
+  const [zoomLevel, setZoomLevel] = useState(1); // 0.5–2.0 (50%–200%)
   const [chromeVisible, setChromeVisible] = useState(true);
   const [pageRenderTick, setPageRenderTick] = useState(0); // bumps on each Page render → forces annotation recalculation
 
@@ -164,6 +164,8 @@ export default function PdfAnnotator({ url, filePath }) {
   const containerRef = useRef(null);
   const documentRef = useRef(null);
   const pageRefs = useRef({});
+  const zoomRef = useRef(zoomLevel);             // always-current for event handlers
+  zoomRef.current = zoomLevel;
 
   // ── Swipe detection for paginated mode ──────────────────
   const handleSwipeStart = useCallback((e) => {
@@ -175,7 +177,7 @@ export default function PdfAnnotator({ url, filePath }) {
     // Only allow page swiping in read mode (tool === null)
     if (tool !== null) return;
     // Don't swipe when zoomed — user needs to pan/scroll instead
-    if (zoomLevel > 1) return;
+    if (zoomRef.current > 1) return;
     // Ignore multi-touch (pinch-zoom) — only single-finger swipes count
     if (touchStart.current.count > 1) return;
     if ((e.touches?.length || 0) > 0) return; // still touching with other fingers
@@ -197,7 +199,7 @@ export default function PdfAnnotator({ url, filePath }) {
         goToPage(Math.max(1, currentPage - 1));
       }
     }
-  }, [numPages, currentPage, goToPage, tool, zoomLevel]);
+  }, [numPages, currentPage, goToPage, tool]);
 
   // ── Fullscreen (native API + CSS fallback for iOS/Safari) ──
   const toggleFullscreen = useCallback(() => {
@@ -830,18 +832,18 @@ export default function PdfAnnotator({ url, filePath }) {
           </div>
           {/* Zoom slider */}
           <div className="pdf-annotator__zoom-slider">
-            <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.25))} title="Zoom out">−</button>
+            <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.1))} title="Zoom out">−</button>
             <input
               type="range"
               min="0.5"
-              max="1.5"
-              step="0.05"
+              max="2.0"
+              step="0.1"
               value={zoomLevel}
               onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
               onDoubleClick={() => setZoomLevel(1)}
               title={`${Math.round(zoomLevel * 100)}%`}
             />
-            <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(Math.min(1.5, zoomLevel + 0.25))} title="Zoom in">+</button>
+            <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(Math.min(2.0, zoomLevel + 0.1))} title="Zoom in">+</button>
             <span className="pdf-annotator__zoom-label">{Math.round(zoomLevel * 100)}%</span>
           </div>
         </div>
