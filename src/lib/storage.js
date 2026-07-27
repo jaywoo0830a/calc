@@ -1,8 +1,9 @@
 // 간단한 IndexedDB wrapper — ZIP 파일 blob + annotations 영구 저장
 const DB_NAME = 'calc-viewer';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_ZIPS = 'zips';
 const STORE_ANNOTATIONS = 'annotations';
+const STORE_BOOKMARKS = 'bookmarks';
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -14,6 +15,10 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains(STORE_ANNOTATIONS)) {
         const store = db.createObjectStore(STORE_ANNOTATIONS, { keyPath: 'id' });
+        store.createIndex('filePath', 'filePath', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_BOOKMARKS)) {
+        const store = db.createObjectStore(STORE_BOOKMARKS, { keyPath: 'id' });
         store.createIndex('filePath', 'filePath', { unique: false });
       }
     };
@@ -122,5 +127,49 @@ export async function deleteAllAnnotations(filePath) {
     for (const a of all) store.delete(a.id);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ============================================================
+// PDF Bookmarks CRUD
+// ============================================================
+
+/** 특정 파일의 모든 북마크 조회 */
+export async function getBookmarks(filePath) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_BOOKMARKS, 'readonly');
+    const idx = tx.objectStore(STORE_BOOKMARKS).index('filePath');
+    const req = idx.getAll(filePath);
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** 북마크 저장 */
+export async function saveBookmark(bookmark) {
+  const db = await openDB();
+  const record = {
+    ...bookmark,
+    id: bookmark.id || `${bookmark.filePath}_${bookmark.pageNumber}`,
+    createdAt: bookmark.createdAt || new Date().toISOString(),
+  };
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_BOOKMARKS, 'readwrite');
+    const store = tx.objectStore(STORE_BOOKMARKS);
+    const req = store.put(record);
+    req.onsuccess = () => resolve(record);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** 북마크 삭제 */
+export async function deleteBookmark(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_BOOKMARKS, 'readwrite');
+    const req = tx.objectStore(STORE_BOOKMARKS).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
   });
 }

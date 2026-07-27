@@ -724,6 +724,11 @@
       opacity: 0.2;
       cursor: not-allowed;
     }
+
+    &--active {
+      color: #e7b824;
+      border-color: rgba(231, 184, 36, 0.4);
+    }
   }
 
   &__nav-page {

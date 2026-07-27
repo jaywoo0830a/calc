@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage.js';
+import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -69,6 +69,8 @@ export default function PdfAnnotator({ url, filePath }) {
   const [zoomLevel, setZoomLevel] = useState(1); // 0.5–2.0 (50%–200%)
   const [chromeVisible, setChromeVisible] = useState(true);
   const [pageRenderTick, setPageRenderTick] = useState(0); // bumps on each Page render → forces annotation recalculation
+  const [bookmarks, setBookmarks] = useState([]);  // { id, filePath, pageNumber, title?, createdAt }
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -77,6 +79,22 @@ export default function PdfAnnotator({ url, filePath }) {
   const goToPage = useCallback((page) => {
     setCurrentPage(page);
   }, []);
+
+  // ── Bookmark toggle ─────────────────────────────────────
+  const isBookmarked = bookmarks.some(b => b.pageNumber === currentPage);
+  const toggleBookmark = useCallback(async () => {
+    if (!filePath) return;
+    if (isBookmarked) {
+      const bm = bookmarks.find(b => b.pageNumber === currentPage);
+      if (bm) {
+        await deleteBookmark(bm.id);
+        setBookmarks(prev => prev.filter(b => b.id !== bm.id));
+      }
+    } else {
+      const saved = await saveBookmark({ filePath, pageNumber: currentPage });
+      setBookmarks(prev => [...prev, saved]);
+    }
+  }, [filePath, currentPage, isBookmarked, bookmarks]);
 
   // ── Resolve PDF outline: flatten nested items & resolve dest→pageNumber ──
   const resolveOutlineItems = useCallback(async (items, pdfDoc, depth = 1) => {
@@ -260,6 +278,12 @@ export default function PdfAnnotator({ url, filePath }) {
   useEffect(() => {
     if (!filePath) return;
     getAnnotations(filePath).then(setAnnotations).catch(() => {});
+  }, [filePath]);
+
+  // ── Load bookmarks from IndexedDB ──────────────────────
+  useEffect(() => {
+    if (!filePath) return;
+    getBookmarks(filePath).then(setBookmarks).catch(() => {});
   }, [filePath]);
 
   // ── Reset TOC when PDF url changes ─────────────────────
@@ -540,6 +564,13 @@ export default function PdfAnnotator({ url, filePath }) {
             </button>
           )}
           <button
+            className={'pdf-annotator__tool' + (bookmarksOpen ? ' pdf-annotator__tool--active' : '')}
+            onClick={() => setBookmarksOpen(!bookmarksOpen)}
+            title="Bookmarks"
+          >
+            🔖 Bookmarks
+          </button>
+          <button
             className="pdf-annotator__fullscreen-btn"
             onClick={toggleFullscreen}
             title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
@@ -598,6 +629,49 @@ export default function PdfAnnotator({ url, filePath }) {
           <div className="pdf-annotator__toc-overlay" onClick={() => setTocOpen(false)} />
         </>
       )}
+
+      {/* Bookmarks Sidebar */}
+      <div className={'pdf-annotator__toc-sidebar' + (bookmarksOpen ? ' pdf-annotator__toc-sidebar--open' : '')}>
+        <div className="pdf-annotator__toc-header">
+          <span>🔖 Bookmarks</span>
+          <button className="pdf-annotator__toc-close" onClick={() => setBookmarksOpen(false)}>×</button>
+        </div>
+        <div className="pdf-annotator__toc-list">
+          {bookmarks.length === 0 ? (
+            <div className="pdf-annotator__toc-item" style={{ opacity: 0.5, cursor: 'default' }}>
+              No bookmarks yet
+            </div>
+          ) : (
+            [...bookmarks]
+              .sort((a, b) => a.pageNumber - b.pageNumber)
+              .map((bm) => (
+                <button
+                  key={bm.id}
+                  className="pdf-annotator__toc-item"
+                  onClick={() => {
+                    goToPage(bm.pageNumber);
+                    setBookmarksOpen(false);
+                  }}
+                >
+                  <span className="pdf-annotator__toc-label">Page {bm.pageNumber}</span>
+                  <button
+                    className="pdf-annotator__delete-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteBookmark(bm.id).then(() => {
+                        setBookmarks(prev => prev.filter(b => b.id !== bm.id));
+                      });
+                    }}
+                    title="Remove bookmark"
+                  >
+                    ×
+                  </button>
+                </button>
+              ))
+          )}
+        </div>
+      </div>
+      <div className="pdf-annotator__toc-overlay" onClick={() => setBookmarksOpen(false)} />
 
       {/* Comment input overlay */}
       {activeComment && (
@@ -804,6 +878,13 @@ export default function PdfAnnotator({ url, filePath }) {
             />
             <span className="pdf-annotator__nav-info">/ {numPages}</span>
           </div>
+          <button
+            className={'pdf-annotator__nav-btn' + (isBookmarked ? ' pdf-annotator__nav-btn--active' : '')}
+            onClick={toggleBookmark}
+            title={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
+          >
+            {isBookmarked ? '🔖' : '🏷️'}
+          </button>
           <button
             className="pdf-annotator__nav-btn"
             onClick={() => goToPage(Math.min(numPages, currentPage + 1))}
