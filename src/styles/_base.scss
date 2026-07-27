@@ -104,6 +104,7 @@ body {
 }
 // ── App shell: flex column so footer stays at bottom ──────
 .app-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;

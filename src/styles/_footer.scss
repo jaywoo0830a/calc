@@ -1,0 +1,20 @@
+@use 'variables' as *;
+
+.footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  padding: $sp-1 $sp-4;
+  padding-bottom: calc($sp-2 + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+
+  &__text {
+    font-family: $ff;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    letter-spacing: 0.02em;
+    opacity: 0.5;
+  }
+}
