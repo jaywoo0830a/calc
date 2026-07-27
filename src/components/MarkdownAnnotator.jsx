@@ -23,6 +23,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
   const [underlineColor, setUnderlineColor] = useState(UNDERLINE_COLORS[0]);
   const [selTrigger, setSelTrigger] = useState(null);
   const savedSelectionRef = useRef(null);
+  const lastTriggerPos = useRef({ x: -1, y: -1 });
   const contentRef = useRef(null);
   const [renderTick, setRenderTick] = useState(0);
 
@@ -36,6 +37,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
     if (tool !== 'highlight' && tool !== 'underline') {
       setSelTrigger(null);
       savedSelectionRef.current = null;
+      lastTriggerPos.current = { x: -1, y: -1 };
       return;
     }
     const id = setInterval(() => {
@@ -44,6 +46,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
         if (savedSelectionRef.current) {
           setSelTrigger(null);
           savedSelectionRef.current = null;
+          lastTriggerPos.current = { x: -1, y: -1 };
         }
         return;
       }
@@ -69,7 +72,11 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
       tx = Math.max(gap, Math.min(tx, vw - 280 - gap));
       if (ty + 40 > vh - gap) ty = lr.top - 40 - gap;
       ty = Math.max(gap, Math.min(ty, vh - 40 - gap));
-      setSelTrigger({ x: tx, y: ty });
+      // Only trigger re-render if position actually changed
+      if (tx !== lastTriggerPos.current.x || ty !== lastTriggerPos.current.y) {
+        lastTriggerPos.current = { x: tx, y: ty };
+        setSelTrigger({ x: tx, y: ty });
+      }
     }, 250);
     return () => clearInterval(id);
   }, [tool]);
@@ -105,6 +112,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
     }
     setSelTrigger(null);
     savedSelectionRef.current = null;
+    lastTriggerPos.current = { x: -1, y: -1 };
     window.getSelection()?.removeAllRanges();
   }, [tool, filePath, highlightColor, underlineColor]);
 
