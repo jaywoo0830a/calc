@@ -121,15 +121,28 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
     if (!data || !data.rects || !data.rects.length) return;
     const isHL = tool === 'highlight';
     const sorted = [...data.rects].sort((a, b) => a.y - b.y);
-    const lh = sorted[0].h || 0.005;
-    const tol = lh * 0.5;
+    // Group by vertical overlap (handles KaTeX with different heights on same line)
     const lines = [];
-    let cl = [sorted[0]];
-    for (let i = 1; i < sorted.length; i++) {
-      if (Math.abs(sorted[i].y - cl[0].y) < tol) { cl.push(sorted[i]); }
-      else { lines.push(cl); cl = [sorted[i]]; }
+    for (const r of sorted) {
+      let merged = false;
+      for (const line of lines) {
+        // Check if this rect vertically overlaps with the line's bounding box
+        const lineTop = line[0]._minY, lineBottom = line[0]._maxY;
+        const rTop = r.y, rBottom = r.y + r.h;
+        if (rTop < lineBottom && rBottom > lineTop) {
+          line.push(r);
+          line[0]._minY = Math.min(line[0]._minY, rTop);
+          line[0]._maxY = Math.max(line[0]._maxY, rBottom);
+          merged = true;
+          break;
+        }
+      }
+      if (!merged) {
+        r._minY = r.y;
+        r._maxY = r.y + r.h;
+        lines.push([r]);
+      }
     }
-    lines.push(cl);
     for (const lr of lines) {
       let mx = Infinity, Mx = -Infinity, t = Infinity, b = -Infinity;
       for (const r of lr) {
