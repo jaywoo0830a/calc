@@ -1,7 +1,7 @@
 @use 'variables' as *;
 
 // ============================================================
-// Markdown Annotator — highlight, underline, bookmarks
+// Markdown Annotator — rectangle-based overlays
 // ============================================================
 
 .md-annotator {
@@ -10,7 +10,6 @@
   min-height: 0;
   flex: 1;
 
-  // ---- Toolbar ------------------------------------------------
   &__toolbar {
     position: relative;
     display: flex;
@@ -32,7 +31,6 @@
     flex-wrap: wrap;
   }
 
-  // ---- Chrome toggle (show/hide toolbar) ----------------------
   &__chrome-toggle {
     position: absolute;
     top: 0;
@@ -51,11 +49,9 @@
     justify-content: center;
     opacity: 0.5;
     transition: opacity $transition-fast;
-
     &:hover { opacity: 1; color: $c-ink; }
   }
 
-  // ---- Floating restore when toolbar hidden --------------------
   &__chrome-restore {
     position: fixed;
     top: $sp-2;
@@ -75,7 +71,6 @@
     opacity: 0.7;
     box-shadow: $shadow-md;
     transition: opacity $transition-fast;
-
     &:hover { opacity: 1; }
   }
 
@@ -91,19 +86,17 @@
     cursor: pointer;
     white-space: nowrap;
     transition: all $transition-fast;
-
     @media (hover: hover) {
       &:hover { background: rgba(255, 254, 247, 0.3); color: $c-ink; }
     }
-
     &--active {
       background: rgba(92, 61, 46, 0.82);
       color: $c-ink-inverse;
     }
   }
 
-  // ---- Content area ------------------------------------------
   &__content {
+    position: relative;
     max-width: 48rem;
     margin: 0 auto;
     padding: $sp-5 $sp-6;
@@ -113,168 +106,39 @@
       user-select: text;
       -webkit-user-select: text;
       cursor: text;
+      ::selection {
+        background: rgba(92, 61, 46, 0.25);
+        color: $c-ink;
+      }
+      ::-moz-selection {
+        background: rgba(92, 61, 46, 0.25);
+        color: $c-ink;
+      }
     }
   }
 
-  // ---- Annotation marks (inside rendered HTML) ---------------
-  .md-anno {
+  // ---- Annotation overlays ----------------------------------
+  .md-anno-overlay {
     &--highlight {
-      cursor: default;
-      border-radius: 2px;
+      pointer-events: none;
     }
     &--underline {
-      cursor: default;
-      background: transparent !important;
+      pointer-events: none;
+    }
+    &--erasable {
+      cursor: pointer;
+      pointer-events: auto !important;
+      &:hover {
+        outline: 2px solid $c-error;
+        outline-offset: 1px;
+      }
     }
   }
 
-  // ---- Visible selection in annotation mode -------------------
-  &__content--selectable {
-    ::selection {
-      background: rgba(92, 61, 46, 0.25);
-      color: $c-ink;
-    }
-    ::-moz-selection {
-      background: rgba(92, 61, 46, 0.25);
-      color: $c-ink;
-    }
-  }
-
-  // ---- Bookmarks sidebar ------------------------------------
-  &__bm-sidebar {
-    position: fixed;
-    top: 0;
-    right: 0;
-    height: 100dvh;
-    width: min(18rem, 85vw);
-    overflow-y: auto;
-    padding: $sp-3;
-    padding-top: $sp-10;
-    background: rgba(255, 254, 247, 0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-left: $border-thin solid rgba(212, 201, 181, 0.15);
-    z-index: 99;
-    transform: translateX(100%);
-    transition: transform $transition-normal;
-    box-shadow: $shadow-lg;
-    display: flex;
-    flex-direction: column;
-
-    &--open {
-      transform: translateX(0);
-    }
-  }
-
-  &__bm-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: $sp-3;
-    border-bottom: $border-thin solid $c-rule;
-    font-weight: $fw-bold;
-    font-size: $fs-step-0;
-    color: $c-ink;
-    flex-shrink: 0;
-    font-family: $ff;
-  }
-
-  &__bm-close {
-    width: 1.75rem;
-    height: 1.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: $radius-sm;
-    background: transparent;
-    color: $c-ink-soft;
-    font-size: $fs-step-2;
-    cursor: pointer;
-    &:hover { background: $c-page-dark; color: $c-ink; }
-  }
-
-  &__bm-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: $sp-1 0;
-  }
-
-  &__bm-empty {
-    padding: $sp-3;
-    color: $c-ink-faint;
-    font-size: $fs-step--1;
-    font-style: italic;
-  }
-
-  &__bm-item {
-    display: flex;
-    align-items: center;
-    border-bottom: $border-thin solid $c-rule-light;
-
-    &:hover { background: $c-page-dark; }
-  }
-
-  &__bm-goto {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: $sp-2 $sp-3;
-    border: none;
-    background: transparent;
-    color: $c-ink-soft;
-    font-family: $ff;
-    font-size: $fs-step--1;
-    cursor: pointer;
-    text-align: left;
-  }
-
-  &__bm-pos {
-    font-size: $fs-step--2;
-    color: $c-ink-faint;
-    margin-left: $sp-2;
-    flex-shrink: 0;
-  }
-
-  &__bm-del {
-    width: 1.5rem;
-    height: 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: $radius-sm;
-    background: transparent;
-    color: $c-ink-faint;
-    font-size: $fs-step-1;
-    cursor: pointer;
-    flex-shrink: 0;
-    margin-right: $sp-2;
-
-    &:hover { color: $c-error; background: $c-error-light; }
-  }
-
-  &__bm-overlay {
-    position: fixed;
-    inset: 0;
-    background: $c-overlay;
-    z-index: 98;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity $transition-normal;
-
-    .md-annotator__bm-sidebar--open ~ & {
-      opacity: 1;
-      pointer-events: auto;
-    }
-  }
-
-  // ---- Selection trigger (floating confirm toolbar) ---------
+  // ---- Selection trigger ------------------------------------
   &__sel-trigger {
     filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.15));
     animation: mdSelIn 0.2s ease;
-
     @keyframes mdSelIn {
       from { opacity: 0; transform: translateY(4px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -301,7 +165,6 @@
     cursor: pointer;
     padding: 0;
     transition: all $transition-fast;
-
     &:hover { transform: scale(1.15); }
     &--active { border-color: $c-accent; box-shadow: 0 0 0 0.125rem rgba(92, 61, 46, 0.3); }
   }

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
+import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage.js';
 
-// ── Color palettes (same as PDF annotator) ────────────────────────────
 const HIGHLIGHT_COLORS = [
   { id: 'yellow',  bg: 'rgba(255, 230, 100, 0.45)', label: '🟡' },
   { id: 'green',   bg: 'rgba(130, 230, 130, 0.45)', label: '🟢' },
@@ -16,156 +15,115 @@ const UNDERLINE_COLORS = [
   { id: 'blue',    color: '#3498db', label: '🔵' },
 ];
 
-function escapeRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** Inject annotation highlights into HTML string without touching tags */
-export function injectAnnotations(html, annotations) {
-  if (!annotations?.length) return html;
-  const segments = html.split(/(<[^>]+>)/g);
-  for (const anno of annotations) {
-    if (!anno.text || anno.text.length < 2) continue;
-    const isHL = anno.type === 'highlight';
-    const style = isHL
-      ? `background-color:${anno.color};border-radius:2px;`
-      : `border-bottom:2px solid ${anno.color || '#e74c3c'};`;
-    const rep = `<span class="md-anno md-anno--${anno.type}" style="${style}" data-anno-id="${anno.id}">${anno.text}</span>`;
-    const re = new RegExp(escapeRegex(anno.text), 'g');
-    for (let i = 0; i < segments.length; i += 2) {
-      if (segments[i].includes(anno.text)) {
-        segments[i] = segments[i].replace(re, rep);
-        break;
-      }
-    }
-  }
-  return segments.join('');
-}
-
-/**
- * Markdown content annotator — adds highlight, underline, and bookmark support
- * to rendered HTML content, persisted via IndexedDB.
- */
-export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkClick, fullscreen }) {
-  const [tool, setTool] = useState(null); // null=read, 'highlight', 'underline', 'erase'
+export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkClick }) {
+  const [tool, setTool] = useState(null);
   const [annotations, setAnnotations] = useState([]);
-  const [bookmarks, setBookmarks] = useState([]);
-  const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(true);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
   const [underlineColor, setUnderlineColor] = useState(UNDERLINE_COLORS[0]);
   const [selTrigger, setSelTrigger] = useState(null);
   const savedSelectionRef = useRef(null);
   const contentRef = useRef(null);
+  const [renderTick, setRenderTick] = useState(0);
 
-  // ── Load annotations & bookmarks ──────────────────────
   useEffect(() => {
     if (!filePath) return;
     getAnnotations(filePath).then(xs => setAnnotations(xs.filter(a => a.type !== 'comment' && a.type !== 'pen'))).catch(() => {});
-    getBookmarks(filePath).then(setBookmarks).catch(() => {});
   }, [filePath]);
 
-  // ── Bookmark toggle ───────────────────────────────────
-  const scrollPos = useRef(0);
-  const isBookmarked = bookmarks.some(b => b.title === filePath);
-  const toggleBookmark = useCallback(async () => {
-    if (!filePath) return;
-    if (isBookmarked) {
-      const bm = bookmarks.find(b => b.title === filePath);
-      if (bm) { await deleteBookmark(bm.id); setBookmarks(prev => prev.filter(b => b.id !== bm.id)); }
-    } else {
-      const saved = await saveBookmark({ filePath, pageNumber: 0, title: filePath, scrollPos: scrollPos.current });
-      setBookmarks(prev => [...prev, saved]);
-    }
-  }, [filePath, isBookmarked, bookmarks]);
-
-  // Track scroll position
-  useEffect(() => {
-    const el = previewRef?.current;
-    if (!el) return;
-    const onScroll = () => { scrollPos.current = el.scrollTop; };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  }, [previewRef]);
-
-  // ── Selection handling via selectionchange event (instant, no polling) ──
   useEffect(() => {
     if (tool !== 'highlight' && tool !== 'underline') {
       setSelTrigger(null);
       savedSelectionRef.current = null;
       return;
     }
-
     const onSelectionChange = () => {
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        // Selection cleared — keep trigger visible briefly (Android may flicker)
-        return;
-      }
-      const text = sel.toString().trim();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
       const range = sel.getRangeAt(0);
       const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
       if (rects.length === 0) return;
-
-      savedSelectionRef.current = { text };
-
-      const lastRect = rects[rects.length - 1];
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const gap = 8;
-      let tx = lastRect.right + gap, ty = lastRect.bottom + gap;
-      if (tx + 280 > vw - gap) tx = lastRect.left - 280 - gap;
+      const container = contentRef.current;
+      if (!container) return;
+      const cr = container.getBoundingClientRect();
+      savedSelectionRef.current = {
+        text: sel.toString().trim(),
+        rects: rects.map(r => ({
+          x: (r.left - cr.left) / cr.width,
+          y: (r.top - cr.top) / cr.height,
+          w: r.width / cr.width,
+          h: r.height / cr.height,
+        })),
+      };
+      const lr = rects[rects.length - 1];
+      const vw = window.innerWidth, vh = window.innerHeight, gap = 8;
+      let tx = lr.right + gap, ty = lr.bottom + gap;
+      if (tx + 280 > vw - gap) tx = lr.left - 280 - gap;
       tx = Math.max(gap, Math.min(tx, vw - 280 - gap));
-      if (ty + 40 > vh - gap) ty = lastRect.top - 40 - gap;
+      if (ty + 40 > vh - gap) ty = lr.top - 40 - gap;
       ty = Math.max(gap, Math.min(ty, vh - 40 - gap));
       setSelTrigger({ x: tx, y: ty });
     };
-
-    // Prevent Android's native selection menu only on the content area
     document.addEventListener('selectionchange', onSelectionChange);
-    return () => {
-      document.removeEventListener('selectionchange', onSelectionChange);
-    };
+    return () => document.removeEventListener('selectionchange', onSelectionChange);
   }, [tool]);
 
-  // ── Confirm annotation ────────────────────────────────
   const confirmSelection = useCallback(() => {
     const data = savedSelectionRef.current;
-    if (!data?.text) return;
+    if (!data || !data.rects || !data.rects.length) return;
     const isHL = tool === 'highlight';
-    const anno = {
-      filePath, type: tool,
-      color: isHL ? highlightColor.bg : underlineColor.color,
-      style: isHL ? undefined : 'solid',
-      text: data.text,
-      rect: { x: 0, y: 0, w: 0, h: 0 },
-      pageNumber: 0,
-    };
-    saveAnnotation(anno).then(saved => {
-      setAnnotations(prev => [...prev, saved]);
-    });
+    const sorted = [...data.rects].sort((a, b) => a.y - b.y);
+    const lh = sorted[0].h || 0.005;
+    const tol = lh * 0.5;
+    const lines = [];
+    let cl = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+      if (Math.abs(sorted[i].y - cl[0].y) < tol) { cl.push(sorted[i]); }
+      else { lines.push(cl); cl = [sorted[i]]; }
+    }
+    lines.push(cl);
+    for (const lr of lines) {
+      let mx = Infinity, Mx = -Infinity, t = Infinity, b = -Infinity;
+      for (const r of lr) {
+        mx = Math.min(mx, r.x); Mx = Math.max(Mx, r.x + r.w);
+        t = Math.min(t, r.y); b = Math.max(b, r.y + r.h);
+      }
+      saveAnnotation({
+        filePath, type: tool,
+        color: isHL ? highlightColor.bg : underlineColor.color,
+        style: isHL ? undefined : 'solid',
+        text: data.text,
+        rect: { x: mx, y: t, w: Mx - mx, h: b - t },
+        pageNumber: 0,
+      }).then(saved => setAnnotations(prev => [...prev, saved]));
+    }
     setSelTrigger(null);
     savedSelectionRef.current = null;
     window.getSelection()?.removeAllRanges();
   }, [tool, filePath, highlightColor, underlineColor]);
 
-  // ── Delete annotation ─────────────────────────────────
   const removeAnnotation = useCallback((id) => {
     deleteAnnotation(id).then(() => setAnnotations(prev => prev.filter(a => a.id !== id)));
   }, []);
 
-  // ── Inject annotations into HTML ──────────────────────
-  const annotatedHtml = injectAnnotations(html, annotations);
+  useEffect(() => {
+    const onUpdate = () => setRenderTick(t => t + 1);
+    window.addEventListener('resize', onUpdate);
+    const el = previewRef?.current;
+    if (el) el.addEventListener('scroll', onUpdate, { passive: true });
+    return () => {
+      window.removeEventListener('resize', onUpdate);
+      if (el) el.removeEventListener('scroll', onUpdate);
+    };
+  }, [previewRef]);
 
-  // ── Handle click on annotated marks (erase mode) + link clicks ──
+  const fileAnnotations = annotations.filter(a => a.filePath === filePath);
+
   const handleContentClick = useCallback((e) => {
     if (tool === 'erase') {
-      const mark = e.target.closest('.md-anno');
-      if (mark) {
-        const id = mark.dataset.annoId;
-        if (id) { removeAnnotation(id); return; }
-      }
+      const el = e.target.closest('.md-anno-overlay');
+      if (el) { removeAnnotation(el.dataset.annoId); return; }
     }
-    // Delegate link clicks to parent for internal navigation
     const a = e.target.closest('a');
     if (a && onLinkClick) {
       const href = a.getAttribute('href');
@@ -178,58 +136,29 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
 
   return (
     <div className="md-annotator">
-      {/* Toolbar — collapsible */}
       <div className="md-annotator__toolbar" style={{ display: chromeVisible ? 'flex' : 'none' }}>
         <button className={'md-annotator__btn' + (tool === null ? ' md-annotator__btn--active' : '')} onClick={() => setTool(null)}>📖 Read</button>
         <button className={'md-annotator__btn' + (tool === 'highlight' ? ' md-annotator__btn--active' : '')} onClick={() => setTool('highlight')}>🖍️ Highlight</button>
         <button className={'md-annotator__btn' + (tool === 'underline' ? ' md-annotator__btn--active' : '')} onClick={() => setTool('underline')}>⎁ Underline</button>
         <button className={'md-annotator__btn' + (tool === 'erase' ? ' md-annotator__btn--active' : '')} onClick={() => setTool(tool === 'erase' ? null : 'erase')}>🧹 Eraser</button>
-        <button className={'md-annotator__btn' + (bookmarksOpen ? ' md-annotator__btn--active' : '')} onClick={() => setBookmarksOpen(!bookmarksOpen)}>🔖 Bookmarks</button>
         <button className="md-annotator__chrome-toggle" onClick={() => setChromeVisible(false)} title="Hide toolbar">▴</button>
       </div>
-      {/* Floating restore button when toolbar hidden */}
       {!chromeVisible && (
         <button className="md-annotator__chrome-restore" onClick={() => setChromeVisible(true)} title="Show toolbar">▾</button>
       )}
 
-      {/* Bookmarks sidebar */}
-      <div className={'md-annotator__bm-sidebar' + (bookmarksOpen ? ' md-annotator__bm-sidebar--open' : '')}>
-        <div className="md-annotator__bm-header">
-          <span>🔖 Bookmarks</span>
-          <button className="md-annotator__bm-close" onClick={() => setBookmarksOpen(false)}>×</button>
-        </div>
-        <div className="md-annotator__bm-list">
-          {bookmarks.length === 0 ? (
-            <div className="md-annotator__bm-empty">No bookmarks</div>
-          ) : (
-            [...bookmarks].sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || '')).map(bm => (
-              <div key={bm.id} className="md-annotator__bm-item">
-                <button className="md-annotator__bm-goto" onClick={() => {
-                  const el = previewRef?.current;
-                  if (el) el.scrollTop = bm.scrollPos || 0;
-                  setBookmarksOpen(false);
-                }}>
-                  📄 {bm.title?.split('/').pop() || 'Untitled'}
-                  <span className="md-annotator__bm-pos">{Math.round((bm.scrollPos || 0) / 1000)}k</span>
-                </button>
-                <button className="md-annotator__bm-del" onClick={() => { deleteBookmark(bm.id); setBookmarks(prev => prev.filter(b => b.id !== bm.id)); }}>×</button>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-      <div className="md-annotator__bm-overlay" onClick={() => setBookmarksOpen(false)} />
-
-      {/* Content */}
       <div
         ref={contentRef}
         className={'md-annotator__content markdown-body' + (tool === 'highlight' || tool === 'underline' ? ' md-annotator__content--selectable' : '')}
-        dangerouslySetInnerHTML={{ __html: annotatedHtml }}
         onClick={handleContentClick}
         onContextMenu={tool === 'highlight' || tool === 'underline' ? (e) => e.preventDefault() : undefined}
-      />
+      >
+        <div dangerouslySetInnerHTML={{ __html: html }} />
+        {fileAnnotations.map(a => (
+          <MdAnnotationOverlay key={a.id} annotation={a} containerEl={contentRef.current} eraseMode={tool === 'erase'} onDelete={removeAnnotation} />
+        ))}
+      </div>
 
-      {/* Selection trigger — floating confirm toolbar */}
       {selTrigger && (tool === 'highlight' || tool === 'underline') && (
         <div className="md-annotator__sel-trigger" style={{ position: 'fixed', left: selTrigger.x, top: selTrigger.y, zIndex: 200 }}>
           <div className="md-annotator__sel-inner">
@@ -237,7 +166,7 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
               <button key={c.id} className={'md-annotator__sel-swatch' + (highlightColor.id === c.id ? ' md-annotator__sel-swatch--active' : '')} style={{ backgroundColor: c.bg }} onMouseDown={e => e.preventDefault()} onClick={() => setHighlightColor(c)} title={c.label} />
             ))}
             {tool === 'underline' && UNDERLINE_COLORS.map(c => (
-              <button key={c.id} className={'md-annotator__sel-swatch' + (underlineColor.id === c.id ? ' md-annotator__sel-swatch--active' : '')} style={{ borderBottom: `3px solid ${c.color}` }} onMouseDown={e => e.preventDefault()} onClick={() => setUnderlineColor(c)} title={c.label} />
+              <button key={c.id} className={'md-annotator__sel-swatch' + (underlineColor.id === c.id ? ' md-annotator__sel-swatch--active' : '')} style={{ borderBottom: '3px solid ' + c.color }} onMouseDown={e => e.preventDefault()} onClick={() => setUnderlineColor(c)} title={c.label} />
             ))}
             <button className="md-annotator__sel-confirm" onMouseDown={e => e.preventDefault()} onClick={confirmSelection}>
               {tool === 'highlight' ? '🖍️' : '⎁'} Apply
@@ -247,5 +176,51 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
         </div>
       )}
     </div>
+  );
+}
+
+function MdAnnotationOverlay({ annotation, containerEl, eraseMode, onDelete }) {
+  const [rect, setRect] = useState(null);
+  const prevRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const el = containerEl;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    if (width === 0 || height === 0) return;
+    const next = {
+      left: annotation.rect.x * width,
+      top: annotation.rect.y * height,
+      width: annotation.rect.w * width,
+      height: annotation.rect.h * height,
+    };
+    const prev = prevRef.current;
+    if (prev && prev.left === next.left && prev.top === next.top && prev.width === next.width && prev.height === next.height) return;
+    prevRef.current = next;
+    setRect(next);
+  });
+
+  if (!rect) return null;
+
+  const isHL = annotation.type === 'highlight';
+  return (
+    <div
+      className={'md-anno-overlay md-anno-overlay--' + annotation.type + (eraseMode ? ' md-anno-overlay--erasable' : '')}
+      data-anno-id={annotation.id}
+      style={{
+        position: 'absolute',
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        backgroundColor: isHL ? annotation.color : 'transparent',
+        borderBottom: isHL ? 'none' : '2px solid ' + (annotation.color || '#e74c3c'),
+        pointerEvents: eraseMode ? 'auto' : 'none',
+        zIndex: 5,
+        borderRadius: isHL ? '2px' : undefined,
+      }}
+      title={annotation.text}
+      onClick={eraseMode ? (e) => { e.stopPropagation(); onDelete(annotation.id); } : undefined}
+    />
   );
 }
