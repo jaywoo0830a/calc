@@ -30,7 +30,7 @@ export function injectAnnotations(html, annotations) {
     const style = isHL
       ? `background-color:${anno.color};border-radius:2px;`
       : `border-bottom:2px solid ${anno.color || '#e74c3c'};`;
-    const rep = `<mark class="md-anno md-anno--${anno.type}" style="${style}" data-anno-id="${anno.id}">${anno.text}</mark>`;
+    const rep = `<span class="md-anno md-anno--${anno.type}" style="${style}" data-anno-id="${anno.id}">${anno.text}</span>`;
     const re = new RegExp(escapeRegex(anno.text), 'g');
     for (let i = 0; i < segments.length; i += 2) {
       if (segments[i].includes(anno.text)) {
@@ -179,24 +179,18 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
   return (
     <div className="md-annotator">
       {/* Toolbar — collapsible */}
-      {chromeVisible && (
-      <div className="md-annotator__toolbar">
+      <div className="md-annotator__toolbar" style={{ display: chromeVisible ? 'flex' : 'none' }}>
         <button className={'md-annotator__btn' + (tool === null ? ' md-annotator__btn--active' : '')} onClick={() => setTool(null)}>📖 Read</button>
         <button className={'md-annotator__btn' + (tool === 'highlight' ? ' md-annotator__btn--active' : '')} onClick={() => setTool('highlight')}>🖍️ Highlight</button>
         <button className={'md-annotator__btn' + (tool === 'underline' ? ' md-annotator__btn--active' : '')} onClick={() => setTool('underline')}>⎁ Underline</button>
         <button className={'md-annotator__btn' + (tool === 'erase' ? ' md-annotator__btn--active' : '')} onClick={() => setTool(tool === 'erase' ? null : 'erase')}>🧹 Eraser</button>
         <button className={'md-annotator__btn' + (bookmarksOpen ? ' md-annotator__btn--active' : '')} onClick={() => setBookmarksOpen(!bookmarksOpen)}>🔖 Bookmarks</button>
+        <button className="md-annotator__chrome-toggle" onClick={() => setChromeVisible(false)} title="Hide toolbar">▴</button>
       </div>
+      {/* Floating restore button when toolbar hidden */}
+      {!chromeVisible && (
+        <button className="md-annotator__chrome-restore" onClick={() => setChromeVisible(true)} title="Show toolbar">▾</button>
       )}
-      {/* Collapse toggle */}
-      <button
-        className="md-annotator__chrome-toggle"
-        onClick={() => setChromeVisible(!chromeVisible)}
-        title={chromeVisible ? 'Hide toolbar' : 'Show toolbar'}
-        aria-label={chromeVisible ? 'Hide toolbar' : 'Show toolbar'}
-      >
-        {chromeVisible ? '▴' : '▾'}
-      </button>
 
       {/* Bookmarks sidebar */}
       <div className={'md-annotator__bm-sidebar' + (bookmarksOpen ? ' md-annotator__bm-sidebar--open' : '')}>

@@ -9,10 +9,10 @@
   flex-direction: column;
   min-height: 0;
   flex: 1;
-  position: relative;
 
   // ---- Toolbar ------------------------------------------------
   &__toolbar {
+    position: relative;
     display: flex;
     gap: $sp-1;
     padding: $sp-2 $sp-3;
@@ -36,21 +36,44 @@
   &__chrome-toggle {
     position: absolute;
     top: 0;
-    right: $sp-2;
-    width: 1.5rem;
-    height: 1.25rem;
-    border: $border-thin solid $c-rule;
-    border-top: none;
-    border-radius: 0 0 $radius-sm $radius-sm;
-    background: $c-page;
+    right: 0;
+    width: 1.75rem;
+    height: 1.5rem;
+    border: none;
+    border-radius: 0 0 0 $radius-sm;
+    background: transparent;
     color: $c-ink-faint;
-    font-size: $fs-step--2;
+    font-size: $fs-step--1;
     cursor: pointer;
-    z-index: 31;
+    z-index: 32;
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0.5;
+    transition: opacity $transition-fast;
+
+    &:hover { opacity: 1; color: $c-ink; }
+  }
+
+  // ---- Floating restore when toolbar hidden --------------------
+  &__chrome-restore {
+    position: fixed;
+    top: $sp-2;
+    right: $sp-2;
+    width: 2rem;
+    height: 2rem;
+    border: $border-thin solid $c-rule;
+    border-radius: 50%;
+    background: $c-page;
+    color: $c-ink-soft;
+    font-size: $fs-step-0;
+    cursor: pointer;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    box-shadow: $shadow-md;
     transition: opacity $transition-fast;
 
     &:hover { opacity: 1; }
@@ -97,13 +120,23 @@
   .md-anno {
     &--highlight {
       cursor: default;
+      border-radius: 2px;
     }
     &--underline {
       cursor: default;
+      background: transparent !important;
     }
+  }
 
-    .md-annotator__btn--active & {
-      cursor: pointer;
+  // ---- Visible selection in annotation mode -------------------
+  &__content--selectable {
+    ::selection {
+      background: rgba(92, 61, 46, 0.25);
+      color: $c-ink;
+    }
+    ::-moz-selection {
+      background: rgba(92, 61, 46, 0.25);
+      color: $c-ink;
     }
   }
 
