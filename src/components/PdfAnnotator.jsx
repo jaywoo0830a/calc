@@ -721,6 +721,7 @@ export default function PdfAnnotator({ url, filePath }) {
                 onPointerUp={handlePanUp}
                 style={{
                   width: pageW,
+                  maxWidth: (fullscreen || zoomLevel > 1) ? 'none' : undefined,
                   height: (fullscreen || zoomLevel > 1) ? 'auto' : undefined,
                   minHeight: (fullscreen || zoomLevel > 1) ? undefined : undefined,
                   cursor: tool === null ? 'grab' : (tool === 'highlight' || tool === 'underline') ? 'text' : undefined,
