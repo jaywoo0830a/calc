@@ -862,11 +862,20 @@ const AnnotationOverlay = function AnnotationOverlay({ annotation, pageEl, onDel
   // Always find page element fresh from DOM — prop may be stale after page navigation
   const getPageEl = () => document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
   const [rect, setRect] = useState(null);
+  const prevRectRef = useRef(null);
 
   // Recalculate rect after every render — onRenderSuccess on <Page> ensures
   // we re-render once the PDF canvas is actually in the DOM.
+  // Compare by value (not reference) to avoid infinite re-render loops.
   useLayoutEffect(() => {
     const next = annoRect(annotation, getPageEl());
+    const prev = prevRectRef.current;
+    if (next && prev &&
+        next.left === prev.left && next.top === prev.top &&
+        next.width === prev.width && next.height === prev.height) {
+      return;
+    }
+    prevRectRef.current = next;
     if (next) setRect(next);
   });
 
