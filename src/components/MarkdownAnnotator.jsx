@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage.js';
 
 const HL = [
@@ -14,47 +14,53 @@ const UL = [
   { id: 'blue',   color: '#3498db' },
 ];
 
-function injectAnnotations(html, annos) {
-  if (!annos || !annos.length) return html;
-  const segs = html.split(/(<[^>]+>)/g); // alternating text, tag, text, tag...
+/** Wrap annotation text in styled spans — DOM-based, handles KaTeX + any HTML */
+function applyAnnotations(rootEl, annos) {
+  if (!rootEl || !annos || !annos.length) return;
+  const fullText = rootEl.textContent || '';
   for (const a of annos) {
     if (!a.text || a.text.length < 2) continue;
-    // Build full text from all text segments to find cross-element matches
-    const textOnly = segs.filter((_, i) => i % 2 === 0).join('');
-    const idx = textOnly.indexOf(a.text);
+    const idx = fullText.indexOf(a.text);
     if (idx < 0) continue;
+    const endIdx = idx + a.text.length;
 
-    // Map character offset back to segment positions
-    const hl = a.type === 'highlight';
-    const st = hl
-      ? 'background-color:' + a.color + ';border-radius:2px'
-      : 'border-bottom:2px solid ' + (a.color || '#e74c3c');
-    const openTag = '<span class="md-anno md-anno--' + a.type + '" style="' + st + '" data-id="' + a.id + '">';
-    const closeTag = '</span>';
-
-    // Find start and end positions across segments
-    let charPos = 0;
-    let startSeg = -1, startOff = 0, endSeg = -1, endOff = 0;
-    for (let i = 0; i < segs.length; i += 2) {
-      const len = segs[i].length;
-      if (startSeg < 0 && charPos + len > idx) { startSeg = i; startOff = idx - charPos; }
-      if (charPos + len >= idx + a.text.length) { endSeg = i; endOff = idx + a.text.length - charPos; break; }
-      charPos += len;
+    // Walk text nodes to find character offsets
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
+    const nodes = []; let total = 0;
+    while (walker.nextNode()) {
+      const n = walker.currentNode;
+      nodes.push({ node: n, start: total, end: total + n.textContent.length });
+      total += n.textContent.length;
     }
-    if (startSeg < 0 || endSeg < 0) continue;
 
-    // Inject into segments
-    if (startSeg === endSeg) {
-      const before = segs[startSeg].slice(0, startOff);
-      const match = segs[startSeg].slice(startOff, endOff);
-      const after = segs[startSeg].slice(endOff);
-      segs[startSeg] = before + openTag + match + closeTag + after;
-    } else {
-      segs[startSeg] = segs[startSeg].slice(0, startOff) + openTag + segs[startSeg].slice(startOff);
-      segs[endSeg] = segs[endSeg].slice(0, endOff) + closeTag + segs[endSeg].slice(endOff);
+    // Find nodes that contain the annotation range
+    const hl = a.type === 'highlight';
+    const color = a.color || (hl ? 'rgba(255,230,100,0.45)' : '#e74c3c');
+    for (const { node, start, end } of nodes) {
+      if (end <= idx || start >= endIdx) continue; // no overlap
+      const localStart = Math.max(0, idx - start);
+      const localEnd = Math.min(node.textContent.length, endIdx - start);
+      if (localStart >= localEnd) continue;
+
+      const before = node.textContent.slice(0, localStart);
+      const match = node.textContent.slice(localStart, localEnd);
+      const after = node.textContent.slice(localEnd);
+
+      const span = document.createElement('span');
+      span.className = 'md-anno md-anno--' + a.type;
+      span.setAttribute('data-id', a.id);
+      span.style.cssText = hl
+        ? 'background-color:' + color + ';border-radius:2px'
+        : 'border-bottom:2px solid ' + color;
+      span.textContent = match;
+
+      const parent = node.parentNode;
+      if (before) parent.insertBefore(document.createTextNode(before), node);
+      parent.insertBefore(span, node);
+      if (after) parent.insertBefore(document.createTextNode(after), node);
+      parent.removeChild(node);
     }
   }
-  return segs.join('');
 }
 
 export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
@@ -154,8 +160,13 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
     deleteAnnotation(id).then(() => setAnnos(prev => prev.filter(a => a.id !== id)));
   }, []);
 
+  const contentRef = useRef(null);
   const fileAnnos = annos.filter(a => a.filePath === filePath);
-  const annoHtml = injectAnnotations(html, fileAnnos);
+
+  // Apply annotations to DOM after every render (handles KaTeX + any HTML)
+  useLayoutEffect(() => {
+    if (contentRef.current) applyAnnotations(contentRef.current, fileAnnos);
+  });
 
   return (
     <div className="md-annotator">
@@ -169,6 +180,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
       {!chrome && <button className="md-annotator__chrome-restore" onClick={() => setChrome(true)} title="Show">+</button>}
 
       <div
+        ref={contentRef}
         className={'md-annotator__content markdown-body' + (tool === 'highlight' || tool === 'underline' ? ' md-annotator__content--selectable' : '') + (firstTapOn ? ' md-annotator__content--first-tap' : '')}
         onClick={(e) => { handleTwoTap(e);
           if (tool === 'erase') {
@@ -183,7 +195,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
             }
           }
         }}
-        dangerouslySetInnerHTML={{ __html: annoHtml }}
+        dangerouslySetInnerHTML={{ __html: html }}
       />
 
       {selTrig && (
