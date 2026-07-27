@@ -23,38 +23,76 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
   const [underlineColor, setUnderlineColor] = useState(UNDERLINE_COLORS[0]);
   const [selTrigger, setSelTrigger] = useState(null);
   const savedSelectionRef = useRef(null);
-  const lastTriggerPos = useRef({ x: -1, y: -1 });
   const contentRef = useRef(null);
   const [renderTick, setRenderTick] = useState(0);
+  // ── Two-tap selection state ────────────────────────────
+  const firstTapRef = useRef(null); // { x, y, range } | null
 
   useEffect(() => {
     if (!filePath) return;
     getAnnotations(filePath).then(xs => setAnnotations(xs.filter(a => a.type !== 'comment' && a.type !== 'pen'))).catch(() => {});
   }, [filePath]);
 
-  // ── Selection polling (250ms, like PDF annotator) ────────
+  // ── Two-tap selection (avoids Android AI overlay conflicts) ──
   useEffect(() => {
     if (tool !== 'highlight' && tool !== 'underline') {
       setSelTrigger(null);
       savedSelectionRef.current = null;
-      lastTriggerPos.current = { x: -1, y: -1 };
+      firstTapRef.current = null;
+    }
+  }, [tool]);
+
+  const handleTwoTap = useCallback((e) => {
+    if (tool !== 'highlight' && tool !== 'underline') return;
+    // Ignore taps on links, buttons, etc.
+    if (e.target.closest('a, button, .md-anno-overlay')) return;
+
+    const x = e.clientX || (e.touches && e.touches[0]?.clientX);
+    const y = e.clientY || (e.touches && e.touches[0]?.clientY);
+    if (x == null || y == null) return;
+
+    const range = document.caretRangeFromPoint
+      ? document.caretRangeFromPoint(x, y)
+      : (() => { const cp = document.caretPositionFromPoint(x, y); return cp ? document.createRange().setStart(cp.offsetNode, cp.offset) : null; })();
+
+    const first = firstTapRef.current;
+
+    if (!first) {
+      // First tap — store position
+      if (!range) return;
+      firstTapRef.current = { x, y, range };
+      // Show a brief indicator (we use a simple state-less approach via CSS class)
+      if (contentRef.current) contentRef.current.classList.add('md-annotator__content--first-tap');
       return;
     }
-    const id = setInterval(() => {
+
+    // Second tap — compute range between the two points
+    if (contentRef.current) contentRef.current.classList.remove('md-annotator__content--first-tap');
+    firstTapRef.current = null;
+
+    if (!range) return;
+    const container = contentRef.current;
+    if (!container) return;
+
+    // Create a range from first tap to second tap (order doesn't matter)
+    try {
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        if (savedSelectionRef.current) {
-          setSelTrigger(null);
-          savedSelectionRef.current = null;
-          lastTriggerPos.current = { x: -1, y: -1 };
-        }
-        return;
+      sel.removeAllRanges();
+      const newRange = document.createRange();
+      // Compare positions: set start to the earlier point
+      const cmp = first.range.compareBoundaryPoints(Range.START_TO_START, range);
+      if (cmp <= 0) {
+        newRange.setStart(first.range.startContainer, first.range.startOffset);
+        newRange.setEnd(range.startContainer, range.startOffset);
+      } else {
+        newRange.setStart(range.startContainer, range.startOffset);
+        newRange.setEnd(first.range.startContainer, first.range.startOffset);
       }
-      const range = sel.getRangeAt(0);
-      const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
+      sel.addRange(newRange);
+
+      // Now compute rects and show trigger (like polling did)
+      const rects = Array.from(newRange.getClientRects()).filter(r => r.width > 0 && r.height > 0);
       if (rects.length === 0) return;
-      const container = contentRef.current;
-      if (!container) return;
       const cr = container.getBoundingClientRect();
       savedSelectionRef.current = {
         text: sel.toString().trim(),
@@ -72,13 +110,10 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
       tx = Math.max(gap, Math.min(tx, vw - 280 - gap));
       if (ty + 40 > vh - gap) ty = lr.top - 40 - gap;
       ty = Math.max(gap, Math.min(ty, vh - 40 - gap));
-      // Only trigger re-render if position actually changed
-      if (tx !== lastTriggerPos.current.x || ty !== lastTriggerPos.current.y) {
-        lastTriggerPos.current = { x: tx, y: ty };
-        setSelTrigger({ x: tx, y: ty });
-      }
-    }, 250);
-    return () => clearInterval(id);
+      setSelTrigger({ x: tx, y: ty });
+    } catch {
+      firstTapRef.current = null;
+    }
   }, [tool]);
 
   const confirmSelection = useCallback(() => {
@@ -112,7 +147,8 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
     }
     setSelTrigger(null);
     savedSelectionRef.current = null;
-    lastTriggerPos.current = { x: -1, y: -1 };
+    firstTapRef.current = null;
+    if (contentRef.current) contentRef.current.classList.remove('md-annotator__content--first-tap');
     window.getSelection()?.removeAllRanges();
   }, [tool, filePath, highlightColor, underlineColor]);
 
@@ -164,7 +200,8 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
       <div
         ref={contentRef}
         className={'md-annotator__content markdown-body' + (tool === 'highlight' || tool === 'underline' ? ' md-annotator__content--selectable' : '')}
-        onClick={handleContentClick}
+        onClick={(e) => { handleTwoTap(e); handleContentClick(e); }}
+        onTouchEnd={handleTwoTap}
       >
         <div dangerouslySetInnerHTML={{ __html: html }} />
         {fileAnnotations.map(a => (
@@ -184,7 +221,7 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
             <button className="md-annotator__sel-confirm" onMouseDown={e => e.preventDefault()} onClick={confirmSelection}>
               {tool === 'highlight' ? '🖍️ Apply' : '⎁ Apply'}
             </button>
-            <button className="md-annotator__sel-cancel" onMouseDown={e => e.preventDefault()} onClick={() => { setSelTrigger(null); savedSelectionRef.current = null; window.getSelection()?.removeAllRanges(); }}>✕</button>
+            <button className="md-annotator__sel-cancel" onMouseDown={e => e.preventDefault()} onClick={() => { setSelTrigger(null); savedSelectionRef.current = null; firstTapRef.current = null; if (contentRef.current) contentRef.current.classList.remove('md-annotator__content--first-tap'); window.getSelection()?.removeAllRanges(); }}>✕</button>
           </div>
         </div>
       )}

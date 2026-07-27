@@ -115,6 +115,31 @@
         color: $c-ink;
       }
     }
+
+    // First-tap indicator — subtle cursor pulse
+    &--first-tap {
+      cursor: crosshair;
+      &::after {
+        content: 'Tap end of selection';
+        position: fixed;
+        bottom: $sp-4;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: $sp-1 $sp-3;
+        background: $c-accent;
+        color: $c-ink-inverse;
+        border-radius: $radius-lg;
+        font-size: $fs-step--2;
+        font-family: $ff;
+        z-index: 100;
+        pointer-events: none;
+        animation: mdHintIn 0.3s ease;
+      }
+      @keyframes mdHintIn {
+        from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+        to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+      }
+    }
   }
 
   // ---- Annotation overlays ----------------------------------
