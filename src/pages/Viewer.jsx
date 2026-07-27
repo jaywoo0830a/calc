@@ -146,6 +146,7 @@ export default function Viewer() {
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const [readability, setReadability] = useState(0);
+  const [lightbox, setLightbox] = useState(null); // { src, alt } | null
   const zipRef = useRef(null);
 
   // ── Search state ────────────────────────────────────────────────────────
@@ -504,6 +505,13 @@ export default function Viewer() {
   }, [selectedPath, imageBlobs, setContent]);
 
   const handleContentClick = useCallback((e) => {
+    // Image lightbox
+    const img = e.target.closest('img');
+    if (img && img.src) {
+      e.preventDefault();
+      setLightbox({ src: img.src, alt: img.alt || '' });
+      return;
+    }
     const a = e.target.closest('a');
     if (!a) return;
     const href = a.getAttribute('href');
@@ -699,6 +707,14 @@ export default function Viewer() {
             aria-label="Increase readability"
             title="가독성 높이기"
           >➕</button>
+        </div>
+      )}
+      {/* Image lightbox */}
+      {lightbox && (
+        <div className="viewer__lightbox" onClick={() => setLightbox(null)}>
+          <button className="viewer__lightbox-close" onClick={() => setLightbox(null)}>×</button>
+          <img src={lightbox.src} alt={lightbox.alt} onClick={e => e.stopPropagation()} />
+          {lightbox.alt && <span className="viewer__lightbox-caption">{lightbox.alt}</span>}
         </div>
       )}
     </div>

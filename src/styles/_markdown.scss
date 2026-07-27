@@ -169,7 +169,17 @@
 
   // ---- Images — framed (KaTeX SVG 제외) -------------------
   // KaTeX 내부 SVG에는 border가 적용되지 않도록 svg 제외
-  img, video, canvas, iframe {
+  img {
+    max-width: 100%;
+    height: auto;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    margin: $sp-2 0;
+    cursor: zoom-in;
+    transition: opacity $transition-fast;
+    &:hover { opacity: 0.9; }
+  }
+  video, canvas, iframe {
     max-width: 100%;
     height: auto;
     border: $border-thin solid $c-rule;
