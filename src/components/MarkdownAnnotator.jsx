@@ -31,15 +31,20 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
     getAnnotations(filePath).then(xs => setAnnotations(xs.filter(a => a.type !== 'comment' && a.type !== 'pen'))).catch(() => {});
   }, [filePath]);
 
-  // ── Simple selection: check on mouseup/touchend ──────────
-  const handleSelectionCheck = useCallback(() => {
-    if (tool !== 'highlight' && tool !== 'underline') return;
-    // Small delay so the browser finishes updating the selection
-    setTimeout(() => {
+  // ── Selection polling (250ms, like PDF annotator) ────────
+  useEffect(() => {
+    if (tool !== 'highlight' && tool !== 'underline') {
+      setSelTrigger(null);
+      savedSelectionRef.current = null;
+      return;
+    }
+    const id = setInterval(() => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        setSelTrigger(null);
-        savedSelectionRef.current = null;
+        if (savedSelectionRef.current) {
+          setSelTrigger(null);
+          savedSelectionRef.current = null;
+        }
         return;
       }
       const range = sel.getRangeAt(0);
@@ -65,15 +70,8 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
       if (ty + 40 > vh - gap) ty = lr.top - 40 - gap;
       ty = Math.max(gap, Math.min(ty, vh - 40 - gap));
       setSelTrigger({ x: tx, y: ty });
-    }, 0);
-  }, [tool]);
-
-  // Reset trigger when leaving annotation mode
-  useEffect(() => {
-    if (tool !== 'highlight' && tool !== 'underline') {
-      setSelTrigger(null);
-      savedSelectionRef.current = null;
-    }
+    }, 250);
+    return () => clearInterval(id);
   }, [tool]);
 
   const confirmSelection = useCallback(() => {
@@ -159,8 +157,6 @@ export default function MarkdownAnnotator({ html, filePath, onLinkClick }) {
         ref={contentRef}
         className={'md-annotator__content markdown-body' + (tool === 'highlight' || tool === 'underline' ? ' md-annotator__content--selectable' : '')}
         onClick={handleContentClick}
-        onMouseUp={handleSelectionCheck}
-        onTouchEnd={handleSelectionCheck}
       >
         <div dangerouslySetInnerHTML={{ __html: html }} />
         {fileAnnotations.map(a => (
