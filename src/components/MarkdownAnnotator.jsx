@@ -51,12 +51,11 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
   const [annotations, setAnnotations] = useState([]);
   const [bookmarks, setBookmarks] = useState([]);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const [chromeVisible, setChromeVisible] = useState(true);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
   const [underlineColor, setUnderlineColor] = useState(UNDERLINE_COLORS[0]);
   const [selTrigger, setSelTrigger] = useState(null);
   const savedSelectionRef = useRef(null);
-  const lastDetectedText = useRef('');
-  const hideDebounce = useRef(null);
   const contentRef = useRef(null);
 
   // ── Load annotations & bookmarks ──────────────────────
@@ -89,38 +88,25 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
     return () => el.removeEventListener('scroll', onScroll);
   }, [previewRef]);
 
-  // ── Selection polling (highlight/underline mode) ──────
+  // ── Selection handling via selectionchange event (instant, no polling) ──
   useEffect(() => {
     if (tool !== 'highlight' && tool !== 'underline') {
       setSelTrigger(null);
       savedSelectionRef.current = null;
-      lastDetectedText.current = '';
-      if (hideDebounce.current) clearTimeout(hideDebounce.current);
       return;
     }
-    const id = setInterval(() => {
+
+    const onSelectionChange = () => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        // Debounce hiding — on Android selection may briefly collapse
-        if (lastDetectedText.current && !hideDebounce.current) {
-          hideDebounce.current = setTimeout(() => {
-            setSelTrigger(null);
-            savedSelectionRef.current = null;
-            lastDetectedText.current = '';
-            hideDebounce.current = null;
-          }, 400);
-        }
+        // Selection cleared — keep trigger visible briefly (Android may flicker)
         return;
       }
-      // Selection is active — cancel any pending hide
-      if (hideDebounce.current) { clearTimeout(hideDebounce.current); hideDebounce.current = null; }
       const text = sel.toString().trim();
-      if (text === lastDetectedText.current) return;
       const range = sel.getRangeAt(0);
       const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
       if (rects.length === 0) return;
 
-      lastDetectedText.current = text;
       savedSelectionRef.current = { text };
 
       const lastRect = rects[rects.length - 1];
@@ -132,8 +118,13 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
       if (ty + 40 > vh - gap) ty = lastRect.top - 40 - gap;
       ty = Math.max(gap, Math.min(ty, vh - 40 - gap));
       setSelTrigger({ x: tx, y: ty });
-    }, 250);
-    return () => clearInterval(id);
+    };
+
+    // Prevent Android's native selection menu only on the content area
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', onSelectionChange);
+    };
   }, [tool]);
 
   // ── Confirm annotation ────────────────────────────────
@@ -187,8 +178,8 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
 
   return (
     <div className="md-annotator">
-      {/* Toolbar — hidden in fullscreen */}
-      {!fullscreen && (
+      {/* Toolbar — collapsible */}
+      {chromeVisible && (
       <div className="md-annotator__toolbar">
         <button className={'md-annotator__btn' + (tool === null ? ' md-annotator__btn--active' : '')} onClick={() => setTool(null)}>📖 Read</button>
         <button className={'md-annotator__btn' + (tool === 'highlight' ? ' md-annotator__btn--active' : '')} onClick={() => setTool('highlight')}>🖍️ Highlight</button>
@@ -197,6 +188,15 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
         <button className={'md-annotator__btn' + (bookmarksOpen ? ' md-annotator__btn--active' : '')} onClick={() => setBookmarksOpen(!bookmarksOpen)}>🔖 Bookmarks</button>
       </div>
       )}
+      {/* Collapse toggle */}
+      <button
+        className="md-annotator__chrome-toggle"
+        onClick={() => setChromeVisible(!chromeVisible)}
+        title={chromeVisible ? 'Hide toolbar' : 'Show toolbar'}
+        aria-label={chromeVisible ? 'Hide toolbar' : 'Show toolbar'}
+      >
+        {chromeVisible ? '▴' : '▾'}
+      </button>
 
       {/* Bookmarks sidebar */}
       <div className={'md-annotator__bm-sidebar' + (bookmarksOpen ? ' md-annotator__bm-sidebar--open' : '')}>
@@ -232,6 +232,7 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
         className={'md-annotator__content markdown-body' + (tool === 'highlight' || tool === 'underline' ? ' md-annotator__content--selectable' : '')}
         dangerouslySetInnerHTML={{ __html: annotatedHtml }}
         onClick={handleContentClick}
+        onContextMenu={tool === 'highlight' || tool === 'underline' ? (e) => e.preventDefault() : undefined}
       />
 
       {/* Selection trigger — floating confirm toolbar */}

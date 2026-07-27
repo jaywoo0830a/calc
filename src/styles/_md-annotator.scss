@@ -9,6 +9,7 @@
   flex-direction: column;
   min-height: 0;
   flex: 1;
+  position: relative;
 
   // ---- Toolbar ------------------------------------------------
   &__toolbar {
@@ -29,6 +30,30 @@
     z-index: 30;
     flex-shrink: 0;
     flex-wrap: wrap;
+  }
+
+  // ---- Chrome toggle (show/hide toolbar) ----------------------
+  &__chrome-toggle {
+    position: absolute;
+    top: 0;
+    right: $sp-2;
+    width: 1.5rem;
+    height: 1.25rem;
+    border: $border-thin solid $c-rule;
+    border-top: none;
+    border-radius: 0 0 $radius-sm $radius-sm;
+    background: $c-page;
+    color: $c-ink-faint;
+    font-size: $fs-step--2;
+    cursor: pointer;
+    z-index: 31;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    transition: opacity $transition-fast;
+
+    &:hover { opacity: 1; }
   }
 
   &__btn {
