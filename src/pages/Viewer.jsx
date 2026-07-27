@@ -276,6 +276,29 @@ export default function Viewer() {
     return blobs;
   }, []);
 
+  // ── Cleanup blob URLs to prevent memory leaks ────────────────────────
+  const blobUrlsRef = useRef(new Set());
+  // Revoke old blob URLs when new imageBlobs arrive
+  useEffect(() => {
+    const oldUrls = blobUrlsRef.current;
+    const newUrls = new Set();
+    for (const url of Object.values(imageBlobs)) {
+      if (typeof url === 'string' && url.startsWith('blob:')) newUrls.add(url);
+    }
+    // Revoke URLs that are no longer in use
+    for (const url of oldUrls) {
+      if (!newUrls.has(url)) URL.revokeObjectURL(url);
+    }
+    blobUrlsRef.current = newUrls;
+  }, [imageBlobs]);
+  // Revoke old PDF blob URL
+  useEffect(() => {
+    const prev = blobUrlsRef.current;
+    return () => {
+      if (pdfUrl && pdfUrl.startsWith('blob:')) URL.revokeObjectURL(pdfUrl);
+    };
+  }, [pdfUrl]);
+
   // ── Build search index from text files in ZIP ──────────────────────────
   const buildSearchIndex = useCallback(async (zip) => {
     const idx = {};

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 
 /** Natural sort: "9A" before "10A", "08B" before "9A1" */
 const naturalCompare = (a, b) =>
@@ -12,7 +12,7 @@ function sortChildren(children) {
   });
 }
 
-function TreeNode({ node, depth = 0, selectedPath, onSelect }) {
+const TreeNode = memo(function TreeNode({ node, depth = 0, selectedPath, onSelect }) {
   const [open, setOpen] = useState(depth < 2);
   const isSelected = node.path === selectedPath;
   const isMarkdown = node.name.endsWith('.md');
@@ -53,9 +53,9 @@ function TreeNode({ node, depth = 0, selectedPath, onSelect }) {
       }
     </div>
   );
-}
+});
 
-export default function ZipTree({ tree, selectedPath, onSelect }) {
+export default memo(function ZipTree({ tree, selectedPath, onSelect }) {
   if (!tree) return null;
   return (
     <div className="tree">
@@ -64,4 +64,4 @@ export default function ZipTree({ tree, selectedPath, onSelect }) {
       ))}
     </div>
   );
-}
+});

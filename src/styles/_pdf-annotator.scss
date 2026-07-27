@@ -88,8 +88,6 @@
     cursor: pointer;
     white-space: nowrap;
     transition: all $transition-fast;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
 
     @media (hover: hover) {
       &:hover { background: rgba(255, 254, 247, 0.3); color: $c-ink; }
@@ -124,8 +122,6 @@
     font-size: $fs-step-1;
     cursor: pointer;
     transition: all $transition-fast;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
 
     @media (hover: hover) {
       &:hover { background: rgba(255, 254, 247, 0.3); color: $c-ink; }
@@ -706,8 +702,6 @@
     font-size: $fs-step-1;
     cursor: pointer;
     transition: all $transition-fast;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
 
     @media (hover: hover) {
       &:hover:not(:disabled) {
@@ -750,8 +744,6 @@
     font-weight: $fw-semibold;
     text-align: center;
     outline: none;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
     transition: border-color $transition-fast;
 
     &::placeholder {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
@@ -773,7 +773,7 @@ export default function PdfAnnotator({ url, filePath }) {
                   pageNumber={pageNumber}
                   width={pageW}
                   devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
-                  renderTextLayer={true}
+                  renderTextLayer={tool === 'highlight' || tool === 'underline'}
                   renderAnnotationLayer={true}
                   onRenderSuccess={() => setPageRenderTick(t => t + 1)}
                 />
@@ -946,8 +946,8 @@ export default function PdfAnnotator({ url, filePath }) {
   return isFakeFullscreen ? createPortal(content, document.body) : content;
 }
 
-/** Renders a single annotation overlay */
-const AnnotationOverlay = function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
+/** Renders a single annotation overlay — memoized to avoid re-renders on parent updates */
+const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
   // Always find page element fresh from DOM — prop may be stale after page navigation
   const getPageEl = () => document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
   const [rect, setRect] = useState(null);
@@ -1021,4 +1021,4 @@ const AnnotationOverlay = function AnnotationOverlay({ annotation, pageEl, onDel
       </button>
     </div>
   );
-}
+});
