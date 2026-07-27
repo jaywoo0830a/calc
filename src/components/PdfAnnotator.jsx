@@ -68,6 +68,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [alignment, setAlignment] = useState('center');
   const [zoomLevel, setZoomLevel] = useState(1); // 0.5–1.5 (50%–150%)
   const [chromeVisible, setChromeVisible] = useState(true);
+  const [pageRenderTick, setPageRenderTick] = useState(0); // bumps on each Page render → forces annotation recalculation
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -692,6 +693,7 @@ export default function PdfAnnotator({ url, filePath }) {
                   devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
                   renderTextLayer={true}
                   renderAnnotationLayer={true}
+                  onRenderSuccess={() => setPageRenderTick(t => t + 1)}
                 />
                 {/* Annotation overlay */}
                 {annos.map((a) => (
@@ -859,19 +861,13 @@ export default function PdfAnnotator({ url, filePath }) {
 const AnnotationOverlay = function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
   // Always find page element fresh from DOM — prop may be stale after page navigation
   const getPageEl = () => document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
-  const [rect, setRect] = useState(() => annoRect(annotation, getPageEl()));
-  const prevRectRef = useRef(null);
+  const [rect, setRect] = useState(null);
 
+  // Recalculate rect after every render — onRenderSuccess on <Page> ensures
+  // we re-render once the PDF canvas is actually in the DOM.
   useLayoutEffect(() => {
     const next = annoRect(annotation, getPageEl());
-    const prev = prevRectRef.current;
-    if (next && prev &&
-        next.left === prev.left && next.top === prev.top &&
-        next.width === prev.width && next.height === prev.height) {
-      return;
-    }
-    prevRectRef.current = next;
-    setRect(next);
+    if (next) setRect(next);
   });
 
   const handleDelete = eraseMode ? (e) => { e.stopPropagation(); onDelete(annotation.id); } : undefined;
