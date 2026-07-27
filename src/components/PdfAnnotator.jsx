@@ -164,6 +164,9 @@ export default function PdfAnnotator({ url, filePath }) {
   const containerRef = useRef(null);
   const documentRef = useRef(null);
   const pageRefs = useRef({});
+  // pan state (read mode — drag to scroll)
+  const isPanning = useRef(false);
+  const panStart = useRef({ x: 0, y: 0, scrollX: 0, scrollY: 0 });
 
   // ── Swipe detection for paginated mode ──────────────────
   const handleSwipeStart = useCallback((e) => {
@@ -197,7 +200,38 @@ export default function PdfAnnotator({ url, filePath }) {
     }
   }, [numPages, currentPage, goToPage, tool]);
 
-  // ── Fullscreen (native API + CSS fallback for iOS/Safari) ──
+  // ── Pan (read mode — drag to scroll) ─────────────────────
+  const handlePanDown = useCallback((e) => {
+    if (tool !== null) return;
+    // Only respond to mouse/stylus — let touch pass through for swipe scrolling
+    if (e.pointerType === 'touch') return;
+    e.preventDefault();
+    const doc = documentRef.current;
+    if (!doc) return;
+    isPanning.current = true;
+    panStart.current = { x: e.clientX, y: e.clientY, scrollX: doc.scrollLeft, scrollY: doc.scrollTop };
+    doc.style.cursor = 'grabbing';
+    doc.setPointerCapture?.(e.pointerId);
+  }, [tool]);
+
+  const handlePanMove = useCallback((e) => {
+    if (!isPanning.current) return;
+    e.preventDefault();
+    const doc = documentRef.current;
+    if (!doc) return;
+    doc.scrollLeft = panStart.current.scrollX + (panStart.current.x - e.clientX);
+    doc.scrollTop = panStart.current.scrollY + (panStart.current.y - e.clientY);
+  }, []);
+
+  const handlePanUp = useCallback((e) => {
+    if (!isPanning.current) return;
+    isPanning.current = false;
+    const doc = documentRef.current;
+    if (doc) {
+      doc.style.cursor = '';
+      doc.releasePointerCapture?.(e.pointerId);
+    }
+  }, []);
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -682,11 +716,15 @@ export default function PdfAnnotator({ url, filePath }) {
                 className={'pdf-annotator__page-wrapper' + (isIOS ? ' pdf-annotator__page-wrapper--ios' : '')}
                 ref={(el) => { if (el) pageRefs.current[pageNumber] = el; }}
                 onClick={handlePageClick(pageNumber)}
+                onPointerDown={handlePanDown}
+                onPointerMove={handlePanMove}
+                onPointerUp={handlePanUp}
                 style={{
                   width: pageW,
                   height: (fullscreen || zoomLevel > 1) ? 'auto' : undefined,
                   minHeight: (fullscreen || zoomLevel > 1) ? undefined : undefined,
-                  cursor: (tool === 'highlight' || tool === 'underline') ? 'text' : undefined,
+                  cursor: tool === null ? 'grab' : (tool === 'highlight' || tool === 'underline') ? 'text' : undefined,
+                  touchAction: tool === null ? 'pan-x pan-y' : undefined,
                 }}
               >
                 <Page
