@@ -172,6 +172,8 @@ export default function PdfAnnotator({ url, filePath }) {
   }, []);
 
   const handleSwipeEnd = useCallback((e) => {
+    // Only allow page swiping in read mode (tool === null)
+    if (tool !== null) return;
     // Ignore multi-touch (pinch-zoom) — only single-finger swipes count
     if (touchStart.current.count > 1) return;
     if ((e.touches?.length || 0) > 0) return; // still touching with other fingers
@@ -193,7 +195,7 @@ export default function PdfAnnotator({ url, filePath }) {
         goToPage(Math.max(1, currentPage - 1));
       }
     }
-  }, [numPages, currentPage, goToPage]);
+  }, [numPages, currentPage, goToPage, tool]);
 
   // ── Fullscreen (native API + CSS fallback for iOS/Safari) ──
   const toggleFullscreen = useCallback(() => {
