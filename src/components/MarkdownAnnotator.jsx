@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, memo } from 'react';
 import { getAnnotations, saveAnnotation, deleteAnnotation } from '../lib/storage.js';
 
 const HIGHLIGHT_COLORS = [
@@ -106,18 +106,18 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
     deleteAnnotation(id).then(() => setAnnotations(prev => prev.filter(a => a.id !== id)));
   }, []);
 
+  // Recalculate overlays on resize only (debounced). Scroll is automatic via position:absolute.
   useEffect(() => {
-    const onUpdate = () => setRenderTick(t => t + 1);
-    window.addEventListener('resize', onUpdate);
-    const el = previewRef?.current;
-    if (el) el.addEventListener('scroll', onUpdate, { passive: true });
-    return () => {
-      window.removeEventListener('resize', onUpdate);
-      if (el) el.removeEventListener('scroll', onUpdate);
-    };
-  }, [previewRef]);
+    let timer;
+    const onResize = () => { clearTimeout(timer); timer = setTimeout(() => setRenderTick(t => t + 1), 150); };
+    window.addEventListener('resize', onResize);
+    return () => { window.removeEventListener('resize', onResize); clearTimeout(timer); };
+  }, []);
 
-  const fileAnnotations = annotations.filter(a => a.filePath === filePath);
+  const fileAnnotations = useMemo(
+    () => annotations.filter(a => a.filePath === filePath),
+    [annotations, filePath]
+  );
 
   const handleContentClick = useCallback((e) => {
     if (tool === 'erase') {
@@ -141,10 +141,10 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
         <button className={'md-annotator__btn' + (tool === 'highlight' ? ' md-annotator__btn--active' : '')} onClick={() => setTool('highlight')}>🖍️ Highlight</button>
         <button className={'md-annotator__btn' + (tool === 'underline' ? ' md-annotator__btn--active' : '')} onClick={() => setTool('underline')}>⎁ Underline</button>
         <button className={'md-annotator__btn' + (tool === 'erase' ? ' md-annotator__btn--active' : '')} onClick={() => setTool(tool === 'erase' ? null : 'erase')}>🧹 Eraser</button>
-        <button className="md-annotator__chrome-toggle" onClick={() => setChromeVisible(false)} title="Hide toolbar">▴</button>
+        <button className="md-annotator__chrome-toggle" onClick={() => setChromeVisible(false)} title="Hide toolbar">{'\u25b4'}</button>
       </div>
       {!chromeVisible && (
-        <button className="md-annotator__chrome-restore" onClick={() => setChromeVisible(true)} title="Show toolbar">▾</button>
+        <button className="md-annotator__chrome-restore" onClick={() => setChromeVisible(true)} title="Show toolbar">{'\u25be'}</button>
       )}
 
       <div
@@ -169,7 +169,7 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
               <button key={c.id} className={'md-annotator__sel-swatch' + (underlineColor.id === c.id ? ' md-annotator__sel-swatch--active' : '')} style={{ borderBottom: '3px solid ' + c.color }} onMouseDown={e => e.preventDefault()} onClick={() => setUnderlineColor(c)} title={c.label} />
             ))}
             <button className="md-annotator__sel-confirm" onMouseDown={e => e.preventDefault()} onClick={confirmSelection}>
-              {tool === 'highlight' ? '🖍️' : '⎁'} Apply
+              {tool === 'highlight' ? '🖍️ Apply' : '⎁ Apply'}
             </button>
             <button className="md-annotator__sel-cancel" onMouseDown={e => e.preventDefault()} onClick={() => { setSelTrigger(null); savedSelectionRef.current = null; window.getSelection()?.removeAllRanges(); }}>✕</button>
           </div>
@@ -179,7 +179,7 @@ export default function MarkdownAnnotator({ html, filePath, previewRef, onLinkCl
   );
 }
 
-function MdAnnotationOverlay({ annotation, containerEl, eraseMode, onDelete }) {
+const MdAnnotationOverlay = memo(function MdAnnotationOverlay({ annotation, containerEl, eraseMode, onDelete }) {
   const [rect, setRect] = useState(null);
   const prevRef = useRef(null);
 
@@ -223,4 +223,4 @@ function MdAnnotationOverlay({ annotation, containerEl, eraseMode, onDelete }) {
       onClick={eraseMode ? (e) => { e.stopPropagation(); onDelete(annotation.id); } : undefined}
     />
   );
-}
+});
