@@ -40,12 +40,13 @@ function processContent(markdown, resolveImage) {
       out += '%%MATH' + (mathBlocks.length - 1) + '%%';
       continue;
     }
-    // $ inline math (줄바꿈 전까지)
+    // $ inline math (allow multi-line within same paragraph)
     if (markdown[i] === '$') {
       const start = i;
       i++;
       while (i < len) {
-        if (markdown[i] === '\n') break;
+        // paragraph break (blank line) → stop, inline math shouldn't span paragraphs
+        if (markdown[i] === '\n' && i + 1 < len && markdown[i + 1] === '\n') break;
         if (markdown[i] === '\\' && i + 1 < len) { i += 2; continue; }
         if (markdown[i] === '$') { i++; break; }
         i++;
