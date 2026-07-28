@@ -123,6 +123,11 @@
     gap: $sp-1;
     flex: 1;
     min-height: 0;
+    // Ensure keypad doesn't collapse to zero when history is open
+    .calculator--hist & {
+      min-height: 10rem;
+      flex-shrink: 0;
+    }
   }
 
   // ---- Keypad — grid of paper buttons ----------------------
@@ -612,6 +617,7 @@
   .calculator--hist {
     overflow-y: auto;
     .calculator__keypad { flex-shrink: 0; }
+    .calculator__keypad-area { min-height: 10rem; flex-shrink: 0; }
   }
   .calculator__history { max-height: 6rem; }
 }
