@@ -123,11 +123,6 @@
     gap: $sp-1;
     flex: 1;
     min-height: 0;
-    // Ensure keypad doesn't collapse to zero when history is open
-    .calculator--hist & {
-      min-height: 10rem;
-      flex-shrink: 0;
-    }
   }
 
   // ---- Keypad — grid of paper buttons ----------------------
@@ -327,7 +322,7 @@
   &__toolbar {
     display: flex;
     gap: $sp-1;
-    margin-top: $sp-2;
+    margin-bottom: $sp-2;
     flex-shrink: 0;
   }
 
@@ -577,7 +572,7 @@
     }
 
     // ---- Toolbar -------------------------------------------
-    &__toolbar { gap: $sp-2; margin-top: $sp-3; }
+    &__toolbar { gap: $sp-2; margin-bottom: $sp-3; }
     &__sci-toggle,
     &__hist-toggle { font-size: $fs-step--1; padding: $sp-2 $sp-3; }
 
@@ -611,13 +606,11 @@
   }
 }
 
-// ── Short screen: SCI/Hist scrollable ────────────────────────
+// ── Short screen: allow scrolling ───────────────────────────
 @media (max-height: 700px) {
   .calculator--sci,
   .calculator--hist {
     overflow-y: auto;
-    .calculator__keypad { flex-shrink: 0; }
-    .calculator__keypad-area { min-height: 10rem; flex-shrink: 0; }
   }
   .calculator__history { max-height: 6rem; }
 }

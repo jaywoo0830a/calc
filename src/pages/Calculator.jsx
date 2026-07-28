@@ -60,7 +60,6 @@ export default function Calculator() {
         <a href="/math" className="calculator__nav-tab">Math Space</a>
       </nav>
       <Display expression={calc.expression} result={calc.result} />
-      <Keypad onAction={handleAction} sciMode={calc.sciMode} />
       <div className="calculator__toolbar">
         <button
           className={'calculator__sci-toggle' + (calc.sciMode ? ' calculator__sci-toggle--active' : '')}
@@ -77,6 +76,7 @@ export default function Calculator() {
           📋 Hist{calc.history.length > 0 ? ` (${calc.history.length})` : ''}
         </button>
       </div>
+      <Keypad onAction={handleAction} sciMode={calc.sciMode} />
       {showHistory && (
         <div className="calculator__history">
           <div className="calculator__history-header">
