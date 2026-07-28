@@ -496,43 +496,6 @@
       }
     }
   }
-
-  // ---- Hint — paper slip -----------------------------------
-  &__hint {
-    position: fixed;
-    inset: auto 0 0 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: $sp-3;
-    padding: $sp-3 $sp-5;
-    background: $c-page;
-    color: $c-ink;
-    font-size: $fs-step--1;
-    border-top: $border-thin solid $c-rule;
-    box-shadow: $c-hint-shadow;
-    z-index: $z-hint;
-    animation: slideUp $transition-slow ease;
-  }
-
-  &__hint-close {
-    font-size: $fs-step-2;
-    color: $c-ink-faint;
-    line-height: 1;
-    padding: 0 $sp-1;
-
-    @media (hover: hover) {
-      &:hover {
-        color: $c-ink;
-      }
-    }
-  }
-}
-
-// ---- Keyframes ---------------------------------------------
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
 }
 
 // ============================================================
@@ -623,8 +586,9 @@
     &__info { font-size: $fs-step--2; }
     &__mute { font-size: $fs-step--2; padding: $sp-2 $sp-4; }
 
-    // ---- Hint ----------------------------------------------
-    &__hint { font-size: $fs-step--1; padding: $sp-3 $sp-6; }
+    // SCI + Hist: no scrolling needed on tablet
+    &--sci { overflow-y: visible; }
+    &__history { max-height: 14rem; }
   }
 }
 
@@ -637,4 +601,14 @@
     margin: 0 auto;
     width: 100%;
   }
+}
+
+// ── Short screen: SCI scrollable, HIST compact ───────────────
+// On mobile (height < 700px), allow scrolling instead of cramping buttons
+@media (max-height: 700px) {
+  .calculator--sci {
+    overflow-y: auto;
+    .calculator__keypad { flex-shrink: 0; }
+  }
+  .calculator__history { max-height: 7rem; }
 }

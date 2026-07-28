@@ -81,7 +81,7 @@ function processContent(markdown, resolveImage) {
 
   // ── Apply syntax highlighting to code blocks ──────────────────────────
   html = html.replace(/<pre><code(?:\s+class="language-(\w+)")?>([\s\S]*?)<\/code><\/pre>/g, (match, lang, code) => {
-    const decoded = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+    const decoded = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'");
     try {
       if (lang && hljs.getLanguage(lang)) {
         const highlighted = hljs.highlight(decoded, { language: lang }).value;

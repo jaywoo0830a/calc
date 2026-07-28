@@ -51,8 +51,6 @@ export default function Calculator() {
     if (e.key === 'Backspace') { sound.play('func');  calc.backspace(); return; }
   }, [sound, calc]);
 
-  const [hintVisible, setHintVisible] = useState(() => !navigator.standalone);
-
   return (
     <main className={'calculator' + (calc.sciMode ? ' calculator--sci' : '')} onKeyDown={handleKeyDown} tabIndex={-1}>
       <nav className="calculator__nav">
@@ -119,12 +117,6 @@ export default function Calculator() {
           {muted ? '🔇' : '🔊'}
         </button>
       </footer>
-      {hintVisible && (
-        <div className="calculator__hint">
-          <span>Tap <strong>Share</strong> &rarr; <strong>Add to Home Screen</strong></span>
-          <button className="calculator__hint-close" onClick={() => setHintVisible(false)}>&times;</button>
-        </div>
-      )}
     </main>
   );
 }
