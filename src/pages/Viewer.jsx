@@ -97,13 +97,20 @@ function processContent(markdown, resolveImage) {
   return html;
 }
 
+/** HTML entity decode — handles &#39;, &amp;, etc. */
+function decodeEntities(text) {
+  const el = document.createElement('span');
+  el.innerHTML = text;
+  return el.textContent;
+}
+
 /** 렌더링된 HTML에서 h1~h3 제목을 추출하여 TOC 배열과 ID 주입된 HTML 반환 */
 function extractToc(html) {
   const toc = [];
   let counter = 0;
   const withIds = html.replace(/<(h[123])([^>]*)>([^<]*)<\/\1>/gi, (match, tag, attrs, text) => {
     const id = `hd-${counter++}`;
-    const clean = text.replace(/<[^>]+>/g, '').trim();
+    const clean = decodeEntities(text.replace(/<[^>]+>/g, '').trim());
     toc.push({ id, tag: tag.toLowerCase(), text: clean || '(empty)' });
     return `<${tag}${attrs} id="${id}">${text}</${tag}>`;
   });

@@ -356,6 +356,8 @@
 
   // ---- History panel --------------------------------------
   &__history {
+    position: relative;
+    z-index: 1;
     margin-top: $sp-2;
     border: $border-thin solid $c-rule;
     border-radius: $radius-md;
@@ -610,5 +612,5 @@
     overflow-y: auto;
     .calculator__keypad { flex-shrink: 0; }
   }
-  .calculator__history { max-height: 7rem; }
+  .calculator__history { max-height: 6rem; }
 }
