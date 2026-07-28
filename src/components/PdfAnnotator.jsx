@@ -96,57 +96,43 @@ export default function PdfAnnotator({ url, filePath }) {
     }
   }, [filePath, currentPage, isBookmarked, bookmarks]);
 
-  // ── Resolve PDF outline: flatten nested items & resolve dest→pageNumber ──
-  const resolveOutlineItems = useCallback(async (items, pdfDoc, depth = 1) => {
-    const result = [];
-    if (!items || !pdfDoc) return result;
+  // ── Resolve PDF outline: flatten first, then resolve all in parallel ──
+  const resolveOutlineItems = useCallback(async (items, pdfDoc) => {
+    if (!items || !pdfDoc) return [];
 
-    // Resolve all items at current depth in parallel
-    const resolved = await Promise.all(items.map(async (item) => {
+    // 1. Flatten the tree (sync — no async calls)
+    const flat = [];
+    const walk = (list, depth) => {
+      for (const item of list) {
+        flat.push({ item, depth });
+        if (item.items?.length > 0) walk(item.items, depth + 1);
+      }
+    };
+    walk(items, 1);
+
+    // 2. Resolve all destinations in parallel
+    const resolved = await Promise.all(flat.map(async ({ item, depth }) => {
       let pageNumber = null;
       try {
         if (item.dest) {
           if (typeof item.dest === 'string') {
-            // Named destination → resolve via getDestination then getPageIndex
             const destArray = await pdfDoc.getDestination(item.dest);
-            if (destArray && destArray.length > 0) {
-              pageNumber = await resolveDestToPage(destArray, pdfDoc);
-            }
+            if (destArray?.length > 0) pageNumber = await resolveDestToPage(destArray, pdfDoc);
           } else if (Array.isArray(item.dest) && item.dest.length > 0) {
-            // Array destination: e.g. [pageRef, {name:'XYZ'}, left, top, zoom]
             pageNumber = await resolveDestToPage(item.dest, pdfDoc);
           }
         }
-      } catch { /* dest resolution failed, leave pageNumber null */ }
-
-      // Recurse into nested items
-      let children = [];
-      if (item.items && item.items.length > 0) {
-        children = await resolveOutlineItems(item.items, pdfDoc, depth + 1);
-      }
-
+      } catch { /* leave null */ }
       return {
         title: item.title || '(Untitled)',
         pageNumber,
         depth,
         bold: !!item.bold,
         italic: !!item.italic,
-        children,
       };
     }));
 
-    // Flatten: parent first, then children
-    for (const item of resolved) {
-      result.push({
-        title: item.title,
-        pageNumber: item.pageNumber,
-        depth: item.depth,
-        bold: item.bold,
-        italic: item.italic,
-      });
-      result.push(...item.children);
-    }
-    return result;
+    return resolved;
   }, []);
 
   /** Resolve a destination array to a 1-based page number */
@@ -926,6 +912,7 @@ export default function PdfAnnotator({ url, filePath }) {
             />
             <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(Math.min(2.0, zoomLevel + 0.1))} title="Zoom in">+</button>
             <span className="pdf-annotator__zoom-label">{Math.round(zoomLevel * 100)}%</span>
+            <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(1)} title="Reset zoom" style={{ fontSize: '0.7rem' }}>1:1</button>
           </div>
         </div>
       )}
