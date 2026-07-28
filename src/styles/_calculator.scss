@@ -589,7 +589,8 @@
     &__mute { font-size: $fs-step--2; padding: $sp-2 $sp-4; }
 
     // SCI + Hist: no scrolling needed on tablet
-    &--sci { overflow-y: visible; }
+    &--sci,
+    &--hist { overflow-y: visible; }
     &__history { max-height: 14rem; }
   }
 }
@@ -605,10 +606,10 @@
   }
 }
 
-// ── Short screen: SCI scrollable, HIST compact ───────────────
-// On mobile (height < 700px), allow scrolling instead of cramping buttons
+// ── Short screen: SCI/Hist scrollable ────────────────────────
 @media (max-height: 700px) {
-  .calculator--sci {
+  .calculator--sci,
+  .calculator--hist {
     overflow-y: auto;
     .calculator__keypad { flex-shrink: 0; }
   }

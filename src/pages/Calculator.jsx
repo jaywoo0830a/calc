@@ -52,7 +52,7 @@ export default function Calculator() {
   }, [sound, calc]);
 
   return (
-    <main className={'calculator' + (calc.sciMode ? ' calculator--sci' : '')} onKeyDown={handleKeyDown} tabIndex={-1}>
+    <main className={'calculator' + (calc.sciMode ? ' calculator--sci' : '') + (showHistory ? ' calculator--hist' : '')} onKeyDown={handleKeyDown} tabIndex={-1}>
       <nav className="calculator__nav">
         <span className="calculator__nav-tab calculator__nav-tab--active">Calc</span>
         <a href="/viewer" className="calculator__nav-tab">Viewer</a>
