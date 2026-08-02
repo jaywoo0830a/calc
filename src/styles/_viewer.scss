@@ -723,11 +723,33 @@
 
     &:hover { color: $c-ink; }
 
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+      &:hover { color: $c-ink-faint; }
+    }
+
     &--active {
       background: $c-accent-light;
       color: $c-accent;
       font-weight: $fw-semibold;
     }
+  }
+
+  &__problems-toolbar {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    padding: $sp-2 $sp-3;
+    border-bottom: $border-thin solid $c-rule-light;
+    flex-wrap: wrap;
+  }
+
+  &__problems-scope {
+    display: flex;
+    gap: 0.25rem;
+    padding-right: $sp-2;
+    border-right: $border-thin solid $c-rule-light;
   }
 
   &__problems-close {
@@ -750,6 +772,25 @@
     display: flex;
     flex-direction: column;
     gap: $sp-1;
+  }
+
+  &__problems-group {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+  }
+
+  &__problems-group-title {
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-faint;
+    padding: $sp-1 $sp-3 $sp-1 $sp-1;
+    border-bottom: $border-thin solid $c-rule-light;
+    margin-bottom: $sp-1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__problems-empty {

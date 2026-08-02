@@ -169,6 +169,7 @@ export default function Viewer() {
   const [problems, setProblems] = useState([]);
   const [problemsOpen, setProblemsOpen] = useState(false);
   const [problemsFilter, setProblemsFilter] = useState('all'); // all | solved | wrong
+  const [problemsScope, setProblemsScope] = useState('current'); // current(현재 문서) | all(전체)
   const [pdfInitialPage, setPdfInitialPage] = useState(null);  // 문제 점프용 시작 페이지
   const [mdSel, setMdSel] = useState(null);                    // { x, y, text } 마크다운 선택 툴바
   const [loading, setLoading] = useState(false);               // ZIP 로딩 표시
@@ -746,10 +747,27 @@ export default function Viewer() {
     return !!(zip && zip.files && zip.files[docPath] && !zip.files[docPath].dir);
   }, []);
 
-  const filteredProblems = useMemo(() => {
-    if (problemsFilter === 'all') return problems;
-    return problems.filter((p) => p.status === problemsFilter);
-  }, [problems, problemsFilter]);
+  // 현재 문서 기준 필터: 'current'면 열린 문서만, 'all'이면 전체 (문서별 그룹)
+  const effectiveScope = (problemsScope === 'current' && selectedPath) ? 'current' : 'all';
+  const docProblems = useMemo(() => {
+    let list = problems;
+    if (effectiveScope === 'current') {
+      list = list.filter((p) => p.doc_path === selectedPath);
+    }
+    if (problemsFilter !== 'all') {
+      list = list.filter((p) => p.status === problemsFilter);
+    }
+    return list;
+  }, [problems, problemsFilter, effectiveScope, selectedPath]);
+
+  const groupedProblems = useMemo(() => {
+    const groups = new Map();
+    for (const p of docProblems) {
+      if (!groups.has(p.doc_path)) groups.set(p.doc_path, []);
+      groups.get(p.doc_path).push(p);
+    }
+    return [...groups.entries()];
+  }, [docProblems]);
 
   const handleDeleteStored = useCallback(async (id, e) => {
     e.stopPropagation();
@@ -974,7 +992,23 @@ export default function Viewer() {
       {problemsOpen && (
         <div className="viewer__problems-panel">
           <div className="viewer__problems-header">
-            <span className="viewer__problems-title">📋 Problems ({problems.length})</span>
+            <span className="viewer__problems-title">📋 Problems ({docProblems.length})</span>
+            <button className="viewer__problems-close" onClick={() => setProblemsOpen(false)}>×</button>
+          </div>
+          <div className="viewer__problems-toolbar">
+            <div className="viewer__problems-scope">
+              <button
+                className={'viewer__problems-filter' + (effectiveScope === 'current' ? ' viewer__problems-filter--active' : '')}
+                onClick={() => setProblemsScope('current')}
+                disabled={!selectedPath}
+                title="Show problems in the currently open document"
+              >This doc</button>
+              <button
+                className={'viewer__problems-filter' + (effectiveScope === 'all' ? ' viewer__problems-filter--active' : '')}
+                onClick={() => setProblemsScope('all')}
+                title="Show problems from all documents"
+              >All docs</button>
+            </div>
             <div className="viewer__problems-filters">
               <button
                 className={'viewer__problems-filter' + (problemsFilter === 'all' ? ' viewer__problems-filter--active' : '')}
@@ -989,46 +1023,53 @@ export default function Viewer() {
                 onClick={() => setProblemsFilter('wrong')}
               >✗ Wrong</button>
             </div>
-            <button className="viewer__problems-close" onClick={() => setProblemsOpen(false)}>×</button>
           </div>
           <div className="viewer__problems-list">
-            {filteredProblems.length === 0 ? (
+            {docProblems.length === 0 ? (
               <div className="viewer__problems-empty">
-                No problems registered yet.<br />
-                Select problem text in a document and press ✓ / ✗.
+                {effectiveScope === 'current' && selectedPath ? (
+                  <>No problems in <strong>{selectedPath}</strong> yet.<br />Select problem text and press ✓ / ✗.</>
+                ) : (
+                  <>No problems registered yet.<br />Select problem text in a document and press ✓ / ✗.</>
+                )}
               </div>
             ) : (
-              filteredProblems.map((p) => {
-                const missing = !!zipRef.current && !isDocInCurrentZip(p.doc_path);
-                return (
-                  <div key={p.id} className={'viewer__problem-item viewer__problem-item--' + p.status}>
-                    <button className="viewer__problem-open" onClick={() => jumpToProblem(p)} title="Open in document">
-                      <span className="viewer__problem-status">{p.status === 'solved' ? '✓' : '✗'}</span>
-                      <span className="viewer__problem-body">
-                        <span className="viewer__problem-src">{p.doc_path}{p.ref ? ` · p.${p.ref}` : ''}</span>
-                        <span className="viewer__problem-text">{p.text}</span>
-                        <span className="viewer__problem-meta">
-                          {p.attempts} attempt{p.attempts === 1 ? '' : 's'} · {p.wrong_count} wrong
-                          {missing && <span className="viewer__problem-missing"> · not in current archive</span>}
-                        </span>
-                      </span>
-                    </button>
-                    <div className="viewer__problem-actions">
-                      <button
-                        className="viewer__problem-solve"
-                        onClick={() => setProblemStatus(p, 'solved')}
-                        title="Mark as solved (again)"
-                      >✓</button>
-                      <button
-                        className="viewer__problem-wrong"
-                        onClick={() => setProblemStatus(p, 'wrong')}
-                        title="Mark as wrong (again)"
-                      >✗</button>
-                      <button className="viewer__problem-delete" onClick={() => removeProblem(p)} title="Delete">🗑️</button>
-                    </div>
-                  </div>
-                );
-              })
+              groupedProblems.map(([docPath, items]) => (
+                <div key={docPath} className="viewer__problems-group">
+                  <div className="viewer__problems-group-title">{docPath}</div>
+                  {items.map((p) => {
+                    const missing = effectiveScope === 'all' && !!zipRef.current && !isDocInCurrentZip(p.doc_path);
+                    return (
+                      <div key={p.id} className={'viewer__problem-item viewer__problem-item--' + p.status}>
+                        <button className="viewer__problem-open" onClick={() => jumpToProblem(p)} title="Open in document">
+                          <span className="viewer__problem-status">{p.status === 'solved' ? '✓' : '✗'}</span>
+                          <span className="viewer__problem-body">
+                            <span className="viewer__problem-src">{p.doc_path}{p.ref ? ` · p.${p.ref}` : ''}</span>
+                            <span className="viewer__problem-text">{p.text}</span>
+                            <span className="viewer__problem-meta">
+                              {p.attempts} attempt{p.attempts === 1 ? '' : 's'} · {p.wrong_count} wrong
+                              {missing && <span className="viewer__problem-missing"> · not in current archive</span>}
+                            </span>
+                          </span>
+                        </button>
+                        <div className="viewer__problem-actions">
+                          <button
+                            className="viewer__problem-solve"
+                            onClick={() => setProblemStatus(p, 'solved')}
+                            title="Mark as solved (again)"
+                          >✓</button>
+                          <button
+                            className="viewer__problem-wrong"
+                            onClick={() => setProblemStatus(p, 'wrong')}
+                            title="Mark as wrong (again)"
+                          >✗</button>
+                          <button className="viewer__problem-delete" onClick={() => removeProblem(p)} title="Delete">🗑️</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))
             )}
           </div>
         </div>
