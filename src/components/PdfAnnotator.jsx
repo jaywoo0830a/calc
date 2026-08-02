@@ -321,12 +321,12 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
       setSelTrigger(null);
       savedSelectionRef.current = null;
       window.getSelection()?.removeAllRanges();
-      setToast(status === 'solved' ? '✓ 푼 문제로 등록' : '✗ 틀린 문제로 등록');
+      setToast(status === 'solved' ? '✓ Marked as solved' : '✗ Marked as wrong');
     }).catch(() => {
       setSelTrigger(null);
       savedSelectionRef.current = null;
       window.getSelection()?.removeAllRanges();
-      setToast('등록 실패 — 서버 연결 확인');
+      setToast('Failed to save — check server');
     });
   }, [filePath]);
 
@@ -846,13 +846,13 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
               className="pdf-annotator__sel-problem"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => registerProblem('solved')}
-              title="푼 문제로 등록"
+              title="Mark as solved"
             >✓</button>
             <button
               className="pdf-annotator__sel-problem pdf-annotator__sel-problem--wrong"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => registerProblem('wrong')}
-              title="틀린 문제로 등록"
+              title="Mark as wrong"
             >✗</button>
             {(tool === 'highlight' || tool === 'underline') && (
               <>

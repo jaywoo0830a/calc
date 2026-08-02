@@ -866,39 +866,39 @@ export default function Viewer() {
       <button
         className="viewer__problems-btn"
         onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
-        title="문제 관리"
-        aria-label="문제 관리"
+        title="Problems"
+        aria-label="Problems"
       >📋</button>
       {problemsOpen && (
         <div className="viewer__problems-panel">
           <div className="viewer__problems-header">
-            <span className="viewer__problems-title">📋 문제 ({problems.length})</span>
+            <span className="viewer__problems-title">📋 Problems ({problems.length})</span>
             <div className="viewer__problems-filters">
               <button
                 className={'viewer__problems-filter' + (problemsFilter === 'all' ? ' viewer__problems-filter--active' : '')}
                 onClick={() => setProblemsFilter('all')}
-              >전체</button>
+              >All</button>
               <button
                 className={'viewer__problems-filter' + (problemsFilter === 'solved' ? ' viewer__problems-filter--active' : '')}
                 onClick={() => setProblemsFilter('solved')}
-              >✓ 푼</button>
+              >✓ Solved</button>
               <button
                 className={'viewer__problems-filter' + (problemsFilter === 'wrong' ? ' viewer__problems-filter--active' : '')}
                 onClick={() => setProblemsFilter('wrong')}
-              >✗ 틀린</button>
+              >✗ Wrong</button>
             </div>
             <button className="viewer__problems-close" onClick={() => setProblemsOpen(false)}>×</button>
           </div>
           <div className="viewer__problems-list">
             {filteredProblems.length === 0 ? (
               <div className="viewer__problems-empty">
-                등록된 문제가 없습니다.<br />
-                문서에서 문제를 드래그하고 ✓ / ✗ 를 누르세요.
+                No problems registered yet.<br />
+                Select problem text in a document and press ✓ / ✗.
               </div>
             ) : (
               filteredProblems.map((p) => (
                 <div key={p.id} className={'viewer__problem-item viewer__problem-item--' + p.status}>
-                  <button className="viewer__problem-open" onClick={() => jumpToProblem(p)} title="문서에서 열기">
+                  <button className="viewer__problem-open" onClick={() => jumpToProblem(p)} title="Open in document">
                     <span className="viewer__problem-status">{p.status === 'solved' ? '✓' : '✗'}</span>
                     <span className="viewer__problem-body">
                       <span className="viewer__problem-src">{p.doc_path}{p.ref ? ` · p.${p.ref}` : ''}</span>
@@ -909,9 +909,9 @@ export default function Viewer() {
                     <button
                       className="viewer__problem-toggle"
                       onClick={() => toggleProblem(p)}
-                      title={p.status === 'solved' ? '틀린 문제로 변경' : '푼 문제로 변경'}
+                      title={p.status === 'solved' ? 'Mark as wrong' : 'Mark as solved'}
                     >{p.status === 'solved' ? '✗' : '✓'}</button>
-                    <button className="viewer__problem-delete" onClick={() => removeProblem(p)} title="삭제">🗑️</button>
+                    <button className="viewer__problem-delete" onClick={() => removeProblem(p)} title="Delete">🗑️</button>
                   </div>
                 </div>
               ))
