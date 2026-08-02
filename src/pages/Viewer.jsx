@@ -171,6 +171,7 @@ export default function Viewer() {
   const [problemsFilter, setProblemsFilter] = useState('all'); // all | solved | wrong
   const [pdfInitialPage, setPdfInitialPage] = useState(null);  // 문제 점프용 시작 페이지
   const [mdSel, setMdSel] = useState(null);                    // { x, y, text } 마크다운 선택 툴바
+  const [loading, setLoading] = useState(false);               // ZIP 로딩 표시
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const [readability, setReadability] = useState(0);
@@ -190,6 +191,7 @@ export default function Viewer() {
     const saved = sessionStorage.getItem('viewer_state');
     if (!saved) return;
     const seq = ++navSeq.current; // 이 복원보다 새로운 탐색이 있으면 무시
+    setLoading(true);
     try {
       const state = JSON.parse(saved);
       if (state.zipId && state.selectedPath) {
@@ -234,8 +236,9 @@ export default function Viewer() {
                 setContent(html);
               }
             }
-          }).catch(() => {});
-        }).catch(() => {});
+            setLoading(false);
+          }).catch(() => { if (seq === navSeq.current) setLoading(false); });
+        }).catch(() => { if (seq === navSeq.current) setLoading(false); });
       }
     } catch {}
   }, []);
@@ -433,6 +436,7 @@ export default function Viewer() {
         setToc([]);
         setMdSel(null);
         setPdfInitialPage(null);
+        setLoading(false);
       });
     } else {
       // Use the tree node selection path
@@ -446,12 +450,14 @@ export default function Viewer() {
       file.async('text').then((txt) => {
         if (seq !== navSeq.current) return;
         setContent(processContent(txt, resolveImg));
+        setLoading(false);
       });
     }
   }, [imageBlobs, setContent]);
 
   const loadZip = useCallback(async (file) => {
     const seq = ++navSeq.current;                    // 새 업로드 = 최신 탐색
+    setLoading(true);
     setFileName(file.name);
     scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
     try {
@@ -488,12 +494,16 @@ export default function Viewer() {
         if (seq !== navSeq.current) return;          // 사용자가 이미 다른 문서로 이동
         setContent(html);
       }
-    } catch (e) { setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
+      setLoading(false);
+    } catch (e) {
+      if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
+    }
   }, [indexImages, refreshStored]);
 
   // IndexedDB에서 저장된 ZIP 불러오기
   const handleLoadStored = useCallback(async (entry) => {
     const seq = ++navSeq.current;                    // 새로 불러온 ZIP = 최신 탐색
+    setLoading(true);
     const stored = await loadZipFromDB(entry.id);
     if (!stored) return;
     setFileName(stored.name);
@@ -527,7 +537,10 @@ export default function Viewer() {
         if (seq !== navSeq.current) return;
         setContent(html);
       }
-    } catch (e) { setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
+      setLoading(false);
+    } catch (e) {
+      if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
+    }
   }, [indexImages]);
 
   // ZIP 내 문서 간 크로스 링크 처리
@@ -569,6 +582,7 @@ export default function Viewer() {
       setRendered('');
       setToc([]);
       setPdfInitialPage(null);
+      setLoading(false);
       return;
     }
     setPdfUrl('');
@@ -578,6 +592,7 @@ export default function Viewer() {
       const html = processContent(await file.async('text'), resolveImg);
       if (seq !== navSeq.current) return;
       setContent(html);
+      setLoading(false);
       if (hash) {
         setTimeout(() => {
           const el = document.getElementById(hash);
@@ -681,6 +696,7 @@ export default function Viewer() {
         setPdfUrl(url);
         setRendered('');
         setToc([]);
+        setLoading(false);
       });
     } else {
       setPdfInitialPage(null);
@@ -690,6 +706,7 @@ export default function Viewer() {
       file.async('text').then((txt) => {
         if (seq !== navSeq.current) return;
         setContent(processContent(txt, resolveImg));
+        setLoading(false);
         // 렌더링 후 문제 위치로 스크롤 + 임시 하이라이트 (포커스 전환)
         setTimeout(() => {
           const el = findTextInContent(p.text);
@@ -754,6 +771,7 @@ export default function Viewer() {
       setRendered('');
       setToc([]);
       setPdfInitialPage(null);
+      setLoading(false);
       return;
     }
     setPdfUrl('');
@@ -763,6 +781,7 @@ export default function Viewer() {
       const html = processContent(await node.file.async('text'), resolveImg);
       if (seq !== navSeq.current) return;
       setContent(html);
+      setLoading(false);
     }
     catch (e) { setContent('<p style="color:red">Read error: ' + e.message + '</p>'); }
   }, [imageBlobs, selectedPath, setContent]);
@@ -881,13 +900,19 @@ export default function Viewer() {
             <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} />
           ) : rendered ? (
             <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} onMouseUp={handleMdMouseUp} />
-          ) : (
+          ) : !loading ? (
             <div className="viewer__empty">Upload a ZIP archive to get started</div>
-          )}
+          ) : null}
           {mdSel && (
             <div className="viewer__md-sel" style={{ position: 'fixed', left: mdSel.x, top: mdSel.y, zIndex: 250 }}>
               <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('solved')} title="Mark as solved">✓ Solved</button>
               <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('wrong')} title="Mark as wrong">✗ Wrong</button>
+            </div>
+          )}
+          {loading && (
+            <div className="viewer__loading-overlay">
+              <div className="viewer__spinner" />
+              <span>Loading…</span>
             </div>
           )}
         </div>
