@@ -791,6 +791,16 @@
     overflow: hidden;
   }
 
+  &__problem-meta {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-family: $ff;
+  }
+
+  &__problem-missing {
+    color: $c-error;
+  }
+
   &__problem-actions {
     display: flex;
     flex-direction: column;

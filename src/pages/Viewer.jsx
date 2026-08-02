@@ -660,6 +660,12 @@ export default function Viewer() {
     api.deleteProblem(p.id).then(refreshProblems).catch(() => {});
   }, [refreshProblems]);
 
+  // 현재 로드된 ZIP 안에 해당 문서가 있는지 (재업로드 후 고아 문제 표시용)
+  const isDocInCurrentZip = useCallback((docPath) => {
+    const zip = zipRef.current;
+    return !!(zip && zip.files && zip.files[docPath] && !zip.files[docPath].dir);
+  }, []);
+
   const filteredProblems = useMemo(() => {
     if (problemsFilter === 'all') return problems;
     return problems.filter((p) => p.status === problemsFilter);
@@ -896,25 +902,32 @@ export default function Viewer() {
                 Select problem text in a document and press ✓ / ✗.
               </div>
             ) : (
-              filteredProblems.map((p) => (
-                <div key={p.id} className={'viewer__problem-item viewer__problem-item--' + p.status}>
-                  <button className="viewer__problem-open" onClick={() => jumpToProblem(p)} title="Open in document">
-                    <span className="viewer__problem-status">{p.status === 'solved' ? '✓' : '✗'}</span>
-                    <span className="viewer__problem-body">
-                      <span className="viewer__problem-src">{p.doc_path}{p.ref ? ` · p.${p.ref}` : ''}</span>
-                      <span className="viewer__problem-text">{p.text}</span>
-                    </span>
-                  </button>
-                  <div className="viewer__problem-actions">
-                    <button
-                      className="viewer__problem-toggle"
-                      onClick={() => toggleProblem(p)}
-                      title={p.status === 'solved' ? 'Mark as wrong' : 'Mark as solved'}
-                    >{p.status === 'solved' ? '✗' : '✓'}</button>
-                    <button className="viewer__problem-delete" onClick={() => removeProblem(p)} title="Delete">🗑️</button>
+              filteredProblems.map((p) => {
+                const missing = !!zipRef.current && !isDocInCurrentZip(p.doc_path);
+                return (
+                  <div key={p.id} className={'viewer__problem-item viewer__problem-item--' + p.status}>
+                    <button className="viewer__problem-open" onClick={() => jumpToProblem(p)} title="Open in document">
+                      <span className="viewer__problem-status">{p.status === 'solved' ? '✓' : '✗'}</span>
+                      <span className="viewer__problem-body">
+                        <span className="viewer__problem-src">{p.doc_path}{p.ref ? ` · p.${p.ref}` : ''}</span>
+                        <span className="viewer__problem-text">{p.text}</span>
+                        <span className="viewer__problem-meta">
+                          {p.attempts} attempt{p.attempts === 1 ? '' : 's'} · {p.wrong_count} wrong
+                          {missing && <span className="viewer__problem-missing"> · not in current archive</span>}
+                        </span>
+                      </span>
+                    </button>
+                    <div className="viewer__problem-actions">
+                      <button
+                        className="viewer__problem-toggle"
+                        onClick={() => toggleProblem(p)}
+                        title={p.status === 'solved' ? 'Mark as wrong' : 'Mark as solved'}
+                      >{p.status === 'solved' ? '✗' : '✓'}</button>
+                      <button className="viewer__problem-delete" onClick={() => removeProblem(p)} title="Delete">🗑️</button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

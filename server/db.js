@@ -101,4 +101,9 @@ export const problems = {
   remove(id) {
     db.prepare('DELETE FROM problems WHERE id = ?').run(id);
   },
+
+  /** 특정 문서의 모든 문제 삭제 (재업로드/패치 후 정리용) */
+  removeByDoc(docId) {
+    db.prepare('DELETE FROM problems WHERE doc_id = ?').run(docId);
+  },
 };

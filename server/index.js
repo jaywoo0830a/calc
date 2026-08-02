@@ -347,6 +347,18 @@ app.patch('/problems/:id', (req, res) => {
   }
 });
 
+// 특정 문서의 문제 전체 삭제 (재업로드/패치 후 정리용)
+app.delete('/problems', (req, res) => {
+  try {
+    const { doc } = req.query;
+    if (!doc) return res.status(400).json({ error: 'doc query param required' });
+    problems.removeByDoc(doc);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/problems/:id', (req, res) => {
   try {
     problems.remove(req.params.id);

@@ -41,4 +41,9 @@ export const api = {
   deleteProblem(id) {
     return request('/problems/' + encodeURIComponent(id), { method: 'DELETE' });
   },
+
+  /** 특정 문서의 모든 문제 삭제 */
+  deleteProblemsByDoc(doc) {
+    return request('/problems?doc=' + encodeURIComponent(doc), { method: 'DELETE' });
+  },
 };
