@@ -486,7 +486,6 @@
     z-index: 98;
     opacity: 0;
     pointer-events: none;
-    transition: opacity $transition-normal;
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
   }
@@ -513,7 +512,6 @@
     border-right: $border-thin solid rgba(212, 201, 181, 0.15);
     z-index: 99;
     transform: translateX(-100%);
-    transition: transform $transition-normal;
     box-shadow: $shadow-lg;
     display: flex;
     flex-direction: column;
@@ -536,7 +534,7 @@
     border-radius: 0;
     background: linear-gradient(to right, $c-page-dark, transparent);
     opacity: 0.3;
-    transition: left $transition-normal, opacity $transition-fast;
+    transition: opacity $transition-fast;
     cursor: pointer;
 
     &:active { opacity: 0.5; }

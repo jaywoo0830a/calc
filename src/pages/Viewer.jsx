@@ -197,7 +197,10 @@ export default function Viewer() {
             if (f && !f.dir) {
               if (state.selectedPath.endsWith('.pdf')) {
                 const blob = await f.async('blob');
-                setPdfUrl(URL.createObjectURL(blob));
+                const url = URL.createObjectURL(blob);
+                pdfBlobUrlsRef.current.add(url);
+                setToc([]);
+                setPdfUrl(url);
               } else {
                 const dir = state.selectedPath.substring(0, state.selectedPath.lastIndexOf('/') + 1);
                 const resolveImg = (src) => resolveImagePath(src, dir, blobs);
@@ -285,8 +288,7 @@ export default function Viewer() {
   }, []);
 
   // ── Cleanup blob URLs to prevent memory leaks ────────────────────────
-  const blobUrlsRef = useRef(new Set());
-  // Revoke old blob URLs when new imageBlobs arrive
+  const blobUrlsRef = useRef(new Set());  const pdfBlobUrlsRef = useRef(new Set()); // PDF blob URL 별도 추적 (급전환 시 누수 방지)  // Revoke old blob URLs when new imageBlobs arrive
   useEffect(() => {
     const oldUrls = blobUrlsRef.current;
     const newUrls = new Set();
@@ -299,13 +301,25 @@ export default function Viewer() {
     }
     blobUrlsRef.current = newUrls;
   }, [imageBlobs]);
-  // Revoke old PDF blob URL
+  // Revoke orphaned PDF blob URLs (PDF→PDF 급전환 시 누락 방지)
   useEffect(() => {
-    const prev = blobUrlsRef.current;
-    return () => {
-      if (pdfUrl && pdfUrl.startsWith('blob:')) URL.revokeObjectURL(pdfUrl);
-    };
+    const keep = new Set();
+    if (pdfUrl && pdfUrl.startsWith('blob:')) keep.add(pdfUrl);
+    for (const url of pdfBlobUrlsRef.current) {
+      if (!keep.has(url)) URL.revokeObjectURL(url);
+    }
+    pdfBlobUrlsRef.current = keep;
   }, [pdfUrl]);
+
+  // 언마운트 시 남은 blob URL 전체 해제 (메모리 누수 방지)
+  useEffect(() => {
+    return () => {
+      for (const url of blobUrlsRef.current) URL.revokeObjectURL(url);
+      for (const url of pdfBlobUrlsRef.current) URL.revokeObjectURL(url);
+      blobUrlsRef.current.clear();
+      pdfBlobUrlsRef.current.clear();
+    };
+  }, []);
 
   // ── Build search index from text files in ZIP ──────────────────────────
   const buildSearchIndex = useCallback(async (zip) => {
@@ -376,9 +390,12 @@ export default function Viewer() {
       const file = zip.files[result.path];
       if (!file) return;
       file.async('blob').then((blob) => {
-        setPdfUrl(URL.createObjectURL(blob));
+        const url = URL.createObjectURL(blob);
+        pdfBlobUrlsRef.current.add(url);
+        setPdfUrl(url);
         setSelectedPath(result.path);
         setRendered('');
+        setToc([]);
       });
     } else {
       // Use the tree node selection path
@@ -493,8 +510,11 @@ export default function Viewer() {
 
     if (isPdf) {
       const blob = await file.async('blob');
-      setPdfUrl(URL.createObjectURL(blob));
+      const url = URL.createObjectURL(blob);
+      pdfBlobUrlsRef.current.add(url);
+      setPdfUrl(url);
       setRendered('');
+      setToc([]);
       return;
     }
     setPdfUrl('');
@@ -555,8 +575,10 @@ export default function Viewer() {
     if (node.name.endsWith('.pdf')) {
       const blob = await node.file.async('blob');
       const url = URL.createObjectURL(blob);
+      pdfBlobUrlsRef.current.add(url);
       setPdfUrl(url);
       setRendered('');
+      setToc([]);
       return;
     }
     setPdfUrl('');

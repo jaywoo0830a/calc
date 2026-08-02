@@ -272,13 +272,24 @@ export default function PdfAnnotator({ url, filePath }) {
     getBookmarks(filePath).then(setBookmarks).catch(() => {});
   }, [filePath]);
 
-  // ── Reset TOC when PDF url changes ─────────────────────
+  // ── Reset state when PDF url changes ───────────────────
   useEffect(() => {
     setToc(null);
     setTocOpen(false);
-    pdfDocRef.current = null;
     setLoadError(null);
     setNumPages(0);
+    return () => {
+      // 이전 PDF 문서/페이지 참조 해제 (메모리 누수 방지)
+      const doc = pdfDocRef.current;
+      if (doc) {
+        pdfDocRef.current = null;
+        try {
+          const p = doc.destroy?.();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        } catch { /* already destroyed */ }
+      }
+      pageRefs.current = {};
+    };
   }, [url]);
 
   // ── Polling: check selection every 250ms (dead simple, always works) ──
