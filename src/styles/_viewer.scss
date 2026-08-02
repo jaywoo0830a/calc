@@ -621,29 +621,33 @@
   }
 
   // ---- 푼/틀린 문제 관리 패널 ------------------------------
+  // 하단 우측 스택: 📋(위) → 가독성 ±(중간) → ⛶ fullscreen(아래) — 겹침 방지
   &__problems-btn {
     position: fixed;
-    right: 1rem;
-    bottom: 1rem;
+    right: $sp-4;
+    bottom: calc($sp-4 + ($fullscreen-btn + $sp-2) * 2 + env(safe-area-inset-bottom, 0px));
     z-index: $z-fullscreen;
-    width: 2.75rem;
-    height: 2.75rem;
-    border: none;
-    border-radius: 50%;
-    background: $c-page-dark;
+    width: $fullscreen-btn;
+    height: $fullscreen-btn;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
     color: $c-ink;
-    font-size: 1.2rem;
+    font-size: $fs-step-1;
+    box-shadow: $shadow-md;
     cursor: pointer;
-    box-shadow: $shadow-lg;
-    transition: background $transition-fast, transform $transition-fast;
+    transition: all $transition-fast;
 
     &:hover { background: $c-page-darker; transform: scale(1.05); }
   }
 
   &__problems-panel {
     position: fixed;
-    right: 1rem;
-    bottom: 4.5rem;
+    right: $sp-4;
+    bottom: calc($sp-4 + ($fullscreen-btn + $sp-2) * 3 + env(safe-area-inset-bottom, 0px));
     z-index: $z-fullscreen;
     width: min(24rem, calc(100vw - 2rem));
     max-height: 60vh;
