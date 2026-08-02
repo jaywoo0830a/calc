@@ -379,6 +379,10 @@
     line-height: var(--viewer-content-lh, $lh-body);
     max-width: 100%;
     overflow-wrap: anywhere;
+    // 모바일 텍스트 선택 허용 (body의 -webkit-touch-callout:none 재정의)
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
   }
 
   // ---- TOC Sidebar — fixed overlay from viewport right ----

@@ -176,6 +176,7 @@ export default function Viewer() {
   const [mdToast, setMdToast] = useState(null);                // 등록 피드백 (PDF와 통일)
   const mdSelTextRef = useRef('');      // 현재 표시 중인 선택 텍스트
   const mdDismissedRef = useRef('');    // 방금 닫은 선택 텍스트 (재표시 방지)
+  const mdSelTimerRef = useRef(null);   // selectionchange 디바운스 타이머
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const [readability, setReadability] = useState(0);
@@ -652,6 +653,7 @@ export default function Viewer() {
       return;
     }
     if (text === mdDismissedRef.current) return;      // 방금 닫은 선택은 재표시 안 함
+    if (mdSelTextRef.current === text) return;         // 이미 같은 선택 표시 중 (중복 방지)
     const rect = range.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return;
     const vw = window.innerWidth, vh = window.innerHeight;
@@ -693,6 +695,22 @@ export default function Viewer() {
       document.removeEventListener('touchstart', onDown);
     };
   }, [mdSel, dismissMdSel]);
+
+  // 마크다운 선택 감지 — selectionchange (데스크톱+모바일 공용, 디바운스)
+  // touchend만으로는 불안정해서, 선택이 바뀔 때마다 브라우저가 알려주는
+  // selectionchange 이벤트를 사용한다 (iOS/Android long-press 선택 포함).
+  useEffect(() => {
+    if (!rendered) return;
+    const onSelChange = () => {
+      if (mdSelTimerRef.current) clearTimeout(mdSelTimerRef.current);
+      mdSelTimerRef.current = setTimeout(detectMdSelection, 30);
+    };
+    document.addEventListener('selectionchange', onSelChange);
+    return () => {
+      document.removeEventListener('selectionchange', onSelChange);
+      if (mdSelTimerRef.current) clearTimeout(mdSelTimerRef.current);
+    };
+  }, [rendered, detectMdSelection]);
 
   // 등록 피드백 자동 해제
   useEffect(() => {
