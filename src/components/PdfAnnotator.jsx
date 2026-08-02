@@ -811,14 +811,14 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
                   maxWidth: (fullscreen || zoomLevel > 1) ? 'none' : undefined,
                   height: (fullscreen || zoomLevel > 1) ? 'auto' : undefined,
                   minHeight: (fullscreen || zoomLevel > 1) ? undefined : undefined,
-                  cursor: (tool === 'highlight' || tool === 'underline') ? 'text' : undefined,
+                  cursor: (tool === 'highlight' || tool === 'underline' || tool === 'problem') ? 'text' : undefined,
                 }}
               >
                 <Page
                   pageNumber={pageNumber}
                   width={pageW}
                   devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
-                  renderTextLayer={tool === 'highlight' || tool === 'underline'}
+                  renderTextLayer={tool === 'highlight' || tool === 'underline' || tool === 'problem'}
                   renderAnnotationLayer={true}
                   onRenderSuccess={() => setPageRenderTick(t => t + 1)}
                 />
