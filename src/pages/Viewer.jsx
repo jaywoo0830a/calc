@@ -172,6 +172,7 @@ export default function Viewer() {
   const [pdfInitialPage, setPdfInitialPage] = useState(null);  // 문제 점프용 시작 페이지
   const [mdSel, setMdSel] = useState(null);                    // { x, y, text } 마크다운 선택 툴바
   const [loading, setLoading] = useState(false);               // ZIP 로딩 표시
+  const [mdToast, setMdToast] = useState(null);                // 등록 피드백 (PDF와 통일)
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const [readability, setReadability] = useState(0);
@@ -660,6 +661,13 @@ export default function Viewer() {
     return () => document.removeEventListener('mousedown', onDown);
   }, [mdSel]);
 
+  // 등록 피드백 자동 해제
+  useEffect(() => {
+    if (!mdToast) return;
+    const t = setTimeout(() => setMdToast(null), 2000);
+    return () => clearTimeout(t);
+  }, [mdToast]);
+
   const registerMdProblem = useCallback((status) => {
     if (!mdSel || !selectedPath) return;
     api.saveProblem({
@@ -672,9 +680,11 @@ export default function Viewer() {
       setMdSel(null);
       window.getSelection()?.removeAllRanges();
       refreshProblems();
+      setMdToast(status === 'solved' ? '✓ Marked as solved' : '✗ Marked as wrong');
     }).catch(() => {
       setMdSel(null);
       window.getSelection()?.removeAllRanges();
+      setMdToast('Failed to save — check server');
     });
   }, [mdSel, selectedPath, refreshProblems]);
 
@@ -721,14 +731,9 @@ export default function Viewer() {
     setProblemsOpen(false);
   }, [imageBlobs, setContent]);
 
-  const toggleProblem = useCallback((p) => {
-    const next = p.status === 'solved' ? 'wrong' : 'solved';
-    api.updateProblem(p.id, { status: next }).then(refreshProblems).catch(() => {});
-  }, [refreshProblems]);
-
-  // 상태는 그대로 두고 "한 번 더 풀었다" 기록
-  const recordAttempt = useCallback((p) => {
-    api.updateProblem(p.id, { attempts: p.attempts + 1 }).then(refreshProblems).catch(() => {});
+  // 상태 지정(맞음/틀림) — 같은 상태 재클릭도 "한 번 더 풀었다"로 attempts 기록
+  const setProblemStatus = useCallback((p, status) => {
+    api.updateProblem(p.id, { status, attempts: p.attempts + 1 }).then(refreshProblems).catch(() => {});
   }, [refreshProblems]);
 
   const removeProblem = useCallback((p) => {
@@ -955,6 +960,7 @@ export default function Viewer() {
           </button>
         )}
       </div>
+      {mdToast && <div className="viewer__md-toast">{mdToast}</div>}
       {/* Image lightbox */}
       {lightbox && (
         <div className="viewer__lightbox" onClick={() => setLightbox(null)}>
@@ -1009,15 +1015,15 @@ export default function Viewer() {
                     </button>
                     <div className="viewer__problem-actions">
                       <button
-                        className="viewer__problem-toggle"
-                        onClick={() => toggleProblem(p)}
-                        title={p.status === 'solved' ? 'Mark as wrong' : 'Mark as solved'}
-                      >{p.status === 'solved' ? '✗' : '✓'}</button>
+                        className="viewer__problem-solve"
+                        onClick={() => setProblemStatus(p, 'solved')}
+                        title="Mark as solved (again)"
+                      >✓</button>
                       <button
-                        className="viewer__problem-attempt"
-                        onClick={() => recordAttempt(p)}
-                        title="Record another attempt"
-                      >＋</button>
+                        className="viewer__problem-wrong"
+                        onClick={() => setProblemStatus(p, 'wrong')}
+                        title="Mark as wrong (again)"
+                      >✗</button>
                       <button className="viewer__problem-delete" onClick={() => removeProblem(p)} title="Delete">🗑️</button>
                     </div>
                   </div>

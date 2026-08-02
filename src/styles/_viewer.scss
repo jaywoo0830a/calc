@@ -848,8 +848,8 @@
     flex-shrink: 0;
   }
 
-  &__problem-toggle,
-  &__problem-attempt,
+  &__problem-solve,
+  &__problem-wrong,
   &__problem-delete {
     width: 1.6rem;
     height: 1.6rem;
@@ -865,19 +865,37 @@
     &:hover { background: $c-page-darker; }
   }
 
-  &__problem-toggle {
-    color: $c-ink-soft;
-    &:hover { color: $c-accent; }
+  &__problem-solve {
+    color: $c-equals;
+    &:hover { color: darken($c-equals, 10%); }
   }
 
-  &__problem-attempt {
-    color: $c-link;
-    &:hover { color: darken($c-link, 10%); }
+  &__problem-wrong {
+    color: $c-error;
+    &:hover { color: darken($c-error, 10%); }
   }
 
   &__problem-delete {
     color: $c-ink-faint;
     &:hover { color: $c-error; }
+  }
+
+  // ---- 마크다운 등록 피드백 토스트 (PDF와 통일) ---------------
+  &__md-toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: $z-fullscreen;
+    background: rgba(44, 36, 22, 0.92);
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: 0.5rem 1.1rem;
+    border-radius: 2rem;
+    box-shadow: $shadow-lg;
+    pointer-events: none;
+    animation: lightboxIn 0.2s ease;
   }
 
   // ---- 마크다운 선택 → 문제 등록 툴바 ----------------------

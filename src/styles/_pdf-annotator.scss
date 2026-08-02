@@ -274,28 +274,26 @@
     &:hover { background: rgba(0, 0, 0, 0.12); color: #555; }
   }
 
-  // ---- 푼/틀린 문제 등록 버튼 (선택 툴바) -------------------
+  // ---- 푼/틀린 문제 등록 버튼 (선택 툴바, md-sel과 동일 pill 스타일) ---
   &__sel-problem {
-    width: 1.75rem;
-    height: 1.75rem;
+    padding: 0.3rem 0.75rem;
     border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 0.95rem;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    border-radius: 2rem;
     background: rgba(61, 90, 64, 0.14);
     color: $c-equals;
-    flex-shrink: 0;
-    transition: all 0.15s ease;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease;
 
-    &:hover { transform: scale(1.12); }
+    &:hover { background: rgba(61, 90, 64, 0.22); }
 
     &--wrong {
       background: $c-error-light;
       color: $c-error;
+
+      &:hover { background: $c-error-soft; }
     }
   }
 
@@ -387,7 +385,8 @@
     flex-shrink: 0;
   }
 
-  &__problem-toggle,
+  &__problem-solve,
+  &__problem-wrong,
   &__problem-delete {
     width: 1.6rem;
     height: 1.6rem;
@@ -403,9 +402,14 @@
     &:hover { background: $c-page-darker; }
   }
 
-  &__problem-toggle {
-    color: $c-ink-soft;
-    &:hover { color: $c-accent; }
+  &__problem-solve {
+    color: $c-equals;
+    &:hover { color: darken($c-equals, 10%); }
+  }
+
+  &__problem-wrong {
+    color: $c-error;
+    &:hover { color: darken($c-error, 10%); }
   }
 
   &__problem-delete {

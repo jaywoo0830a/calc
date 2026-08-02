@@ -297,9 +297,9 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
     setProblemsOpen(false);
   }, [filePath, numPages, goToPage]);
 
-  const toggleProblemStatus = useCallback((p) => {
-    const next = p.status === 'solved' ? 'wrong' : 'solved';
-    api.updateProblem(p.id, { status: next }).then(refreshProblems).catch(() => {});
+  // 상태 지정(맞음/틀림) — 같은 상태 재클릭도 시도 횟수로 기록
+  const setProblemStatus = useCallback((p, status) => {
+    api.updateProblem(p.id, { status, attempts: p.attempts + 1 }).then(refreshProblems).catch(() => {});
   }, [refreshProblems]);
 
   const removeProblemItem = useCallback((p) => {
@@ -772,10 +772,15 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
                 </button>
                 <div className="pdf-annotator__problem-actions">
                   <button
-                    className="pdf-annotator__problem-toggle"
-                    onClick={() => toggleProblemStatus(p)}
-                    title={p.status === 'solved' ? 'Mark as wrong' : 'Mark as solved'}
-                  >{p.status === 'solved' ? '✗' : '✓'}</button>
+                    className="pdf-annotator__problem-solve"
+                    onClick={() => setProblemStatus(p, 'solved')}
+                    title="Mark as solved (again)"
+                  >✓</button>
+                  <button
+                    className="pdf-annotator__problem-wrong"
+                    onClick={() => setProblemStatus(p, 'wrong')}
+                    title="Mark as wrong (again)"
+                  >✗</button>
                   <button
                     className="pdf-annotator__problem-delete"
                     onClick={() => removeProblemItem(p)}
@@ -935,14 +940,14 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
                   className="pdf-annotator__sel-problem"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => registerProblem('solved')}
-                  title="Mark as solved"
-                >✓</button>
+                  title="Mark as solved (again)"
+                >✓ Solved</button>
                 <button
                   className="pdf-annotator__sel-problem pdf-annotator__sel-problem--wrong"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => registerProblem('wrong')}
-                  title="Mark as wrong"
-                >✗</button>
+                  title="Mark as wrong (again)"
+                >✗ Wrong</button>
               </>
             )}
             {(tool === 'highlight' || tool === 'underline') && (
