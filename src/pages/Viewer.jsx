@@ -917,35 +917,44 @@ export default function Viewer() {
           )}
         </div>
       </div>
-      {(rendered || pdfUrl) && (
+      {/* 하단 우측 컨트롤 — 가로 정렬 */}
+      <div className="viewer__controls">
         <button
-          className="viewer__fullscreen-btn"
-          onClick={() => setFullscreen(!fullscreen)}
-          aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-        >
-          {fullscreen ? '⊠' : '⛶'}
-        </button>
-      )}
-      {rendered && (
-        <div className="viewer__readability">
+          className="viewer__problems-btn"
+          onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
+          title="Problems"
+          aria-label="Problems"
+        >📋</button>
+        {rendered && (
+          <div className="viewer__readability">
+            <button
+              className="viewer__readability-btn"
+              onClick={() => setReadability(Math.max(0, readability - 1))}
+              disabled={readability === 0}
+              aria-label="Decrease readability"
+              title="가독성 낮추기"
+            >➖</button>
+            <span className="viewer__readability-level">{readability === 0 ? '👁️' : readability}</span>
+            <button
+              className="viewer__readability-btn"
+              onClick={() => setReadability(Math.min(5, readability + 1))}
+              disabled={readability === 5}
+              aria-label="Increase readability"
+              title="가독성 높이기"
+            >➕</button>
+          </div>
+        )}
+        {(rendered || pdfUrl) && (
           <button
-            className="viewer__readability-btn"
-            onClick={() => setReadability(Math.max(0, readability - 1))}
-            disabled={readability === 0}
-            aria-label="Decrease readability"
-            title="가독성 낮추기"
-          >➖</button>
-          <span className="viewer__readability-level">{readability === 0 ? '👁️' : readability}</span>
-          <button
-            className="viewer__readability-btn"
-            onClick={() => setReadability(Math.min(5, readability + 1))}
-            disabled={readability === 5}
-            aria-label="Increase readability"
-            title="가독성 높이기"
-          >➕</button>
-        </div>
-      )}
+            className="viewer__fullscreen-btn"
+            onClick={() => setFullscreen(!fullscreen)}
+            aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          >
+            {fullscreen ? '⊠' : '⛶'}
+          </button>
+        )}
+      </div>
       {/* Image lightbox */}
       {lightbox && (
         <div className="viewer__lightbox" onClick={() => setLightbox(null)}>
@@ -956,12 +965,6 @@ export default function Viewer() {
       )}
 
       {/* 푼/틀린 문제 관리 */}
-      <button
-        className="viewer__problems-btn"
-        onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
-        title="Problems"
-        aria-label="Problems"
-      >📋</button>
       {problemsOpen && (
         <div className="viewer__problems-panel">
           <div className="viewer__problems-header">

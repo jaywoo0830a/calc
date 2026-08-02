@@ -504,12 +504,19 @@
     border-radius: $radius-sm;
   }
 
-  // ---- Fullscreen toggle button ----------------------------
-  &__fullscreen-btn {
+  // ---- 하단 우측 컨트롤 바 (가로 정렬) ----------------------
+  &__controls {
     position: fixed;
     bottom: calc($sp-4 + env(safe-area-inset-bottom, 0px));
     right: $sp-4;
-    z-index: $z-fullscreen-btn;
+    z-index: $z-fullscreen;
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+  }
+
+  // ---- Fullscreen toggle button ----------------------------
+  &__fullscreen-btn {
     width: $fullscreen-btn;
     height: $fullscreen-btn;
     display: flex;
@@ -523,6 +530,8 @@
     box-shadow: $shadow-md;
     transition: all $transition-fast;
     opacity: $opacity-subtle;
+    cursor: pointer;
+    flex-shrink: 0;
 
     &:active {
       transform: scale(0.9);
@@ -539,12 +548,8 @@
 
   // ---- Readability ± buttons -----------------------------
   &__readability {
-    position: fixed;
-    bottom: calc($sp-4 + $fullscreen-btn + $sp-2 + env(safe-area-inset-bottom, 0px));
-    right: $sp-4;
-    z-index: $z-fullscreen-btn;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     gap: 0.125rem;
   }
@@ -649,12 +654,7 @@
   }
 
   // ---- 푼/틀린 문제 관리 패널 ------------------------------
-  // 하단 우측 스택: 📋(위) → 가독성 ±(중간) → ⛶ fullscreen(아래) — 겹침 방지
   &__problems-btn {
-    position: fixed;
-    right: $sp-4;
-    bottom: calc($sp-4 + ($fullscreen-btn + $sp-2) * 2 + env(safe-area-inset-bottom, 0px));
-    z-index: $z-fullscreen;
     width: $fullscreen-btn;
     height: $fullscreen-btn;
     display: flex;
@@ -668,6 +668,7 @@
     box-shadow: $shadow-md;
     cursor: pointer;
     transition: all $transition-fast;
+    flex-shrink: 0;
 
     &:hover { background: $c-page-darker; transform: scale(1.05); }
   }
@@ -675,7 +676,7 @@
   &__problems-panel {
     position: fixed;
     right: $sp-4;
-    bottom: calc($sp-4 + ($fullscreen-btn + $sp-2) * 3 + env(safe-area-inset-bottom, 0px));
+    bottom: calc($sp-4 + $fullscreen-btn + $sp-2 + env(safe-area-inset-bottom, 0px));
     z-index: $z-fullscreen;
     width: min(24rem, calc(100vw - 2rem));
     max-height: 60vh;
