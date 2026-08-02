@@ -316,6 +316,103 @@
     animation: selTriggerIn 0.2s ease;
   }
 
+  // ---- Problems sidebar items (fullscreen 포함 접근) ---------
+  &__problem {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: $border-thin solid $c-rule-light;
+    border-radius: $radius-md;
+    margin-bottom: $sp-2;
+    overflow: hidden;
+
+    &--wrong { border-left: 3px solid $c-error; }
+    &--solved { border-left: 3px solid $c-equals; }
+  }
+
+  &__problem-open {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: $sp-2;
+    padding: $sp-2 $sp-3;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    font-family: $ff;
+
+    &:hover { background: $c-page-dark; }
+  }
+
+  &__problem-status {
+    font-size: $fs-step--1;
+    line-height: 1.2;
+    flex-shrink: 0;
+
+    .pdf-annotator__problem--wrong & { color: $c-error; }
+    .pdf-annotator__problem--solved & { color: $c-equals; }
+  }
+
+  &__problem-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  &__problem-src {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__problem-text {
+    font-size: $fs-step--1;
+    color: $c-ink;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  &__problem-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: $sp-1;
+    flex-shrink: 0;
+  }
+
+  &__problem-toggle,
+  &__problem-delete {
+    width: 1.6rem;
+    height: 1.6rem;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    cursor: pointer;
+    font-size: $fs-step--1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover { background: $c-page-darker; }
+  }
+
+  &__problem-toggle {
+    color: $c-ink-soft;
+    &:hover { color: $c-accent; }
+  }
+
+  &__problem-delete {
+    color: $c-ink-faint;
+    &:hover { color: $c-error; }
+  }
+
   // 문제 점프 시 페이지 포커스 플래시
   &__page-wrapper--flash {
     animation: pageFlash 2.2s ease;

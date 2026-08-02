@@ -73,6 +73,8 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
   const [pageRenderTick, setPageRenderTick] = useState(0); // bumps on each Page render → forces annotation recalculation
   const [bookmarks, setBookmarks] = useState([]);  // { id, filePath, pageNumber, title?, createdAt }
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const [problems, setProblems] = useState([]);      // 현재 문서의 푼/틀린 문제 (서버)
+  const [problemsOpen, setProblemsOpen] = useState(false);
   const [toast, setToast] = useState(null);        // 잠깐 표시되는 등록 피드백
   const [flashPage, setFlashPage] = useState(null); // 문제 점프 시 페이지 플래시
 
@@ -276,6 +278,33 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
     if (!filePath) return;
     getBookmarks(filePath).then(setBookmarks).catch(() => {});
   }, [filePath]);
+
+  // ── 현재 문서의 푼/틀린 문제 (서버 DB) — 풀스크린 포함 접근 ──
+  const refreshProblems = useCallback(() => {
+    if (!filePath) { setProblems([]); return; }
+    api.listProblems({ doc: filePath }).then(setProblems).catch(() => setProblems([]));
+  }, [filePath]);
+  useEffect(() => { refreshProblems(); }, [refreshProblems]);
+
+  const jumpToProblemPage = useCallback((p) => {
+    if (p.doc_path !== filePath) return;
+    const page = Number(p.ref);
+    if (page > 0 && page <= numPages) {
+      goToPage(page);
+      setFlashPage(page);
+      setTimeout(() => setFlashPage(null), 2200);
+    }
+    setProblemsOpen(false);
+  }, [filePath, numPages, goToPage]);
+
+  const toggleProblemStatus = useCallback((p) => {
+    const next = p.status === 'solved' ? 'wrong' : 'solved';
+    api.updateProblem(p.id, { status: next }).then(refreshProblems).catch(() => {});
+  }, [refreshProblems]);
+
+  const removeProblemItem = useCallback((p) => {
+    api.deleteProblem(p.id).then(refreshProblems).catch(() => {});
+  }, [refreshProblems]);
 
   // ── Reset state when PDF url changes ───────────────────
   useEffect(() => {
@@ -609,6 +638,13 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
             🔖 Bookmarks
           </button>
           <button
+            className={'pdf-annotator__tool' + (problemsOpen ? ' pdf-annotator__tool--active' : '')}
+            onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
+            title="Problems"
+          >
+            📋 Problems
+          </button>
+          <button
             className="pdf-annotator__fullscreen-btn"
             onClick={toggleFullscreen}
             title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
@@ -710,6 +746,48 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
         </div>
       </div>
       <div className="pdf-annotator__toc-overlay" onClick={() => setBookmarksOpen(false)} />
+
+      {/* Problems Sidebar — 풀스크린 포함 접근 가능 */}
+      <div className={'pdf-annotator__toc-sidebar' + (problemsOpen ? ' pdf-annotator__toc-sidebar--open' : '')}>
+        <div className="pdf-annotator__toc-header">
+          <span>📋 Problems</span>
+          <button className="pdf-annotator__toc-close" onClick={() => setProblemsOpen(false)}>×</button>
+        </div>
+        <div className="pdf-annotator__toc-list">
+          {problems.length === 0 ? (
+            <div className="pdf-annotator__toc-item" style={{ opacity: 0.5, cursor: 'default' }}>
+              No problems in this document yet
+            </div>
+          ) : (
+            problems.map((p) => (
+              <div key={p.id} className={'pdf-annotator__problem pdf-annotator__problem--' + p.status}>
+                <button className="pdf-annotator__problem-open" onClick={() => jumpToProblemPage(p)} title="Go to page">
+                  <span className="pdf-annotator__problem-status">{p.status === 'solved' ? '✓' : '✗'}</span>
+                  <span className="pdf-annotator__problem-body">
+                    <span className="pdf-annotator__problem-src">
+                      {p.ref ? `p.${p.ref}` : ''} · {p.attempts} attempt{p.attempts === 1 ? '' : 's'} · {p.wrong_count} wrong
+                    </span>
+                    <span className="pdf-annotator__problem-text">{p.text}</span>
+                  </span>
+                </button>
+                <div className="pdf-annotator__problem-actions">
+                  <button
+                    className="pdf-annotator__problem-toggle"
+                    onClick={() => toggleProblemStatus(p)}
+                    title={p.status === 'solved' ? 'Mark as wrong' : 'Mark as solved'}
+                  >{p.status === 'solved' ? '✗' : '✓'}</button>
+                  <button
+                    className="pdf-annotator__problem-delete"
+                    onClick={() => removeProblemItem(p)}
+                    title="Delete"
+                  >🗑️</button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+      <div className="pdf-annotator__toc-overlay" onClick={() => setProblemsOpen(false)} />
 
       {/* Comment input overlay */}
       {activeComment && (
