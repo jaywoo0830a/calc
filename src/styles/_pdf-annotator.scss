@@ -1163,11 +1163,17 @@
   }
 
   .pdf-annotator__page-wrapper {
-    // Disable iOS callout on long-press (annotation areas)
-    -webkit-touch-callout: none;
-    // Prevent iOS text selection popover on annotations
-    -webkit-user-select: none;
-    user-select: none;
+    // iOS: long-press 텍스트 선택 허용 (하이라이트/밑줄/Problem 도구용)
+    // 이전에는 user-select:none 이 iOS에서 선택을 완전 차단해
+    // 모바일에서 선택 오버레이가 표시되지 않는 원인이었음.
+    -webkit-user-select: text;
+    user-select: text;
+
+    .react-pdf__Page__textContent {
+      -webkit-user-select: text;
+      user-select: text;
+      -webkit-touch-callout: default;
+    }
   }
 
   .pdf-annotator__mark,

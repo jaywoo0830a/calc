@@ -174,6 +174,8 @@ export default function Viewer() {
   const [mdSel, setMdSel] = useState(null);                    // { x, y, text } 마크다운 선택 툴바
   const [loading, setLoading] = useState(false);               // ZIP 로딩 표시
   const [mdToast, setMdToast] = useState(null);                // 등록 피드백 (PDF와 통일)
+  const mdSelTextRef = useRef('');      // 현재 표시 중인 선택 텍스트
+  const mdDismissedRef = useRef('');    // 방금 닫은 선택 텍스트 (재표시 방지)
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const [readability, setReadability] = useState(0);
@@ -633,16 +635,25 @@ export default function Viewer() {
   }, [navigateTo]);
 
   // ── 마크다운 텍스트 선택 → 문제 등록 툴바 ───────────────
-  const handleMdMouseUp = useCallback((e) => {
-    if (e.target.closest('a, button, .viewer__md-sel')) return;
+  // mouseup(데스크톱) + touchend(모바일) 모두에서 동작하는 공용 감지 함수
+  const detectMdSelection = useCallback(() => {
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed) { setMdSel(null); return; }
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      mdSelTextRef.current = '';
+      setMdSel(null);
+      return;
+    }
     const text = sel.toString().trim();
-    if (!text || text.length > 2000) { setMdSel(null); return; }
+    if (!text || text.length > 2000) { mdSelTextRef.current = ''; setMdSel(null); return; }
     const range = sel.getRangeAt(0);
-    if (!previewRef.current?.contains(range.commonAncestorContainer)) { setMdSel(null); return; }
+    if (!previewRef.current?.contains(range.commonAncestorContainer)) {
+      mdSelTextRef.current = '';
+      setMdSel(null);
+      return;
+    }
+    if (text === mdDismissedRef.current) return;      // 방금 닫은 선택은 재표시 안 함
     const rect = range.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) { setMdSel(null); return; }
+    if (rect.width === 0 && rect.height === 0) return;
     const vw = window.innerWidth, vh = window.innerHeight;
     const tw = 168, th = 40, gap = 8;
     let x = rect.right + gap;
@@ -651,16 +662,37 @@ export default function Viewer() {
     x = Math.max(gap, Math.min(x, vw - tw - gap));
     if (y + th > vh - gap) y = rect.top - th - gap;
     y = Math.max(gap, Math.min(y, vh - th - gap));
+    mdSelTextRef.current = text;
     setMdSel({ x, y, text });
   }, []);
 
-  // 툴바 바깥 클릭 시 닫기
+  const handleMdMouseUp = useCallback((e) => {
+    if (e.target.closest('a, button, .viewer__md-sel')) return;
+    setTimeout(detectMdSelection, 0);                // 데스크톱
+  }, [detectMdSelection]);
+
+  const handleMdTouchEnd = useCallback((e) => {
+    if (e.target.closest('a, button, .viewer__md-sel')) return;
+    setTimeout(detectMdSelection, 80);               // 모바일 — 선택 확정 대기
+  }, [detectMdSelection]);
+
+  const dismissMdSel = useCallback(() => {
+    if (mdSel) mdDismissedRef.current = mdSel.text;
+    mdSelTextRef.current = '';
+    setMdSel(null);
+  }, [mdSel]);
+
+  // 툴바 바깥 클릭/터치 시 닫기
   useEffect(() => {
     if (!mdSel) return;
-    const onDown = (e) => { if (!e.target.closest('.viewer__md-sel')) setMdSel(null); };
+    const onDown = (e) => { if (!e.target.closest('.viewer__md-sel')) dismissMdSel(); };
     document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [mdSel]);
+    document.addEventListener('touchstart', onDown);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+    };
+  }, [mdSel, dismissMdSel]);
 
   // 등록 피드백 자동 해제
   useEffect(() => {
@@ -678,16 +710,16 @@ export default function Viewer() {
       text: mdSel.text,
       status,
     }).then(() => {
-      setMdSel(null);
+      dismissMdSel();
       window.getSelection()?.removeAllRanges();
       refreshProblems();
       setMdToast(status === 'solved' ? '✓ Marked as solved' : '✗ Marked as wrong');
     }).catch(() => {
-      setMdSel(null);
+      dismissMdSel();
       window.getSelection()?.removeAllRanges();
       setMdToast('Failed to save — check server');
     });
-  }, [mdSel, selectedPath, refreshProblems]);
+  }, [mdSel, selectedPath, refreshProblems, dismissMdSel]);
 
   // ── 푼/틀린 문제 패널 ──────────────────────────────────
   const jumpToProblem = useCallback((p) => {
@@ -922,7 +954,7 @@ export default function Viewer() {
           {pdfUrl ? (
             <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} />
           ) : rendered ? (
-            <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} onMouseUp={handleMdMouseUp} />
+            <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} onMouseUp={handleMdMouseUp} onTouchEnd={handleMdTouchEnd} />
           ) : !loading ? (
             <div className="viewer__empty">Upload a ZIP archive to get started</div>
           ) : null}
