@@ -801,6 +801,12 @@
     color: $c-error;
   }
 
+  // 문제 점프 시 임시 하이라이트 (포커스 전환)
+  &__problem-flash {
+    animation: problemFlash 2s ease;
+    border-radius: $radius-sm;
+  }
+
   &__problem-actions {
     display: flex;
     flex-direction: column;
@@ -875,6 +881,11 @@
 @keyframes lightboxIn {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+@keyframes problemFlash {
+  0%   { background-color: rgba(92, 61, 46, 0.3); }
+  100% { background-color: transparent; }
 }
 
 @keyframes uploadPulse {

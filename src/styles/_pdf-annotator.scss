@@ -316,6 +316,16 @@
     animation: selTriggerIn 0.2s ease;
   }
 
+  // 문제 점프 시 페이지 포커스 플래시
+  &__page-wrapper--flash {
+    animation: pageFlash 2.2s ease;
+  }
+
+  @keyframes pageFlash {
+    0%   { box-shadow: 0 0 0 4px rgba(92, 61, 46, 0.45); }
+    100% { box-shadow: 0 0 0 4px rgba(92, 61, 46, 0); }
+  }
+
   // ---- Document layout modes -------------------------------
   &__mark {
     position: absolute;

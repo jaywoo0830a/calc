@@ -105,6 +105,20 @@ function decodeEntities(text) {
   return el.textContent;
 }
 
+/** 렌더링된 마크다운 DOM에서 문제 발췌문이 포함된 블록을 찾는다 (점프용) */
+function findTextInContent(text) {
+  const content = document.querySelector('.viewer__content');
+  if (!content || !text) return null;
+  const key = text.replace(/\s+/g, ' ').trim().slice(0, 60);
+  if (!key) return null;
+  const els = content.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, blockquote');
+  for (const el of els) {
+    const t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (t.includes(key)) return el;
+  }
+  return null;
+}
+
 /** 렌더링된 HTML에서 h1~h3 제목을 추출하여 TOC 배열과 ID 주입된 HTML 반환 */
 function extractToc(html) {
   const toc = [];
@@ -646,7 +660,18 @@ export default function Viewer() {
       setPdfUrl('');
       const dir = p.doc_path.substring(0, p.doc_path.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
-      file.async('text').then((txt) => setContent(processContent(txt, resolveImg))).catch(() => {});
+      file.async('text').then((txt) => {
+        setContent(processContent(txt, resolveImg));
+        // 렌더링 후 문제 위치로 스크롤 + 임시 하이라이트 (포커스 전환)
+        setTimeout(() => {
+          const el = findTextInContent(p.text);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('viewer__problem-flash');
+            setTimeout(() => el.classList.remove('viewer__problem-flash'), 2000);
+          }
+        }, 150);
+      }).catch(() => {});
     }
     setProblemsOpen(false);
   }, [imageBlobs, setContent]);
@@ -824,8 +849,8 @@ export default function Viewer() {
           )}
           {mdSel && (
             <div className="viewer__md-sel" style={{ position: 'fixed', left: mdSel.x, top: mdSel.y, zIndex: 250 }}>
-              <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('solved')} title="푼 문제로 등록">✓ 푼 문제</button>
-              <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('wrong')} title="틀린 문제로 등록">✗ 틀린 문제</button>
+              <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('solved')} title="Mark as solved">✓ Solved</button>
+              <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('wrong')} title="Mark as wrong">✗ Wrong</button>
             </div>
           )}
         </div>

@@ -73,6 +73,7 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
   const [bookmarks, setBookmarks] = useState([]);  // { id, filePath, pageNumber, title?, createdAt }
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [toast, setToast] = useState(null);        // 잠깐 표시되는 등록 피드백
+  const [flashPage, setFlashPage] = useState(null); // 문제 점프 시 페이지 플래시
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -281,6 +282,7 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
     setTocOpen(false);
     setLoadError(null);
     setNumPages(0);
+    setFlashPage(null);
     return () => {
       // 이전 PDF 문서/페이지 참조 해제 (메모리 누수 방지)
       const doc = pdfDocRef.current;
@@ -760,7 +762,13 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
             options={documentOptions}
             onLoadSuccess={async (pdf) => {
               setNumPages(pdf.numPages);
-              setCurrentPage(Math.min(initialPageRef.current, pdf.numPages));
+              const jump = initialPageRef.current;
+              const start = Math.min(jump, pdf.numPages);
+              setCurrentPage(start);
+              if (jump > 1) {
+                setFlashPage(start);
+                setTimeout(() => setFlashPage(null), 2200);
+              }
               setLoadError(null);
               pdfDocRef.current = pdf;
               try {
@@ -794,7 +802,7 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
               <div
                 key={pageNumber}
                 data-page={pageNumber}
-                className={'pdf-annotator__page-wrapper' + (isIOS ? ' pdf-annotator__page-wrapper--ios' : '')}
+                className={'pdf-annotator__page-wrapper' + (isIOS ? ' pdf-annotator__page-wrapper--ios' : '') + (flashPage === pageNumber ? ' pdf-annotator__page-wrapper--flash' : '')}
                 ref={(el) => { if (el) pageRefs.current[pageNumber] = el; }}
                 onClick={handlePageClick(pageNumber)}
                 style={{
