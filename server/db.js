@@ -31,9 +31,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_problems_status ON problems(status);
 `);
 
+/** 텍스트 정규화 — 공백/줄바꿈 차이로 인한 중복 레코드 방지 */
+function normalizeText(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim();
+}
+
 /** 같은 선택(문제)은 항상 같은 id → 중복 없이 상태만 갱신 */
 export function problemId(docId, ref, text) {
-  return createHash('sha256').update(`${docId}|${ref}|${text}`).digest('hex').slice(0, 32);
+  return createHash('sha256').update(`${docId}|${ref}|${normalizeText(text)}`).digest('hex').slice(0, 32);
 }
 
 export const problems = {
@@ -47,7 +52,8 @@ export const problems = {
   },
 
   upsert({ docId, docPath = '', ref = '', text, status = 'wrong' }) {
-    const id = problemId(docId, ref, text);
+    const normalizedText = normalizeText(text);
+    const id = problemId(docId, ref, normalizedText);
     const now = new Date().toISOString();
     const existing = db.prepare('SELECT * FROM problems WHERE id = ?').get(id);
 
@@ -68,7 +74,7 @@ export const problems = {
       INSERT INTO problems (id, doc_id, doc_path, ref, text, status, wrong_count, attempts, created_at, updated_at)
       VALUES (@id, @docId, @docPath, @ref, @text, @status, @wrongCount, 1, @now, @now)
     `).run({
-      id, docId, docPath, ref, text, status,
+      id, docId, docPath, ref, text: normalizedText, status,
       wrongCount: status === 'wrong' ? 1 : 0,
       now,
     });
@@ -79,7 +85,9 @@ export const problems = {
     const existing = db.prepare('SELECT * FROM problems WHERE id = ?').get(id);
     if (!existing) return null;
     const nextStatus = status ?? existing.status;
-    const nextAttempts = attempts ?? existing.attempts;
+    // 상태가 실제로 바뀌면 한 번 더 풀었다고 간주 → attempts +1
+    const statusChanged = nextStatus !== existing.status;
+    const nextAttempts = attempts ?? (statusChanged ? existing.attempts + 1 : existing.attempts);
     const becameWrong = nextStatus === 'wrong' && existing.status !== 'wrong';
     db.prepare(`
       UPDATE problems

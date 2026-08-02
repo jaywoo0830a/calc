@@ -681,6 +681,11 @@ export default function Viewer() {
     api.updateProblem(p.id, { status: next }).then(refreshProblems).catch(() => {});
   }, [refreshProblems]);
 
+  // 상태는 그대로 두고 "한 번 더 풀었다" 기록
+  const recordAttempt = useCallback((p) => {
+    api.updateProblem(p.id, { attempts: p.attempts + 1 }).then(refreshProblems).catch(() => {});
+  }, [refreshProblems]);
+
   const removeProblem = useCallback((p) => {
     api.deleteProblem(p.id).then(refreshProblems).catch(() => {});
   }, [refreshProblems]);
@@ -948,6 +953,11 @@ export default function Viewer() {
                         onClick={() => toggleProblem(p)}
                         title={p.status === 'solved' ? 'Mark as wrong' : 'Mark as solved'}
                       >{p.status === 'solved' ? '✗' : '✓'}</button>
+                      <button
+                        className="viewer__problem-attempt"
+                        onClick={() => recordAttempt(p)}
+                        title="Record another attempt"
+                      >＋</button>
                       <button className="viewer__problem-delete" onClick={() => removeProblem(p)} title="Delete">🗑️</button>
                     </div>
                   </div>

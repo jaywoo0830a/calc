@@ -816,6 +816,7 @@
   }
 
   &__problem-toggle,
+  &__problem-attempt,
   &__problem-delete {
     width: 1.6rem;
     height: 1.6rem;
@@ -834,6 +835,11 @@
   &__problem-toggle {
     color: $c-ink-soft;
     &:hover { color: $c-accent; }
+  }
+
+  &__problem-attempt {
+    color: $c-link;
+    &:hover { color: darken($c-link, 10%); }
   }
 
   &__problem-delete {
