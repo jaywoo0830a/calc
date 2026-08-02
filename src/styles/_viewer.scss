@@ -619,6 +619,246 @@
     text-align: center;
     max-width: 80vw;
   }
+
+  // ---- 푼/틀린 문제 관리 패널 ------------------------------
+  &__problems-btn {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: $z-fullscreen;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: none;
+    border-radius: 50%;
+    background: $c-page-dark;
+    color: $c-ink;
+    font-size: 1.2rem;
+    cursor: pointer;
+    box-shadow: $shadow-lg;
+    transition: background $transition-fast, transform $transition-fast;
+
+    &:hover { background: $c-page-darker; transform: scale(1.05); }
+  }
+
+  &__problems-panel {
+    position: fixed;
+    right: 1rem;
+    bottom: 4.5rem;
+    z-index: $z-fullscreen;
+    width: min(24rem, calc(100vw - 2rem));
+    max-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-lg;
+    box-shadow: $shadow-xl;
+    overflow: hidden;
+  }
+
+  &__problems-header {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    padding: $sp-3;
+    border-bottom: $border-thin solid $c-rule;
+    background: $c-page-dark;
+  }
+
+  &__problems-title {
+    font-family: $ff;
+    font-weight: $fw-bold;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    margin-right: auto;
+  }
+
+  &__problems-filters {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  &__problems-filter {
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: $c-ink-faint;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+
+    &:hover { color: $c-ink; }
+
+    &--active {
+      background: $c-accent-light;
+      color: $c-accent;
+      font-weight: $fw-semibold;
+    }
+  }
+
+  &__problems-close {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: $c-ink-soft;
+    font-size: $fs-step-1;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover { background: $c-page-darker; color: $c-ink; }
+  }
+
+  &__problems-list {
+    overflow-y: auto;
+    padding: $sp-2;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+  }
+
+  &__problems-empty {
+    font-family: $ff;
+    font-size: $fs-step--1;
+    color: $c-ink-faint;
+    text-align: center;
+    padding: $sp-8 $sp-4;
+    line-height: 1.6;
+  }
+
+  &__problem-item {
+    display: flex;
+    align-items: center;
+    gap: $sp-1;
+    border: $border-thin solid $c-rule-light;
+    border-radius: $radius-md;
+    background: $c-page;
+    overflow: hidden;
+
+    &--wrong { border-left: 3px solid $c-error; }
+    &--solved { border-left: 3px solid $c-equals; }
+  }
+
+  &__problem-open {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: $sp-2;
+    padding: $sp-2 $sp-3;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover { background: $c-page-dark; }
+  }
+
+  &__problem-status {
+    font-size: $fs-step--1;
+    line-height: 1.2;
+    flex-shrink: 0;
+
+    .viewer__problem-item--wrong & { color: $c-error; }
+    .viewer__problem-item--solved & { color: $c-equals; }
+  }
+
+  &__problem-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  &__problem-src {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-family: $ff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__problem-text {
+    font-family: $ff;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  &__problem-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: $sp-1;
+    flex-shrink: 0;
+  }
+
+  &__problem-toggle,
+  &__problem-delete {
+    width: 1.6rem;
+    height: 1.6rem;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    cursor: pointer;
+    font-size: $fs-step--1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover { background: $c-page-darker; }
+  }
+
+  &__problem-toggle {
+    color: $c-ink-soft;
+    &:hover { color: $c-accent; }
+  }
+
+  &__problem-delete {
+    color: $c-ink-faint;
+    &:hover { color: $c-error; }
+  }
+
+  // ---- 마크다운 선택 → 문제 등록 툴바 ----------------------
+  &__md-sel {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.35rem 0.5rem;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 2rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    white-space: nowrap;
+
+    button {
+      border: none;
+      border-radius: 2rem;
+      padding: 0.3rem 0.75rem;
+      font-family: $ff;
+      font-size: $fs-step--1;
+      cursor: pointer;
+      transition: background 0.15s ease;
+
+      &:first-child {
+        background: rgba(61, 90, 64, 0.14);
+        color: $c-equals;
+        &:hover { background: rgba(61, 90, 64, 0.22); }
+      }
+      &:last-child {
+        background: $c-error-light;
+        color: $c-error;
+        &:hover { background: $c-error-soft; }
+      }
+    }
+  }
 }
 
 // ---- Keyframe animations -----------------------------------

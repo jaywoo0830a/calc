@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, mem
 import { createPortal } from 'react-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
+import { api } from '../lib/api.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -56,7 +57,7 @@ function annoRect(a, pageEl) {
   };
 }
 
-export default function PdfAnnotator({ url, filePath }) {
+export default function PdfAnnotator({ url, filePath, initialPage }) {
   const [numPages, setNumPages] = useState(0);
   const [annotations, setAnnotations] = useState([]);
   const [tool, setTool] = useState(null); // null = read mode (default)
@@ -71,6 +72,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [pageRenderTick, setPageRenderTick] = useState(0); // bumps on each Page render → forces annotation recalculation
   const [bookmarks, setBookmarks] = useState([]);  // { id, filePath, pageNumber, title?, createdAt }
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const [toast, setToast] = useState(null);        // 잠깐 표시되는 등록 피드백
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -162,6 +164,7 @@ export default function PdfAnnotator({ url, filePath }) {
   const [toc, setToc] = useState(null);         // PDF outline (resolved flat list)
   const [tocOpen, setTocOpen] = useState(false);
   const pdfDocRef = useRef(null);                // PDFDocumentProxy for dest resolution
+  const initialPageRef = useRef(1);              // 외부에서 점프한 시작 페이지
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
   const [underlineColor, setUnderlineColor] = useState(UNDERLINE_COLORS[0]);
   const [pageInput, setPageInput] = useState('');
@@ -292,9 +295,44 @@ export default function PdfAnnotator({ url, filePath }) {
     };
   }, [url]);
 
-  // ── Polling: check selection every 250ms (dead simple, always works) ──
+  // 외부 점프(문제 목록)로 지정한 시작 페이지 — 문서 로드 시 적용
   useEffect(() => {
-    if (tool !== 'highlight' && tool !== 'underline') return;
+    initialPageRef.current = (initialPage && initialPage > 0) ? initialPage : 1;
+  }, [initialPage]);
+
+  // ── Toast auto-dismiss ────────────────────────────────
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  // ── 푼/틀린 문제 등록 (서버 DB) ───────────────────────
+  const registerProblem = useCallback((status) => {
+    const data = savedSelectionRef.current;
+    if (!data || !data.text.trim()) return;
+    api.saveProblem({
+      docId: filePath,
+      docPath: filePath,
+      ref: String(data.pageNumber),
+      text: data.text,
+      status,
+    }).then(() => {
+      setSelTrigger(null);
+      savedSelectionRef.current = null;
+      window.getSelection()?.removeAllRanges();
+      setToast(status === 'solved' ? '✓ 푼 문제로 등록' : '✗ 틀린 문제로 등록');
+    }).catch(() => {
+      setSelTrigger(null);
+      savedSelectionRef.current = null;
+      window.getSelection()?.removeAllRanges();
+      setToast('등록 실패 — 서버 연결 확인');
+    });
+  }, [filePath]);
+
+  // ── Polling: check selection every 250ms (read/highlight/underline) ──
+  useEffect(() => {
+    if (tool === 'erase') return;
     const id = setInterval(() => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
@@ -722,6 +760,7 @@ export default function PdfAnnotator({ url, filePath }) {
             options={documentOptions}
             onLoadSuccess={async (pdf) => {
               setNumPages(pdf.numPages);
+              setCurrentPage(Math.min(initialPageRef.current, pdf.numPages));
               setLoadError(null);
               pdfDocRef.current = pdf;
               try {
@@ -792,7 +831,7 @@ export default function PdfAnnotator({ url, filePath }) {
       </div>
 
       {/* Selection trigger — floating confirm toolbar */}
-      {selTrigger && (tool === 'highlight' || tool === 'underline') && (
+      {selTrigger && tool !== 'erase' && (
         <div
           className="pdf-annotator__sel-trigger"
           style={{
@@ -803,40 +842,56 @@ export default function PdfAnnotator({ url, filePath }) {
           }}
         >
           <div className="pdf-annotator__sel-trigger-inner">
-            {tool === 'highlight' && HIGHLIGHT_COLORS.map((c) => (
-              <button
-                key={c.id}
-                className={'pdf-annotator__sel-swatch' + (highlightColor.id === c.id ? ' pdf-annotator__sel-swatch--active' : '')}
-                style={{ backgroundColor: c.bg }}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setHighlightColor(c)}
-                title={c.name}
-              />
-            ))}
-            {tool === 'underline' && UNDERLINE_COLORS.map((c) => (
-              <button
-                key={c.id}
-                className={'pdf-annotator__sel-swatch' + (underlineColor.id === c.id ? ' pdf-annotator__sel-swatch--active' : '')}
-                style={{ borderBottom: `3px solid ${c.color}` }}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setUnderlineColor(c)}
-                title={c.name}
-              />
-            ))}
             <button
-              className="pdf-annotator__sel-confirm"
+              className="pdf-annotator__sel-problem"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={confirmSelection}
-            >
-              {tool === 'highlight' ? '🖍️' : '⎁'} Apply
-            </button>
+              onClick={() => registerProblem('solved')}
+              title="푼 문제로 등록"
+            >✓</button>
             <button
-              className="pdf-annotator__sel-cancel"
+              className="pdf-annotator__sel-problem pdf-annotator__sel-problem--wrong"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { setSelTrigger(null); savedSelectionRef.current = null; window.getSelection()?.removeAllRanges(); }}
-            >
-              ✕
-            </button>
+              onClick={() => registerProblem('wrong')}
+              title="틀린 문제로 등록"
+            >✗</button>
+            {(tool === 'highlight' || tool === 'underline') && (
+              <>
+                {tool === 'highlight' && HIGHLIGHT_COLORS.map((c) => (
+                  <button
+                    key={c.id}
+                    className={'pdf-annotator__sel-swatch' + (highlightColor.id === c.id ? ' pdf-annotator__sel-swatch--active' : '')}
+                    style={{ backgroundColor: c.bg }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setHighlightColor(c)}
+                    title={c.name}
+                  />
+                ))}
+                {tool === 'underline' && UNDERLINE_COLORS.map((c) => (
+                  <button
+                    key={c.id}
+                    className={'pdf-annotator__sel-swatch' + (underlineColor.id === c.id ? ' pdf-annotator__sel-swatch--active' : '')}
+                    style={{ borderBottom: `3px solid ${c.color}` }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setUnderlineColor(c)}
+                    title={c.name}
+                  />
+                ))}
+                <button
+                  className="pdf-annotator__sel-confirm"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={confirmSelection}
+                >
+                  {tool === 'highlight' ? '🖍️' : '⎁'} Apply
+                </button>
+                <button
+                  className="pdf-annotator__sel-cancel"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { setSelTrigger(null); savedSelectionRef.current = null; window.getSelection()?.removeAllRanges(); }}
+                >
+                  ✕
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -938,6 +993,7 @@ export default function PdfAnnotator({ url, filePath }) {
           ▾
         </button>
       )}
+      {toast && <div className="pdf-annotator__toast">{toast}</div>}
     </div>
   );
 

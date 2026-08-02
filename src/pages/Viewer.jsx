@@ -6,6 +6,7 @@ import hljs from 'highlight.js';
 import ZipTree from '../components/ZipTree.jsx';
 import PdfViewer from '../components/PdfViewer.jsx';
 import { listZips, saveZip, loadZip as loadZipFromDB, deleteZip } from '../lib/storage.js';
+import { api } from '../lib/api.js';
 
 import 'katex/contrib/auto-render';
 import 'katex/contrib/mhchem';
@@ -150,6 +151,12 @@ export default function Viewer() {
   const [fullscreen, setFullscreen] = useState(false);
   const [storedZips, setStoredZips] = useState([]);
   const [toc, setToc] = useState([]);
+  // ── 푼/틀린 문제 관리 (서버 DB) ────────────────────────
+  const [problems, setProblems] = useState([]);
+  const [problemsOpen, setProblemsOpen] = useState(false);
+  const [problemsFilter, setProblemsFilter] = useState('all'); // all | solved | wrong
+  const [pdfInitialPage, setPdfInitialPage] = useState(null);  // 문제 점프용 시작 페이지
+  const [mdSel, setMdSel] = useState(null);                    // { x, y, text } 마크다운 선택 툴바
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const [readability, setReadability] = useState(0);
@@ -247,6 +254,12 @@ export default function Viewer() {
   const refreshStored = useCallback(async () => {
     try { setStoredZips(await listZips()); } catch {}
   }, []);
+
+  // 문제 목록 로드
+  const refreshProblems = useCallback(() => {
+    api.listProblems().then(setProblems).catch(() => {});
+  }, []);
+  useEffect(() => { refreshProblems(); }, [refreshProblems]);
 
   // HTML 렌더링 + TOC 추출
   const setContent = useCallback((html) => {
@@ -396,6 +409,8 @@ export default function Viewer() {
         setSelectedPath(result.path);
         setRendered('');
         setToc([]);
+        setMdSel(null);
+        setPdfInitialPage(null);
       });
     } else {
       // Use the tree node selection path
@@ -507,6 +522,7 @@ export default function Viewer() {
       scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
     }
     setSelectedPath(fullPath);
+    setMdSel(null);
 
     if (isPdf) {
       const blob = await file.async('blob');
@@ -515,6 +531,7 @@ export default function Viewer() {
       setPdfUrl(url);
       setRendered('');
       setToc([]);
+      setPdfInitialPage(null);
       return;
     }
     setPdfUrl('');
@@ -558,6 +575,96 @@ export default function Viewer() {
       navigateTo(href);
     }
   }, [navigateTo]);
+
+  // ── 마크다운 텍스트 선택 → 문제 등록 툴바 ───────────────
+  const handleMdMouseUp = useCallback((e) => {
+    if (e.target.closest('a, button, .viewer__md-sel')) return;
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) { setMdSel(null); return; }
+    const text = sel.toString().trim();
+    if (!text || text.length > 2000) { setMdSel(null); return; }
+    const range = sel.getRangeAt(0);
+    if (!previewRef.current?.contains(range.commonAncestorContainer)) { setMdSel(null); return; }
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) { setMdSel(null); return; }
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const tw = 168, th = 40, gap = 8;
+    let x = rect.right + gap;
+    let y = rect.bottom + gap;
+    if (x + tw > vw - gap) x = rect.left - tw - gap;
+    x = Math.max(gap, Math.min(x, vw - tw - gap));
+    if (y + th > vh - gap) y = rect.top - th - gap;
+    y = Math.max(gap, Math.min(y, vh - th - gap));
+    setMdSel({ x, y, text });
+  }, []);
+
+  // 툴바 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!mdSel) return;
+    const onDown = (e) => { if (!e.target.closest('.viewer__md-sel')) setMdSel(null); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [mdSel]);
+
+  const registerMdProblem = useCallback((status) => {
+    if (!mdSel || !selectedPath) return;
+    api.saveProblem({
+      docId: selectedPath,
+      docPath: selectedPath,
+      ref: '',
+      text: mdSel.text,
+      status,
+    }).then(() => {
+      setMdSel(null);
+      window.getSelection()?.removeAllRanges();
+      refreshProblems();
+    }).catch(() => {
+      setMdSel(null);
+      window.getSelection()?.removeAllRanges();
+    });
+  }, [mdSel, selectedPath, refreshProblems]);
+
+  // ── 푼/틀린 문제 패널 ──────────────────────────────────
+  const jumpToProblem = useCallback((p) => {
+    const zip = zipRef.current;
+    if (!zip) return;
+    const file = zip.files[p.doc_path];
+    if (!file || file.dir) return;
+    setMdSel(null);
+    setSelectedPath(p.doc_path);
+    if (p.doc_path.endsWith('.pdf')) {
+      setPdfInitialPage(p.ref ? Number(p.ref) || null : null);
+      file.async('blob').then((blob) => {
+        const url = URL.createObjectURL(blob);
+        pdfBlobUrlsRef.current.add(url);
+        setPdfUrl(url);
+        setRendered('');
+        setToc([]);
+      });
+    } else {
+      setPdfInitialPage(null);
+      setPdfUrl('');
+      const dir = p.doc_path.substring(0, p.doc_path.lastIndexOf('/') + 1);
+      const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
+      file.async('text').then((txt) => setContent(processContent(txt, resolveImg))).catch(() => {});
+    }
+    setProblemsOpen(false);
+  }, [imageBlobs, setContent]);
+
+  const toggleProblem = useCallback((p) => {
+    const next = p.status === 'solved' ? 'wrong' : 'solved';
+    api.updateProblem(p.id, { status: next }).then(refreshProblems).catch(() => {});
+  }, [refreshProblems]);
+
+  const removeProblem = useCallback((p) => {
+    api.deleteProblem(p.id).then(refreshProblems).catch(() => {});
+  }, [refreshProblems]);
+
+  const filteredProblems = useMemo(() => {
+    if (problemsFilter === 'all') return problems;
+    return problems.filter((p) => p.status === problemsFilter);
+  }, [problems, problemsFilter]);
+
   const handleDeleteStored = useCallback(async (id, e) => {
     e.stopPropagation();
     await deleteZip(id);
@@ -571,6 +678,7 @@ export default function Viewer() {
       scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
     }
     setSelectedPath(node.path);
+    setMdSel(null);
     // PDF 파일 처리
     if (node.name.endsWith('.pdf')) {
       const blob = await node.file.async('blob');
@@ -579,6 +687,7 @@ export default function Viewer() {
       setPdfUrl(url);
       setRendered('');
       setToc([]);
+      setPdfInitialPage(null);
       return;
     }
     setPdfUrl('');
@@ -701,11 +810,17 @@ export default function Viewer() {
         )}
         <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
           {pdfUrl ? (
-            <PdfViewer url={pdfUrl} filePath={selectedPath} />
+            <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} />
           ) : rendered ? (
-            <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
+            <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} onMouseUp={handleMdMouseUp} />
           ) : (
             <div className="viewer__empty">Upload a ZIP archive to get started</div>
+          )}
+          {mdSel && (
+            <div className="viewer__md-sel" style={{ position: 'fixed', left: mdSel.x, top: mdSel.y, zIndex: 250 }}>
+              <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('solved')} title="푼 문제로 등록">✓ 푼 문제</button>
+              <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('wrong')} title="틀린 문제로 등록">✗ 틀린 문제</button>
+            </div>
           )}
         </div>
       </div>
@@ -744,6 +859,64 @@ export default function Viewer() {
           <button className="viewer__lightbox-close" onClick={() => setLightbox(null)}>×</button>
           <img src={lightbox.src} alt={lightbox.alt} onClick={e => e.stopPropagation()} />
           {lightbox.alt && <span className="viewer__lightbox-caption">{lightbox.alt}</span>}
+        </div>
+      )}
+
+      {/* 푼/틀린 문제 관리 */}
+      <button
+        className="viewer__problems-btn"
+        onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
+        title="문제 관리"
+        aria-label="문제 관리"
+      >📋</button>
+      {problemsOpen && (
+        <div className="viewer__problems-panel">
+          <div className="viewer__problems-header">
+            <span className="viewer__problems-title">📋 문제 ({problems.length})</span>
+            <div className="viewer__problems-filters">
+              <button
+                className={'viewer__problems-filter' + (problemsFilter === 'all' ? ' viewer__problems-filter--active' : '')}
+                onClick={() => setProblemsFilter('all')}
+              >전체</button>
+              <button
+                className={'viewer__problems-filter' + (problemsFilter === 'solved' ? ' viewer__problems-filter--active' : '')}
+                onClick={() => setProblemsFilter('solved')}
+              >✓ 푼</button>
+              <button
+                className={'viewer__problems-filter' + (problemsFilter === 'wrong' ? ' viewer__problems-filter--active' : '')}
+                onClick={() => setProblemsFilter('wrong')}
+              >✗ 틀린</button>
+            </div>
+            <button className="viewer__problems-close" onClick={() => setProblemsOpen(false)}>×</button>
+          </div>
+          <div className="viewer__problems-list">
+            {filteredProblems.length === 0 ? (
+              <div className="viewer__problems-empty">
+                등록된 문제가 없습니다.<br />
+                문서에서 문제를 드래그하고 ✓ / ✗ 를 누르세요.
+              </div>
+            ) : (
+              filteredProblems.map((p) => (
+                <div key={p.id} className={'viewer__problem-item viewer__problem-item--' + p.status}>
+                  <button className="viewer__problem-open" onClick={() => jumpToProblem(p)} title="문서에서 열기">
+                    <span className="viewer__problem-status">{p.status === 'solved' ? '✓' : '✗'}</span>
+                    <span className="viewer__problem-body">
+                      <span className="viewer__problem-src">{p.doc_path}{p.ref ? ` · p.${p.ref}` : ''}</span>
+                      <span className="viewer__problem-text">{p.text}</span>
+                    </span>
+                  </button>
+                  <div className="viewer__problem-actions">
+                    <button
+                      className="viewer__problem-toggle"
+                      onClick={() => toggleProblem(p)}
+                      title={p.status === 'solved' ? '틀린 문제로 변경' : '푼 문제로 변경'}
+                    >{p.status === 'solved' ? '✗' : '✓'}</button>
+                    <button className="viewer__problem-delete" onClick={() => removeProblem(p)} title="삭제">🗑️</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>

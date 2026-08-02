@@ -5,7 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { rm, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { problems } from './db.js';
 const app = express();
+app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 
 // ── XML entity decode ──────────────────────────────────────────────────────────
@@ -311,6 +313,46 @@ app.post('/pdf', upload.single('file'), async (req, res) => {
     res.status(500).json({ error: 'PDF conversion failed: ' + e.message });
   } finally {
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+// ── 푼/틀린 문제 CRUD ──────────────────────────────────────────────────────────
+app.get('/problems', (req, res) => {
+  try {
+    res.json(problems.list({ status: req.query.status, doc: req.query.doc }));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 선택 기반 등록 — 같은 선택(문제)은 서버에서 upsert
+app.post('/problems', (req, res) => {
+  try {
+    const { docId, docPath, ref, text, status } = req.body || {};
+    if (!docId || !text) return res.status(400).json({ error: 'docId and text are required' });
+    res.json(problems.upsert({ docId, docPath, ref, text, status }));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/problems/:id', (req, res) => {
+  try {
+    const { status, attempts } = req.body || {};
+    const rec = problems.update(req.params.id, { status, attempts });
+    if (!rec) return res.status(404).json({ error: 'Problem not found' });
+    res.json(rec);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/problems/:id', (req, res) => {
+  try {
+    problems.remove(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

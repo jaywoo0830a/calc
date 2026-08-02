@@ -13,3 +13,11 @@ services:
       dockerfile: Dockerfile.api
     container_name: calc-api
     restart: unless-stopped
+    environment:
+      - DATA_DIR=/app/data
+    volumes:
+      - api_data:/app/data
+
+volumes:
+  api_data:
+    driver: local

@@ -6,7 +6,10 @@ FROM node:24.18.0-alpine
 RUN apk add --no-cache \
     poppler-utils \
     pandoc \
-    pandoc-cli
+    pandoc-cli \
+    python3 \
+    make \
+    g++
 
 WORKDIR /app
 COPY server/package.json ./
