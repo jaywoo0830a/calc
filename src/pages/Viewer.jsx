@@ -885,7 +885,7 @@ export default function Viewer() {
               ))
             ) : (
               <div className="viewer__toc-item" style={{ fontStyle: 'italic', cursor: 'default' }}>
-                PDF — 서버 변환됨
+                PDF document
               </div>
             )}
           </div>
@@ -932,7 +932,7 @@ export default function Viewer() {
               onClick={() => setReadability(Math.max(0, readability - 1))}
               disabled={readability === 0}
               aria-label="Decrease readability"
-              title="가독성 낮추기"
+              title="Decrease readability"
             >➖</button>
             <span className="viewer__readability-level">{readability === 0 ? '👁️' : readability}</span>
             <button
@@ -940,7 +940,7 @@ export default function Viewer() {
               onClick={() => setReadability(Math.min(5, readability + 1))}
               disabled={readability === 5}
               aria-label="Increase readability"
-              title="가독성 높이기"
+              title="Increase readability"
             >➕</button>
           </div>
         )}

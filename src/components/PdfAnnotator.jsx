@@ -30,6 +30,7 @@ const TOOLS = {
   highlight: { label: '🖍️ Highlight', icon: '🖍️' },
   underline: { label: '⎁ Underline', icon: '⎁' },
   comment:   { label: '💬 Comment', icon: '💬' },
+  problem:   { label: '🎯 Problem', icon: '🎯' },
 };
 function getPageCanvasRect(pageEl) {
   if (!pageEl) return null;
@@ -248,9 +249,9 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
   const savedSelectionRef = useRef(null); // capture selection data before click clears it
   const lastDetectedText = useRef(''); // avoid re-triggering on same selection
 
-  // Clear trigger when switching away from highlight/underline
+  // Clear trigger when switching away from selection-based tools
   useEffect(() => {
-    if (tool !== 'highlight' && tool !== 'underline') {
+    if (tool !== 'highlight' && tool !== 'underline' && tool !== 'problem') {
       setSelTrigger(null);
       savedSelectionRef.current = null;
       lastDetectedText.current = '';
@@ -332,9 +333,9 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
     });
   }, [filePath]);
 
-  // ── Polling: check selection every 250ms (read/highlight/underline) ──
+  // ── Polling: check selection every 250ms (problem/highlight/underline) ──
   useEffect(() => {
-    if (tool === 'erase') return;
+    if (tool !== 'highlight' && tool !== 'underline' && tool !== 'problem') return;
     const id = setInterval(() => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
@@ -838,8 +839,8 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
         )}
       </div>
 
-      {/* Selection trigger — floating confirm toolbar */}
-      {selTrigger && tool !== 'erase' && (
+      {/* Selection trigger — floating confirm toolbar (problem / highlight / underline 전용) */}
+      {selTrigger && (tool === 'problem' || tool === 'highlight' || tool === 'underline') && (
         <div
           className="pdf-annotator__sel-trigger"
           style={{
@@ -850,18 +851,22 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
           }}
         >
           <div className="pdf-annotator__sel-trigger-inner">
-            <button
-              className="pdf-annotator__sel-problem"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => registerProblem('solved')}
-              title="Mark as solved"
-            >✓</button>
-            <button
-              className="pdf-annotator__sel-problem pdf-annotator__sel-problem--wrong"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => registerProblem('wrong')}
-              title="Mark as wrong"
-            >✗</button>
+            {tool === 'problem' && (
+              <>
+                <button
+                  className="pdf-annotator__sel-problem"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => registerProblem('solved')}
+                  title="Mark as solved"
+                >✓</button>
+                <button
+                  className="pdf-annotator__sel-problem pdf-annotator__sel-problem--wrong"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => registerProblem('wrong')}
+                  title="Mark as wrong"
+                >✗</button>
+              </>
+            )}
             {(tool === 'highlight' || tool === 'underline') && (
               <>
                 {tool === 'highlight' && HIGHLIGHT_COLORS.map((c) => (
@@ -1040,7 +1045,7 @@ const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, 
           left: rect ? rect.left : `${annotation.rect.x * 100}%`,
           top: rect ? rect.top : `${annotation.rect.y * 100}%`,
         }}
-        title={annotation.text + (eraseMode ? ' — 클릭하여 삭제' : '')}
+        title={annotation.text + (eraseMode ? ' — click to delete' : '')}
         onClick={handleDelete}
       >
         <span className="pdf-annotator__comment-icon">💬</span>
@@ -1072,7 +1077,7 @@ const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, 
           ? `2px solid ${annotation.color || UNDERLINE_COLORS[0].color}`
           : (isDashed ? `2px dashed ${annotation.color}` : 'none'),
       }}
-      title={annotation.text + (eraseMode ? ' — 클릭하여 삭제' : '')}
+      title={annotation.text + (eraseMode ? ' — click to delete' : '')}
       onClick={handleDelete}
     >
       <button
