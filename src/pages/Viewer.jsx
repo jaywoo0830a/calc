@@ -265,6 +265,7 @@ export default function Viewer() {
   const [readability, setReadability] = useState(0);
   const zipRef = useRef(null);
   const navSeq = useRef(0); // 문서 전환 경합 방지 — 최신 탐색만 적용
+  const pendingJumpRef = useRef(null); // 마크다운 문제 점프 대기 (렌더 완료 후 실행)
 
   // ── Search state ────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -772,31 +773,57 @@ export default function Viewer() {
         if (seq !== navSeq.current) return;
         setContent(processContent(txt, resolveImg));
         setLoading(false);
-        // 렌더링 후 문제 위치로 이동 — 좌표 → 컨텍스트 → 텍스트 순으로 탐색
-        setTimeout(() => {
-          const located = locateMarkdownProblem(p);
-          if (located) {
-            if (located.range) {
-              // ① 좌표 기반: 정확한 범위 스크롤 + 잠깐 하이라이트
-              located.range.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              try {
-                const sel = window.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(located.range);
-              } catch { /* ignore */ }
-              setTimeout(() => window.getSelection()?.removeAllRanges(), 2500);
-            } else if (located.el) {
-              // ②/③ 블록 플래시
-              located.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              located.el.classList.add('viewer__problem-flash');
-              setTimeout(() => located.el.classList.remove('viewer__problem-flash'), 2000);
-            }
-          }
-        }, 150);
+        // 렌더링 완료 후 위치 탐색 (고정 타임아웃 대신 — 터치에서도 안정적)
+        pendingJumpRef.current = { p, seq };
       }).catch(() => {});
     }
     setProblemsOpen(false);
   }, [imageBlobs, setContent]);
+
+  // ── 마크다운 문제 점프: 렌더링 완료 후 위치 탐색 ────────────
+  // 고정 150ms 대기 대신 `rendered`가 실제로 갱신된 뒤 실행해
+  // 느린 태블릿/폰에서도 DOM이 준비된 상태로 좌표→컨텍스트→텍스트를 찾는다.
+  useEffect(() => {
+    if (!rendered || !pendingJumpRef.current) return;
+    const { p, seq } = pendingJumpRef.current;
+    pendingJumpRef.current = null;
+    if (seq !== navSeq.current) return; // 더 새로운 탐색이 시작됨
+    const raf = requestAnimationFrame(() => {
+      const located = locateMarkdownProblem(p);
+      if (!located) return;
+      const container = previewRef.current;
+      if (located.range) {
+        // ① 좌표 기반: 정확한 범위로 스크롤 + 잠깐 하이라이트
+        const rect = located.range.getBoundingClientRect();
+        if (container && rect.height) {
+          const crect = container.getBoundingClientRect();
+          container.scrollTo({
+            top: Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2),
+            behavior: 'smooth',
+          });
+        }
+        try {
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(located.range);
+        } catch { /* ignore */ }
+        setTimeout(() => window.getSelection()?.removeAllRanges(), 2500);
+      } else if (located.el) {
+        // ②/③ 블록 플래시
+        const rect = located.el.getBoundingClientRect();
+        if (container && rect.height) {
+          const crect = container.getBoundingClientRect();
+          container.scrollTo({
+            top: Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2),
+            behavior: 'smooth',
+          });
+        }
+        located.el.classList.add('viewer__problem-flash');
+        setTimeout(() => located.el.classList.remove('viewer__problem-flash'), 2000);
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [rendered, selectedPath]);
 
   // 상태 지정(맞음/틀림) — 같은 상태 재클릭도 "한 번 더 풀었다"로 attempts 기록
   const setProblemStatus = useCallback((p, status) => {
