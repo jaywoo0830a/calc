@@ -120,6 +120,91 @@ function findTextInContent(text) {
   return null;
 }
 
+/** 오프셋 → 텍스트 노드 + 로컬 오프셋 (좌표 기반 점프용) */
+function nodeAtOffset(container, target) {
+  let current = 0;
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const len = node.textContent.length;
+    if (current + len >= target) return { node, offset: target - current };
+    current += len;
+  }
+  return null;
+}
+
+/** 앞/뒤 컨텍스트까지 일치하는 블록을 찾는다 (동일 텍스트가 여러 곳일 때 구분) */
+function findBlockWithContext(content, text, before, after) {
+  const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const els = content.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, blockquote');
+  let any = null;
+  for (const el of els) {
+    const full = norm(el.textContent);
+    if (!full.includes(text)) continue;
+    if (any === null) any = el;
+    if ((!before || full.includes(before)) && (!after || full.includes(after))) return el;
+  }
+  return any;
+}
+
+/**
+ * 문제 위치 탐색: ① 좌표(오프셋) → ② 컨텍스트(앞/뒤 글자) → ③ 텍스트 검색
+ * 반환: { range } (정확한 범위) 또는 { el } (블록) 또는 null
+ */
+function locateMarkdownProblem(p) {
+  const content = document.querySelector('.viewer__content');
+  if (!content) return null;
+  const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const textNorm = norm(p.text);
+
+  // ① 좌표 기반 — 저장된 시작/끝 오프셋의 텍스트가 실제와 일치하면 정확한 범위
+  let anchor = null;
+  try { anchor = p.ref ? JSON.parse(p.ref) : null; } catch {}
+  if (anchor && typeof anchor.start === 'number' && typeof anchor.end === 'number' && anchor.end >= anchor.start) {
+    const full = content.textContent || '';
+    if (anchor.start >= 0 && anchor.end <= full.length) {
+      if (norm(full.slice(anchor.start, anchor.end)) === textNorm) {
+        const loc = nodeAtOffset(content, anchor.start);
+        if (loc) {
+          const range = document.createRange();
+          range.setStart(loc.node, loc.offset);
+          range.setEnd(loc.node, Math.min(loc.offset + (anchor.end - anchor.start), loc.node.textContent.length));
+          return { range };
+        }
+      }
+    }
+  }
+
+  // ② 컨텍스트 기반 — 앞/뒤 글자로 동일 텍스트를 구분
+  if (anchor?.before || anchor?.after) {
+    const el = findBlockWithContext(content, textNorm, norm(anchor.before), norm(anchor.after));
+    if (el) return { el };
+  }
+
+  // ③ 텍스트 검색 폴백
+  const el = findTextInContent(p.text);
+  if (el) return { el };
+  return null;
+}
+
+/** 마크다운 선택 위치를 좌표/컨텍스트 앵커로 저장 (문제 점프 정확도 향상) */
+function computeMarkdownRef() {
+  const content = document.querySelector('.viewer__content');
+  const sel = window.getSelection();
+  if (!content || !sel || sel.isCollapsed || !sel.rangeCount) return '';
+  const range = sel.getRangeAt(0);
+  if (!content.contains(range.commonAncestorContainer)) return '';
+  const pre = range.cloneRange();
+  pre.selectNodeContents(content);
+  pre.setEnd(range.startContainer, range.startOffset);
+  const start = pre.toString().length;
+  const full = content.textContent || '';
+  const end = start + range.toString().length;
+  const before = full.slice(Math.max(0, start - 30), start);
+  const after = full.slice(end, end + 30);
+  return JSON.stringify({ start, end, before, after });
+}
+
 /** 렌더링된 HTML에서 h1~h3 제목을 추출하여 TOC 배열과 ID 주입된 HTML 반환 */
 function extractToc(html) {
   const toc = [];
@@ -645,7 +730,7 @@ export default function Viewer() {
       api.saveProblem({
         docId: selectedPath,
         docPath: selectedPath,
-        ref: '',
+        ref: computeMarkdownRef(), // 좌표/컨텍스트 앵커 (정확한 점프용)
         text: String(text).slice(0, 500),
         status,
       }).then(() => {
@@ -687,13 +772,25 @@ export default function Viewer() {
         if (seq !== navSeq.current) return;
         setContent(processContent(txt, resolveImg));
         setLoading(false);
-        // 렌더링 후 문제 위치로 스크롤 + 임시 하이라이트 (포커스 전환)
+        // 렌더링 후 문제 위치로 이동 — 좌표 → 컨텍스트 → 텍스트 순으로 탐색
         setTimeout(() => {
-          const el = findTextInContent(p.text);
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            el.classList.add('viewer__problem-flash');
-            setTimeout(() => el.classList.remove('viewer__problem-flash'), 2000);
+          const located = locateMarkdownProblem(p);
+          if (located) {
+            if (located.range) {
+              // ① 좌표 기반: 정확한 범위 스크롤 + 잠깐 하이라이트
+              located.range.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              try {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(located.range);
+              } catch { /* ignore */ }
+              setTimeout(() => window.getSelection()?.removeAllRanges(), 2500);
+            } else if (located.el) {
+              // ②/③ 블록 플래시
+              located.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              located.el.classList.add('viewer__problem-flash');
+              setTimeout(() => located.el.classList.remove('viewer__problem-flash'), 2000);
+            }
           }
         }, 150);
       }).catch(() => {});
