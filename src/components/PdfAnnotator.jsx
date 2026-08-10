@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
-import { getRangeSelectState } from '../lib/rangeSelectState.js';
+import { getRangeSelectState, subscribeRangeSelect } from '../lib/rangeSelectState.js';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
 import { api } from '../lib/api.js';
@@ -80,6 +80,10 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
+
+  // ✂️ Selecting(전역) 활성 여부 — 활성이면 PDF 텍스트 레이어를 켜서 선택 가능
+  const [rangeActive, setRangeActive] = useState(false);
+  useEffect(() => subscribeRangeSelect((s) => setRangeActive(!!s.active)), []);
 
   // Scroll to top on page change
   const goToPage = useCallback((page) => {
@@ -902,14 +906,14 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
                   maxWidth: (fullscreen || zoomLevel > 1) ? 'none' : undefined,
                   height: (fullscreen || zoomLevel > 1) ? 'auto' : undefined,
                   minHeight: (fullscreen || zoomLevel > 1) ? undefined : undefined,
-                  cursor: (tool === 'highlight' || tool === 'underline') ? 'text' : undefined,
+                  cursor: (tool === 'highlight' || tool === 'underline' || rangeActive) ? 'text' : undefined,
                 }}
               >
                 <Page
                   pageNumber={pageNumber}
                   width={pageW}
                   devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
-                  renderTextLayer={tool === 'highlight' || tool === 'underline'}
+                  renderTextLayer={tool === 'highlight' || tool === 'underline' || rangeActive}
                   renderAnnotationLayer={true}
                   onRenderSuccess={() => setPageRenderTick(t => t + 1)}
                 />

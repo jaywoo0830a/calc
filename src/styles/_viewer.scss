@@ -603,60 +603,6 @@
     padding: 0.125rem 0;
   }
 
-  // ---- Image lightbox --------------------------------------
-  &__lightbox {
-    position: fixed;
-    inset: 0;
-    z-index: $z-fullscreen;
-    background: rgba(0, 0, 0, 0.85);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: $sp-8;
-    cursor: zoom-out;
-    animation: lightboxIn 0.2s ease;
-
-    img {
-      max-width: 90vw;
-      max-height: 80vh;
-      object-fit: contain;
-      cursor: default;
-      background: #fff;
-      border-radius: $radius-md;
-      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
-    }
-  }
-
-  &__lightbox-close {
-    position: absolute;
-    top: $sp-4;
-    right: $sp-4;
-    width: 2.5rem;
-    height: 2.5rem;
-    border: none;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-    font-size: $fs-step-2;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1;
-    &:hover { background: rgba(255, 255, 255, 0.35); }
-  }
-
-  &__lightbox-caption {
-    margin-top: $sp-4;
-    color: rgba(255, 255, 255, 0.7);
-    font-family: $ff;
-    font-size: $fs-step--1;
-    font-style: italic;
-    text-align: center;
-    max-width: 80vw;
-  }
-
   // ---- 푼/틀린 문제 관리 패널 ------------------------------
   &__problems-btn {
     width: $fullscreen-btn;
