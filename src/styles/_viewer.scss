@@ -603,24 +603,42 @@
     padding: 0.125rem 0;
   }
 
-  // ---- 푼/틀린 문제 관리 패널 ------------------------------
-  &__problems-btn {
-    width: $fullscreen-btn;
-    height: $fullscreen-btn;
+  // ---- 좌하단 플로팅 문제 버튼 (✂️/🕘와 같은 스타일) ----------
+  &__problems-fab {
+    position: fixed;
+    left: calc($sp-4 + (2.5rem + $sp-1) * 2); // ✂️(1rem) + 🕘(2.75rem) 다음
+    bottom: calc($sp-4 + env(safe-area-inset-bottom, 0px));
+    z-index: 450;
+    width: 2.5rem;
+    height: 2.5rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: $border-thin solid $c-rule;
-    border-radius: $radius-md;
-    background: $c-page;
-    color: $c-ink;
+    border: $border-thin solid rgba(212, 201, 181, 0.55);
+    border-radius: 50%;
+    background: rgba(255, 254, 247, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: $shadow-sm;
+    color: $c-ink-soft;
     font-size: $fs-step-1;
-    box-shadow: $shadow-md;
+    line-height: 1;
     cursor: pointer;
     transition: all $transition-fast;
-    flex-shrink: 0;
 
-    &:hover { background: $c-page-darker; transform: scale(1.05); }
+    &:hover {
+      border-color: $c-accent;
+      color: $c-accent;
+      background: rgba(255, 254, 247, 0.7);
+    }
+
+    &--open {
+      background: rgba(92, 61, 46, 0.55);
+      border-color: rgba(92, 61, 46, 0.7);
+      color: #fff;
+
+      &:hover { background: rgba(92, 61, 46, 0.75); color: #fff; }
+    }
   }
 
   &__problems-panel {
@@ -991,6 +1009,10 @@
 
     &__preview {
       padding: $sp-2;
+    }
+
+    &__problems-fab {
+      bottom: calc($sp-2 + env(safe-area-inset-bottom, 0px)); // ✂️/🕘와 같은 높이
     }
   }
 }

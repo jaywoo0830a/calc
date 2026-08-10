@@ -948,14 +948,15 @@ export default function Viewer() {
           )}
         </div>
       </div>
+      {/* 좌하단 플로팅 문제 버튼 — ✂️/🕘와 같은 위치·반투명 스타일 */}
+      <button
+        className={'viewer__problems-fab' + (problemsOpen ? ' viewer__problems-fab--open' : '')}
+        onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
+        title="Problems"
+        aria-label="Problems"
+      >📋</button>
       {/* 하단 우측 컨트롤 — 가로 정렬 */}
       <div className="viewer__controls">
-        <button
-          className="viewer__problems-btn"
-          onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
-          title="Problems"
-          aria-label="Problems"
-        >📋</button>
         {rendered && (
           <div className="viewer__readability">
             <button

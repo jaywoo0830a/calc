@@ -1249,7 +1249,7 @@
 
     &__nav {
       gap: 0.25rem;
-      padding: $sp-1 $sp-2 $sp-1 7rem; // 왼쪽은 ✂️/🕘 자리 확보
+      padding: $sp-1 $sp-2 $sp-1 9.5rem; // 왼쪽은 ✂️/🕘/📋 자리 확보
       margin: 0 $sp-1 $sp-1 $sp-1;
       justify-content: flex-start;
       overflow-x: auto;
@@ -1292,6 +1292,49 @@
 
     &__zoom-label {
       min-width: 1.75rem;
+    }
+  }
+}
+
+// ============================================================
+// Mobile (≤ 767px): 비풀스크린일 땐 툴바/네비 숨김 — 최소한만
+// (자동 풀스크린 유도 + 나가면 ⛶ 진입 버튼만 남김)
+// ============================================================
+@media (max-width: 767px) {
+  .pdf-annotator:not(.pdf-annotator--fullscreen) {
+    .pdf-annotator__toolbar,
+    .pdf-annotator__nav {
+      display: none;
+    }
+  }
+
+  // 모바일 전용 풀스크린 진입 버튼 (우하단, ✂️/🕘와 같은 스타일)
+  .pdf-annotator__mobile-fullscreen-btn {
+    position: fixed;
+    right: $sp-4;
+    bottom: calc($sp-2 + env(safe-area-inset-bottom, 0px));
+    z-index: 500;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-thin solid rgba(212, 201, 181, 0.55);
+    border-radius: 50%;
+    background: rgba(255, 254, 247, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: $shadow-sm;
+    color: $c-ink-soft;
+    font-size: $fs-step-1;
+    line-height: 1;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      border-color: $c-accent;
+      color: $c-accent;
+      background: rgba(255, 254, 247, 0.7);
     }
   }
 }

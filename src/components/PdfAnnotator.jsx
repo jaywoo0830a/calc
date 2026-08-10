@@ -85,6 +85,16 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [rangeActive, setRangeActive] = useState(false);
   useEffect(() => subscribeRangeSelect((s) => setRangeActive(!!s.active)), []);
 
+  // 모바일(≤767px) 여부 — 풀스크린 유도 / 비풀스크린 최소 크롬용
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 767);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const on = () => setIsMobile(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+
   // Scroll to top on page change
   const goToPage = useCallback((page) => {
     setCurrentPage(page);
@@ -281,6 +291,14 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
+  // ── 모바일: PDF가 열리면 자동 풀스크린(CSS) 시작 — 읽기 몰입 유도 ──
+  const autoFsRef = useRef(false); // 문서당 1회만 자동 진입 (나가면 ⛶로 재진입)
+  useEffect(() => {
+    if (!isMobile || !numPages || autoFsRef.current) return;
+    autoFsRef.current = true;
+    setFullscreen(true);
+  }, [isMobile, numPages]);
+
   // ── Selection trigger (floating confirm toolbar) ──────────
   const [selTrigger, setSelTrigger] = useState(null); // { pageNumber, x, y } | null
   const savedSelectionRef = useRef(null); // capture selection data before click clears it
@@ -348,6 +366,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     setLoadError(null);
     setNumPages(0);
     setFlashPage(null);
+    autoFsRef.current = false; // 새 문서 → 다시 자동 풀스크린 유도
     return () => {
       // 이전 PDF 문서/페이지 참조 해제 (메모리 누수 방지)
       const doc = pdfDocRef.current;
@@ -1115,6 +1134,15 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         >
           ▾
         </button>
+      )}
+      {/* 모바일 + 비풀스크린: 최소한의 풀스크린 진입 버튼 */}
+      {isMobile && !fullscreen && (
+        <button
+          className="pdf-annotator__mobile-fullscreen-btn"
+          onClick={toggleFullscreen}
+          title="Enter fullscreen"
+          aria-label="Enter fullscreen"
+        >⛶</button>
       )}
       {toast && <div className="pdf-annotator__toast">{toast}</div>}
     </div>
