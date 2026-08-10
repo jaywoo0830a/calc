@@ -4,13 +4,14 @@ import { setRangeSelectState } from '../lib/rangeSelectState.js';
 import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 
 // ═══════════════════════════════════════════════════════════════
-// RangeSelect — "모드 + 두 번 탭" 방식의 범위 선택 도구 (터치 기기 전용)
+// RangeSelect — ✂️ Selecting: 범위 먼저 선택 → 그다음 액션 (터치 기기 전용)
 // ─────────────────────────────────────────────────────────────
-// ✂️ 도크를 펼쳐 모드를 고른 뒤 (✓ Solved / ✗ Wrong / 📖 Lookup),
-// 시작점과 끝점을 차례로 탭하면 그 사이 텍스트에 대해 동작한다.
+// 1. ✂️ Selecting 켜기
+// 2. 시작점 탭(①) → 끝점 탭(②) → 범위가 하이라이트된다
+// 3. 근처 액션 바에서 선택: ✓ Solved / ✗ Wrong / 📖 Lookup / ✕
 //   - Solved/Wrong → window 'problems:mark' 이벤트 (Viewer/PDF가 처리)
 //   - Lookup       → window 'wordlookup:open' 이벤트 (WordLookup이 처리)
-// 데스크톱은 클릭·드래그 기반(선택 툴바)을 사용하므로 이 도크는 숨긴다.
+// 데스크톱은 클릭·드래그 기반(선택 툴바)을 사용하므로 이 도구는 숨긴다.
 // ═══════════════════════════════════════════════════════════════
 
 // 탭이 무시되어야 하는 영역 (버튼/링크/에디터/기존 툴바/이 도크 자체)
@@ -58,10 +59,11 @@ function pageOf(range) {
 }
 
 export default function RangeSelect() {
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState(null);      // 'solved' | 'wrong' | 'lookup'
-  const [step, setStep] = useState(0);         // 0 idle, 1 시작점, 2 끝점
-  const [notice, setNotice] = useState(null);  // 일회성 안내 문구
+  const [active, setActive] = useState(false);        // Selecting 모드 ON/OFF
+  const [step, setStep] = useState(0);                // 0 시작점 대기, 1 끝점 대기
+  const [selection, setSelection] = useState(null);   // 확정된 범위 { text, rect }
+  const [barPos, setBarPos] = useState(null);         // 액션 바 위치 { x, y }
+  const [notice, setNotice] = useState(null);         // 일회성 안내 문구
   const startRangeRef = useRef(null);
   const noticeTimerRef = useRef(null);
 
@@ -71,27 +73,48 @@ export default function RangeSelect() {
     noticeTimerRef.current = setTimeout(() => setNotice(null), 2000);
   }, []);
 
-  const reset = useCallback(() => {
-    setMode(null);
+  // Selecting 종료 (선택/액션 바 정리 + 커서 복귀)
+  const exit = useCallback(() => {
+    setActive(false);
     setStep(0);
+    setSelection(null);
+    setBarPos(null);
     startRangeRef.current = null;
   }, []);
 
-  const cancel = useCallback(() => {
-    setOpen(false);
-    reset();
-  }, [reset]);
+  // ✂️ Selecting 토글
+  const toggle = useCallback(() => {
+    const next = !active;
+    setActive(next);
+    setStep(0);
+    setSelection(null);
+    setBarPos(null);
+    startRangeRef.current = null;
+  }, [active]);
 
   useEffect(() => () => { if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current); }, []);
 
-  // armed 상태를 CustomCursor 등에 공유 (모드/단계에 따라 커서가 바뀐다)
+  // Selecting 상태를 CustomCursor 등에 공유 — active면 타깃 커서 표시
   useEffect(() => {
-    setRangeSelectState({ armed: !!(mode && step > 0), step, mode });
-  }, [mode, step]);
+    setRangeSelectState({ active, step: active ? step : 0 });
+  }, [active, step]);
 
-  // ── 탭 처리 (armed 중에만 capture로 가로챔) ──
+  // 선택 확정 후 액션 실행 (✓/✗ → problems:mark, 📖 → wordlookup:open)
+  const dispatchAction = useCallback((action) => {
+    if (!selection) return;
+    if (action === 'lookup') {
+      if (!isCandidate(selection.text)) { flashNotice('Dictionary: select a single word or short phrase'); return; }
+      window.dispatchEvent(new CustomEvent('wordlookup:open', { detail: { text: selection.text, rect: selection.rect } }));
+    } else {
+      window.dispatchEvent(new CustomEvent('problems:mark', { detail: { text: selection.text, status: action, rect: selection.rect } }));
+    }
+    window.getSelection()?.removeAllRanges();
+    exit();
+  }, [selection, exit, flashNotice]);
+
+  // ── 탭 처리 (Selecting 중에만 capture로 가로챔) ──
   useEffect(() => {
-    if (step === 0 || !mode) return;
+    if (!active) return;
     const onTap = (e) => {
       const t = e.target;
       if (!t || !t.closest) return;
@@ -99,12 +122,15 @@ export default function RangeSelect() {
       e.preventDefault();
       e.stopPropagation();
 
+      // 액션 바가 떠 있으면 더 이상 탭으로 선택하지 않음 (안정성)
+      if (selection) return;
+
       const caret = caretAtPoint(e.clientX, e.clientY);
       if (!caret || !caretInBody(caret)) return;
 
-      if (step === 1) {
+      if (step === 0) {
         startRangeRef.current = caret;
-        setStep(2);
+        setStep(1);
         return;
       }
 
@@ -115,7 +141,7 @@ export default function RangeSelect() {
       // PDF: 같은 페이지 안에서만 허용
       const sp = pageOf(start), ep = pageOf(end);
       if (sp || ep) {
-        if (sp !== ep) { flashNotice('PDF: tap both points on the same page'); reset(); return; }
+        if (sp !== ep) { flashNotice('PDF: tap both points on the same page'); setStep(0); startRangeRef.current = null; return; }
       }
 
       // 시작/끝 순서 정규화 (거꾸로 탭해도 동작)
@@ -125,17 +151,31 @@ export default function RangeSelect() {
       range.setStart(start.startContainer, start.startOffset);
       range.setEnd(end.endContainer, end.endOffset);
       const text = range.toString().replace(/\s+/g, ' ').trim();
+      if (!text) { flashNotice('No text in that range — try again'); setStep(0); startRangeRef.current = null; return; }
       const rect = range.getBoundingClientRect();
-      const rectObj = { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
-      const m = mode;
-      reset();
-      if (!text) { flashNotice('No text in that range — try again'); return; }
-      if (m === 'lookup') {
-        if (!isCandidate(text)) { flashNotice('Dictionary: select a single word or short phrase'); return; }
-        window.dispatchEvent(new CustomEvent('wordlookup:open', { detail: { text, rect: rectObj } }));
-      } else {
-        window.dispatchEvent(new CustomEvent('problems:mark', { detail: { text, status: m, rect: rectObj } }));
-      }
+
+      // 실제 브라우저 선택을 적용해 사용자가 범위를 눈으로 확인 (안정감)
+      try {
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch { /* ignore */ }
+
+      setStep(0);
+      startRangeRef.current = null;
+      setSelection({
+        text,
+        rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+      });
+
+      // 액션 바 위치 (선택 영역 위, 공간 부족 시 아래)
+      const barW = 320, barH = 44, gap = 10;
+      let bx = rect.left + (rect.right - rect.left) / 2 - barW / 2;
+      bx = Math.max(gap, Math.min(bx, window.innerWidth - barW - gap));
+      let by = rect.top - barH - gap;
+      if (by < gap) by = rect.bottom + gap;
+      by = Math.max(gap, by);
+      setBarPos({ x: Math.round(bx), y: Math.round(by) });
     };
     document.addEventListener('click', onTap, true);
     document.addEventListener('touchstart', onTap, true);
@@ -143,57 +183,53 @@ export default function RangeSelect() {
       document.removeEventListener('click', onTap, true);
       document.removeEventListener('touchstart', onTap, true);
     };
-  }, [step, mode, reset, flashNotice]);
+  }, [active, step, selection, flashNotice]);
 
-  // Esc → 취소
+  // Esc → Selecting 종료
   useEffect(() => {
-    if (!open && step === 0) return;
-    const onKey = (e) => { if (e.key === 'Escape') { setOpen(false); reset(); } };
+    if (!active) return;
+    const onKey = (e) => { if (e.key === 'Escape') { window.getSelection()?.removeAllRanges(); exit(); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, step, reset]);
+  }, [active, exit]);
 
-  const label = mode === 'solved' ? 'Mark solved' : mode === 'wrong' ? 'Mark wrong' : 'Look up';
-
-  // 데스크톱은 클릭·드래그 기반(선택 툴바)을 사용 — ✂️ 도크는 터치 기기 전용
+  // 데스크톱은 클릭·드래그 기반(선택 툴바)을 사용 — ✂️ Selecting은 터치 기기 전용
   if (!IS_TOUCH_PRIMARY) return null;
 
   return (
     <div className="range-select">
       <button
-        className={'range-select__trigger' + (open ? ' range-select__trigger--open' : '')}
-        onClick={() => setOpen((o) => { if (o) reset(); return !o; })}
-        aria-pressed={open}
-        title="Range select — pick a mode, then tap the start and end points"
-      >✂️</button>
+        className={'range-select__trigger' + (active ? ' range-select__trigger--open' : '')}
+        onClick={toggle}
+        aria-pressed={active}
+        title={active
+          ? 'Selecting — tap the start and end points'
+          : 'Selecting — tap a range, then choose Solved / Wrong / Lookup'}
+      >✂️ {active ? 'Selecting…' : 'Selecting'}</button>
 
-      {open && (
-        <div className="range-select__bar">
-          <button
-            className={'range-select__mode range-select__mode--solved' + (mode === 'solved' ? ' range-select__mode--active' : '')}
-            onClick={() => { setMode('solved'); setStep(1); }}
-            title="Mark the tapped range as solved"
-          >✓ Solved</button>
-          <button
-            className={'range-select__mode range-select__mode--wrong' + (mode === 'wrong' ? ' range-select__mode--active' : '')}
-            onClick={() => { setMode('wrong'); setStep(1); }}
-            title="Mark the tapped range as wrong"
-          >✗ Wrong</button>
-          <button
-            className={'range-select__mode range-select__mode--lookup' + (mode === 'lookup' ? ' range-select__mode--active' : '')}
-            onClick={() => { setMode('lookup'); setStep(1); }}
-            title="Look up the tapped range in the dictionary"
-          >📖 Lookup</button>
-          <button className="range-select__cancel" onClick={cancel} title="Close">✕</button>
-        </div>
-      )}
-
-      {mode && step > 0 && (
+      {active && !selection && (
         <div className="range-select__hint">
-          {step === 1 ? `① Tap the start point (${label})` : `② Tap the end point (${label})`}
+          {step === 0 ? '① Tap the start point' : '② Tap the end point'}
         </div>
       )}
       {notice && <div className="range-select__hint range-select__hint--notice">{notice}</div>}
+
+      {/* 선택 확정 후 액션 바 — 위치는 선택 영역 근처 */}
+      {selection && barPos && (
+        <div className="range-select__bar range-select__bar--fixed" style={{ left: barPos.x, top: barPos.y }}>
+          <span className="range-select__sel-label" title={selection.text}>
+            {selection.text.length > 16 ? selection.text.slice(0, 16) + '…' : selection.text}
+          </span>
+          <button className="range-select__mode range-select__mode--solved" onClick={() => dispatchAction('solved')} title="Mark as solved">✓ Solved</button>
+          <button className="range-select__mode range-select__mode--wrong" onClick={() => dispatchAction('wrong')} title="Mark as wrong">✗ Wrong</button>
+          <button className="range-select__mode range-select__mode--lookup" onClick={() => dispatchAction('lookup')} title="Look up in dictionary">📖 Lookup</button>
+          <button
+            className="range-select__cancel"
+            onClick={() => { window.getSelection()?.removeAllRanges(); exit(); }}
+            title="Dismiss selection"
+          >✕</button>
+        </div>
+      )}
     </div>
   );
 }

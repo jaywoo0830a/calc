@@ -62,6 +62,24 @@
     animation: rangeSelectIn 0.15s ease;
   }
 
+  // 선택 확정 후 고정 위치 액션 바
+  &__bar--fixed {
+    position: fixed;
+    z-index: 600;
+  }
+
+  // 선택된 텍스트 미리보기
+  &__sel-label {
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: $fs-step--1;
+    color: $c-ink-faint;
+    font-style: italic;
+    padding: 0 0.25rem;
+  }
+
   &__mode {
     padding: 0.3rem 0.75rem;
     border: none;

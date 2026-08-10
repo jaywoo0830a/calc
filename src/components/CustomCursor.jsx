@@ -6,12 +6,12 @@ const INTERACTIVE_SELECTOR = 'a, button, input, select, textarea, [role="button"
 const PEN_SELECTOR = '.pdf-annotator__page-wrapper--pen';
 const TEXT_SELECTOR = '.react-pdf__Page__textContent span, [contenteditable="true"], textarea, input[type="text"], input[type="search"]';
 
-// ── RangeSelect(✂️) armed 상태의 정밀 타깃 커서 ────────────────
-// 모드별 색상 + 시작(①)/끝(②) 단계 배지 + 크로스헤어 눈금
-const RANGE_COLORS = { solved: '#3d5a40', wrong: '#b5433a', lookup: '#5c3d2e' };
+// ── RangeSelect(✂️ Selecting) 상태의 정밀 타깃 커서 ────────────
+// 단일 선택 색상 + 시작(①)/끝(②) 단계 배지 + 크로스헤어 눈금
+const SELECTING_COLOR = '#3d5a80';
 
-function RangeCursor({ pos, step, mode }) {
-  const color = RANGE_COLORS[mode] || '#5c3d2e';
+function RangeCursor({ pos, step }) {
+  const color = SELECTING_COLOR;
   const size = 30;
   const ticks = [
     { x: pos.x, y: pos.y - size / 2 - 4, w: 1.5, h: 7 }, // top
@@ -92,15 +92,15 @@ function RangeCursor({ pos, step, mode }) {
           pointerEvents: 'none',
           zIndex: 2147483647,
         }}
-      >{step === 1 ? '1' : '2'}</div>
+      >{step === 0 ? '1' : '2'}</div>
     </>
   );
 }
 
 function CursorElement({ pos, mode, range }) {
-  const armed = !!(range && range.armed);
-  if (armed) {
-    return <RangeCursor pos={pos} step={range.step} mode={range.mode} />;
+  const active = !!(range && range.active);
+  if (active) {
+    return <RangeCursor pos={pos} step={range.step} />;
   }
   const isHidden = mode === 'hidden';
   const isPen = mode === 'pen';

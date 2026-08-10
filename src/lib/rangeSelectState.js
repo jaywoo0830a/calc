@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
-// rangeSelectState — RangeSelect(✂️ 모드 + 두 번 탭)의 armed 상태를
+// rangeSelectState — RangeSelect(✂️ Selecting)의 상태를
 // CustomCursor 등 다른 전역 컴포넌트와 공유하는 초경량 스토어
+// state: { active: boolean, step: 0|1 }  (0=시작점 대기, 1=끝점 대기)
 // ═══════════════════════════════════════════════════════════════
 
 const listeners = new Set();
-let state = { armed: false, step: 0, mode: null };
+let state = { active: false, step: 0 };
 
 export function setRangeSelectState(next) {
   state = { ...state, ...next };
