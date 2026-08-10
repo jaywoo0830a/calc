@@ -297,6 +297,23 @@
     }
   }
 
+  // ---- 사전 조회 버튼 (선택 툴바 앞, 명시적 구분) ----
+  &__sel-lookup {
+    padding: 0.3rem 0.6rem;
+    border: none;
+    border-radius: 2rem;
+    background: rgba(92, 61, 46, 0.12);
+    color: $c-accent;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+
+    &:hover { background: rgba(92, 61, 46, 0.22); }
+  }
+
   &__toast {
     position: fixed;
     bottom: 2rem;

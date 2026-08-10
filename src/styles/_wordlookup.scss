@@ -155,6 +155,45 @@
     text-align: right;
     background: $c-page-dark;
   }
+
+  // ---- 좌하단 고정 📖 Lookup 토글 (항상 표시) ----
+  &__toggle {
+    position: fixed;
+    left: $sp-4;
+    bottom: $sp-4;
+    z-index: 400;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.45rem 0.85rem;
+    border: $border-thin solid $c-rule;
+    border-radius: 2rem;
+    background: rgba(255, 254, 247, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: $shadow-md;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-medium;
+    color: $c-ink-soft;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all $transition-fast;
+
+    &:hover {
+      border-color: $c-accent;
+      color: $c-accent;
+    }
+
+    &--on {
+      background: $c-accent;
+      border-color: $c-accent;
+      color: #fff;
+      box-shadow: $shadow-lg;
+
+      &:hover { background: $c-accent-hover; color: #fff; }
+    }
+  }
 }
 
 // ---- Keyframes ---------------------------------------------

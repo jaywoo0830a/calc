@@ -1,13 +1,25 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 
 // ═══════════════════════════════════════════════════════════════
-// WordLookup — 마크다운/PDF 텍스트에서 단어를 드래그하면
-// 영영사전(dictionaryapi.dev) 정의가 오버레이로 표시된다.
+// WordLookup — 영영사전(dictionaryapi.dev) 오버레이
+// ─────────────────────────────────────────────────────────────
+// 트리거는 모두 "명시적"이다 (단순 드래그 선택만으로는 뜨지 않는다):
+//   1. 📖 Lookup 토글(좌하단) ON → 단어 선택 시 자동 표시
+//   2. 단어 더블클릭 → 항상 표시 (데스크톱)
+//   3. 텍스트 선택 후 Ctrl/Cmd+Alt+D → 항상 표시
+//   4. Viewer/PDF 선택 툴바의 📖 버튼 → 해당 선택 텍스트 표시
 // PWA 오프라인 대응: 조회 결과를 localStorage에 캐시한다.
 // ═══════════════════════════════════════════════════════════════
 
 // 단일 영어 단어 또는 짧은 영어 구문 (아포스트로피/하이픈/공백 허용)
 const WORD_RE = /^[A-Za-z][A-Za-z' -]{0,49}$/;
+
+// 사전 조회 대상인지 판별 (단어/짧은 구문만 — 그 외엔 절대 트리거 안 됨)
+export function isCandidate(text) {
+  if (!text) return false;
+  const t = String(text).replace(/\s+/g, ' ').trim();
+  return t.length > 0 && t.length <= 50 && WORD_RE.test(t);
+}
 
 // 선택이 무시되어야 하는 영역 (에디터, 입력창, 기존 선택 툴바 등)
 const EXCLUDE_SELECTOR = [
@@ -19,10 +31,22 @@ const EXCLUDE_SELECTOR = [
   '.word-lookup',                     // 사전 카드 자체
 ].join(', ');
 
+// 더블클릭 트리거가 가로채지 말아야 할 영역 (링크/이미지/버튼/에디터 등)
+const DBLCLICK_EXCLUDE_SELECTOR = [
+  'a', 'img',
+  'input', 'textarea', 'select', 'button',
+  '[contenteditable="true"]',
+  '.cm-content',
+  '.viewer__md-sel',
+  '.pdf-annotator__sel-trigger',
+  '.word-lookup',
+].join(', ');
+
 const API_URL = (word) => `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
 
 // ── 조회 결과 캐시 (메모리 + localStorage) ─────────────────────
 const CACHE_STORE_KEY = 'wordlookup:cache';
+const MODE_STORE_KEY = 'wordlookup:mode';   // 📖 Lookup 토글 상태
 const CACHE_MAX = 300;
 const cache = new Map();
 
@@ -92,12 +116,17 @@ async function fetchDefinition(word) {
 
 export default function WordLookup() {
   const [state, setState] = useState(null); // { word, x, y, status, data } | null
+  const [mode, setMode] = useState(() => {
+    try { return localStorage.getItem(MODE_STORE_KEY) === 'on' ? 'on' : 'off'; } catch { return 'off'; }
+  });
   const currentRef = useRef(null);          // 현재 표시 중인 단어 (경쟁 방지)
+  const modeRef = useRef(mode);             // 안정 콜백에서 읽을 mode 미러
   const detectTimerRef = useRef(null);
   const fetchTimerRef = useRef(null);
   const audioRef = useRef(null);
 
   useEffect(() => { loadPersistentCache(); }, []);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   const dismiss = useCallback(() => {
     if (detectTimerRef.current) clearTimeout(detectTimerRef.current);
@@ -107,6 +136,7 @@ export default function WordLookup() {
   }, []);
 
   const showWord = useCallback((word, x, y) => {
+    if (currentRef.current?.word === word) return; // 이미 같은 단어 — 중복 표시 방지
     currentRef.current = { word, x, y };
     const cached = cache.get(word);
     if (cached) {
@@ -123,34 +153,39 @@ export default function WordLookup() {
     }, 60);
   }, []);
 
-  // ── 선택 감지: 영어 단어/짧은 구문이면 카드 표시 ─────────────
-  const detect = useCallback(() => {
+  // 카드를 주어진 사각형 기준으로 열기 (위치 계산 + 중복 방지)
+  const openCard = useCallback((word, rect) => {
+    if (currentRef.current?.word === word) return; // 이미 같은 단어 표시 중
+    const cardW = 320, cardH = 300, gap = 10;
+    let x = rect.left + (rect.right - rect.left) / 2 - cardW / 2;
+    x = Math.max(gap, Math.min(x, window.innerWidth - cardW - gap));
+    let y = rect.top - cardH - gap;
+    if (y < gap) y = rect.bottom + gap;
+    if (y + cardH > window.innerHeight - gap) y = Math.max(gap, window.innerHeight - cardH - gap);
+    showWord(word, Math.round(x), Math.round(y));
+  }, [showWord]);
+
+  // 현재 브라우저 선택 텍스트를 카드로 (모드 무관 — 명시적 트리거 전용)
+  const openForSelection = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
     const text = sel.toString().replace(/\s+/g, ' ').trim();
-    if (!text || text.length > 50 || !WORD_RE.test(text)) return;
-
+    if (!isCandidate(text)) return;
     const range = sel.getRangeAt(0);
     const node = range.commonAncestorContainer;
     const el = node.nodeType === 3 ? node.parentElement : node;
     if (!el || !el.closest) return;
     if (el.closest(EXCLUDE_SELECTOR)) return;
-
-    const word = text.toLowerCase();
-    if (currentRef.current?.word === word) return; // 이미 같은 단어 표시 중
-
     const rect = range.getBoundingClientRect();
     if (!rect.width && !rect.height) return;
+    openCard(text.toLowerCase(), rect);
+  }, [openCard]);
 
-    const cardW = 320, cardH = 300, gap = 10;
-    let x = rect.left + rect.width / 2 - cardW / 2;
-    x = Math.max(gap, Math.min(x, window.innerWidth - cardW - gap));
-    let y = rect.top - cardH - gap;
-    if (y < gap) y = rect.bottom + gap;
-    if (y + cardH > window.innerHeight - gap) y = Math.max(gap, window.innerHeight - cardH - gap);
-
-    showWord(word, Math.round(x), Math.round(y));
-  }, [showWord]);
+  // 선택 변화 감지 — 📖 Lookup 모드가 ON일 때만 자동 표시
+  const detect = useCallback(() => {
+    if (modeRef.current !== 'on') return;
+    openForSelection();
+  }, [openForSelection]);
 
   // 선택 변화 감지 (데스크톱 드래그 + 모바일 long-press 모두)
   useEffect(() => {
@@ -168,6 +203,45 @@ export default function WordLookup() {
       if (detectTimerRef.current) clearTimeout(detectTimerRef.current);
     };
   }, [detect]);
+
+  // ── 명시적 트리거 ①: 단어 더블클릭 (모드 무관) ──────────────
+  useEffect(() => {
+    const onDblClick = (e) => {
+      if (!e.target || !e.target.closest) return;
+      if (e.target.closest(DBLCLICK_EXCLUDE_SELECTOR)) return;
+      setTimeout(openForSelection, 0); // 네이티브 단어 선택 반영 대기
+    };
+    document.addEventListener('dblclick', onDblClick);
+    return () => document.removeEventListener('dblclick', onDblClick);
+  }, [openForSelection]);
+
+  // ── 명시적 트리거 ②: Ctrl/Cmd+Alt+D (모드 무관) ─────────────
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'd' || e.key === 'D'))) return;
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+      if (!isCandidate(sel.toString())) return;
+      e.preventDefault();
+      openForSelection();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openForSelection]);
+
+  // ── 명시적 트리거 ③: Viewer/PDF 툴바 📖 버튼 (wordlookup:open) ──
+  useEffect(() => {
+    const onOpen = (e) => {
+      const { text, rect } = e.detail || {};
+      if (!text || !rect) return;
+      if (!isCandidate(text)) return;
+      openCard(String(text).replace(/\s+/g, ' ').trim().toLowerCase(), {
+        left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+      });
+    };
+    window.addEventListener('wordlookup:open', onOpen);
+    return () => window.removeEventListener('wordlookup:open', onOpen);
+  }, [openCard]);
 
   // 바깥 클릭 / 스크롤 / Esc → 닫기
   useEffect(() => {
@@ -198,17 +272,39 @@ export default function WordLookup() {
     } catch { /* ignore */ }
   }, []);
 
-  if (!state) return null;
-  const { word, x, y, status, data } = state;
+  // 📖 Lookup 모드 토글 (localStorage에 유지)
+  const toggleMode = () => {
+    setMode((m) => {
+      const next = m === 'on' ? 'off' : 'on';
+      try { localStorage.setItem(MODE_STORE_KEY, next); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  const { word, x, y, status, data } = state || {};
   const hasEntry = status === 'done' && data && !data.notFound && !data.error;
 
   return (
-    <div
-      className="word-lookup"
-      style={{ left: x, top: y }}
-      role="dialog"
-      aria-label={`Dictionary: ${word}`}
-    >
+    <>
+      {/* 좌하단 고정 토글 — ON이면 단어 선택 시 자동 조회 */}
+      <button
+        className={'word-lookup__toggle' + (mode === 'on' ? ' word-lookup__toggle--on' : '')}
+        onClick={toggleMode}
+        aria-pressed={mode === 'on'}
+        title={mode === 'on'
+          ? 'Lookup mode is ON — select a word to look it up. (Double-click a word also works.)'
+          : 'Lookup mode is OFF. Double-click a word, press Ctrl+Alt+D, or use the 📖 button in the selection toolbar.'}
+      >
+        📖 Lookup{mode === 'on' ? ' ON' : ''}
+      </button>
+
+      {state && (
+      <div
+        className="word-lookup"
+        style={{ left: x, top: y }}
+        role="dialog"
+        aria-label={`Dictionary: ${word}`}
+      >
       <div className="word-lookup__head">
         <span className="word-lookup__word">{word}</span>
         {hasEntry && data.phonetic && <span className="word-lookup__phonetic">{data.phonetic}</span>}
@@ -257,6 +353,8 @@ export default function WordLookup() {
       </div>
 
       <div className="word-lookup__foot">English–English · dictionaryapi.dev</div>
-    </div>
+      </div>
+      )}
+    </>
   );
 }

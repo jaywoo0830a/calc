@@ -976,6 +976,14 @@
         &:hover { background: $c-error-soft; }
       }
     }
+
+    // 사전 조회 버튼 (가운데) — 명시적으로 구분되는 액센트 스타일
+    &__md-sel-lookup {
+      background: $c-accent-soft;
+      color: $c-accent;
+
+      &:hover { background: $c-accent-light; }
+    }
   }
 }
 

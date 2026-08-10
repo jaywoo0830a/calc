@@ -362,6 +362,28 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
     });
   }, [filePath]);
 
+  // ── RangeSelect(✂️ 모드 + 두 번 탭) → 문제 등록 ──
+  useEffect(() => {
+    const onMark = (e) => {
+      const { text, status } = e.detail || {};
+      if (!text || !status || !filePath) return;
+      api.saveProblem({
+        docId: filePath,
+        docPath: filePath,
+        ref: String(currentPage),
+        text: String(text).slice(0, 500),
+        status,
+      }).then(() => {
+        setToast(status === 'solved' ? '✓ Marked as solved' : '✗ Marked as wrong');
+        refreshProblems();
+      }).catch(() => {
+        setToast('Failed to save — check server');
+      });
+    };
+    window.addEventListener('problems:mark', onMark);
+    return () => window.removeEventListener('problems:mark', onMark);
+  }, [filePath, currentPage, refreshProblems]);
+
   // ── Polling: check selection every 250ms (problem/highlight/underline) ──
   useEffect(() => {
     if (tool !== 'highlight' && tool !== 'underline' && tool !== 'problem') return;
@@ -934,6 +956,22 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
           }}
         >
           <div className="pdf-annotator__sel-trigger-inner">
+            <button
+              className="pdf-annotator__sel-lookup"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                const data = savedSelectionRef.current;
+                if (!data) return;
+                const r = e.currentTarget.getBoundingClientRect();
+                window.dispatchEvent(new CustomEvent('wordlookup:open', {
+                  detail: {
+                    text: data.text,
+                    rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
+                  },
+                }));
+              }}
+              title="Look up in dictionary"
+            >📖</button>
             {tool === 'problem' && (
               <>
                 <button

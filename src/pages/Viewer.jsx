@@ -739,6 +739,30 @@ export default function Viewer() {
     });
   }, [mdSel, selectedPath, refreshProblems, dismissMdSel]);
 
+  // ── RangeSelect(✂️ 모드 + 두 번 탭) → 문제 등록 (마크다운 문서) ──
+  // PDF가 열려 있으면 PdfAnnotator가 처리하므로 여기선 건너뛴다.
+  useEffect(() => {
+    if (pdfUrl) return;
+    const onMark = (e) => {
+      const { text, status } = e.detail || {};
+      if (!text || !status || !selectedPath) return;
+      api.saveProblem({
+        docId: selectedPath,
+        docPath: selectedPath,
+        ref: '',
+        text: String(text).slice(0, 500),
+        status,
+      }).then(() => {
+        refreshProblems();
+        setMdToast(status === 'solved' ? '✓ Marked as solved' : '✗ Marked as wrong');
+      }).catch(() => {
+        setMdToast('Failed to save — check server');
+      });
+    };
+    window.addEventListener('problems:mark', onMark);
+    return () => window.removeEventListener('problems:mark', onMark);
+  }, [pdfUrl, selectedPath, refreshProblems]);
+
   // ── 푼/틀린 문제 패널 ──────────────────────────────────
   const jumpToProblem = useCallback((p) => {
     const zip = zipRef.current;
@@ -979,6 +1003,20 @@ export default function Viewer() {
           {mdSel && (
             <div className="viewer__md-sel" style={{ position: 'fixed', left: mdSel.x, top: mdSel.y, zIndex: 250 }}>
               <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('solved')} title="Mark as solved">✓ Solved</button>
+              <button
+                className="viewer__md-sel-lookup"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  window.dispatchEvent(new CustomEvent('wordlookup:open', {
+                    detail: {
+                      text: mdSel.text,
+                      rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
+                    },
+                  }));
+                }}
+                title="Look up in dictionary"
+              >📖</button>
               <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('wrong')} title="Mark as wrong">✗ Wrong</button>
             </div>
           )}
