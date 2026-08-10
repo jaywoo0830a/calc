@@ -1274,14 +1274,15 @@
       display: none;
     }
 
-    // 줌 슬라이더 컴팩트
+    // 줌 슬라이더 컴팩트 — 모바일에서는 − / + 만 유지
     &__zoom-slider {
       gap: 0.125rem;
       margin-left: $sp-1;
       padding-left: $sp-1;
 
+      // 슬라이더는 숨김
       input[type='range'] {
-        width: 2.5rem;
+        display: none;
       }
 
       // 1:1 리셋 버튼 숨김
@@ -1291,7 +1292,7 @@
     }
 
     &__zoom-label {
-      min-width: 1.75rem;
+      display: none;
     }
   }
 }
