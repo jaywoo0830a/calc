@@ -6,6 +6,7 @@ import JSZip from 'jszip';
 import hljs from 'highlight.js';
 import ZipTree from '../components/ZipTree.jsx';
 import PdfViewer from '../components/PdfViewer.jsx';
+import SolverTimer from '../components/SolverTimer.jsx';
 import { listZips, saveZip, loadZip as loadZipFromDB, deleteZip } from '../lib/storage.js';
 import { api } from '../lib/api.js';
 
@@ -1081,6 +1082,8 @@ export default function Viewer() {
           aria-label="Problems"
         >📋</button>
       )}
+      {/* 좌하단 플로팅 10분 문제 풀이 타이머 (마크다운/PDF 공통) */}
+      <SolverTimer />
       {/* 하단 우측 컨트롤 — 가로 정렬 */}
       <div className="viewer__controls">
         {rendered && (

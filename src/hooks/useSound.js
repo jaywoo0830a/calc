@@ -39,6 +39,11 @@ export function useSound() {
         beep(400, 0.07, 'triangle', 0.06);
         setTimeout(() => beep(250, 0.10, 'triangle', 0.05), 50);
         break;
+      case 'timer':
+        beep(880, 0.12, 'sine', 0.09);
+        setTimeout(() => beep(880, 0.12, 'sine', 0.09), 180);
+        setTimeout(() => beep(1320, 0.30, 'sine', 0.10), 360);
+        break;
     }
   }, [beep]);
 
