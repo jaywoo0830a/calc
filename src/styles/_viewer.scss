@@ -238,6 +238,84 @@
     }
   }
 
+  // ---- 최근 읽은 문서 히스토리 ---------------------------
+  &__recent {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    margin-bottom: $sp-3;
+    padding: $sp-1 $sp-2;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+
+    &-title {
+      flex-shrink: 0;
+      font-size: $fs-step--2;
+      font-weight: $fw-semibold;
+      color: $c-ink-faint;
+      text-transform: uppercase;
+      letter-spacing: $ls-wide;
+    }
+
+    &-chips {
+      display: flex;
+      align-items: center;
+      gap: $sp-2;
+      flex: 1;
+      overflow-x: auto;
+      padding: $sp-1 0;
+      scrollbar-width: thin;
+    }
+
+    &-chip {
+      flex-shrink: 0;
+      border: $border-thin solid $c-rule;
+      border-radius: 2rem;
+      background: $c-page-dark;
+      color: $c-ink;
+      font-family: $ff;
+      font-size: $fs-step--1;
+      padding: 0.2rem 0.7rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all $transition-fast;
+
+      @media (hover: hover) {
+        &:hover {
+          border-color: $c-accent;
+          color: $c-accent;
+        }
+      }
+
+      &--active {
+        background: $c-accent-soft;
+        border-color: $c-accent;
+        color: $c-accent;
+      }
+    }
+
+    &-clear {
+      flex-shrink: 0;
+      border: none;
+      background: none;
+      color: $c-ink-faint;
+      font-size: $fs-step-0;
+      line-height: 1;
+      cursor: pointer;
+      padding: $sp-1;
+      border-radius: $radius-md;
+      transition: all $transition-fast;
+
+      @media (hover: hover) {
+        &:hover {
+          background: $c-accent-light;
+          color: $c-accent;
+        }
+      }
+    }
+  }
+
   // ---- Panes container (preview only — sidebar is fixed) ---
   &__panes {
     display: flex;
