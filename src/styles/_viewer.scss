@@ -643,10 +643,10 @@
 
   &__problems-panel {
     position: fixed;
-    right: $sp-4;
-    bottom: calc($sp-4 + $fullscreen-btn + $sp-2 + env(safe-area-inset-bottom, 0px));
+    left: calc($sp-4 + (2.5rem + $sp-1) * 2); // 📋 버튼과 왼쪽 정렬
+    bottom: calc($sp-4 + 2.5rem + $sp-2 + env(safe-area-inset-bottom, 0px)); // 버튼 위
     z-index: $z-fullscreen;
-    width: min(24rem, calc(100vw - 2rem));
+    width: min(24rem, calc(100vw - 8rem)); // 버튼 왼쪽 기준 우측 여백 확보
     max-height: 60vh;
     display: flex;
     flex-direction: column;
@@ -1013,6 +1013,13 @@
 
     &__problems-fab {
       bottom: calc($sp-2 + env(safe-area-inset-bottom, 0px)); // ✂️/🕘와 같은 높이
+    }
+
+    &__problems-panel {
+      left: $sp-4;
+      right: $sp-4;
+      width: auto;
+      bottom: calc($sp-2 + 2.5rem + $sp-2 + env(safe-area-inset-bottom, 0px)); // 버튼 행 위, 전체 폭
     }
   }
 }

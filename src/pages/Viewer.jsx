@@ -948,13 +948,15 @@ export default function Viewer() {
           )}
         </div>
       </div>
-      {/* 좌하단 플로팅 문제 버튼 — ✂️/🕘와 같은 위치·반투명 스타일 */}
-      <button
-        className={'viewer__problems-fab' + (problemsOpen ? ' viewer__problems-fab--open' : '')}
-        onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
-        title="Problems"
-        aria-label="Problems"
-      >📋</button>
+      {/* 좌하단 플로팅 문제 버튼 — PDF는 자체 툴바에 Problems가 있으므로 마크다운일 때만 */}
+      {!pdfUrl && (
+        <button
+          className={'viewer__problems-fab' + (problemsOpen ? ' viewer__problems-fab--open' : '')}
+          onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
+          title="Problems"
+          aria-label="Problems"
+        >📋</button>
+      )}
       {/* 하단 우측 컨트롤 — 가로 정렬 */}
       <div className="viewer__controls">
         {rendered && (
@@ -989,8 +991,8 @@ export default function Viewer() {
       </div>
       {mdToast && <div className="viewer__md-toast">{mdToast}</div>}
 
-      {/* 푼/틀린 문제 관리 */}
-      {problemsOpen && (
+      {/* 푼/틀린 문제 관리 (마크다운 전용 — PDF는 자체 패널 사용) */}
+      {!pdfUrl && problemsOpen && (
         <div className="viewer__problems-panel">
           <div className="viewer__problems-header">
             <span className="viewer__problems-title">📋 Problems ({docProblems.length})</span>
