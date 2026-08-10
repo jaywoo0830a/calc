@@ -176,6 +176,7 @@ export default function Viewer() {
   const [mdToast, setMdToast] = useState(null);                // 등록 피드백 (PDF와 통일)
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
+  const pdfState = useRef({});   // { path: { page, scrollTop } } PDF 읽기 위치 보존
   const [readability, setReadability] = useState(0);
   const zipRef = useRef(null);
   const navSeq = useRef(0); // 문서 전환 경합 방지 — 최신 탐색만 적용
@@ -304,6 +305,16 @@ export default function Viewer() {
       el.scrollTop = 0;
     }
   }, [rendered, selectedPath]);
+
+  // PDF 페이지/스크롤 위치 보고 수신 (경로별 보존)
+  useEffect(() => {
+    const onPage = (e) => {
+      const { path, page, scrollTop } = e.detail || {};
+      if (path && page) pdfState.current[path] = { page, scrollTop: scrollTop || 0 };
+    };
+    window.addEventListener('viewer:pdf-page', onPage);
+    return () => window.removeEventListener('viewer:pdf-page', onPage);
+  }, []);
   useEffect(() => {
     if (!fullscreen) return;
     const onKey = (e) => { if (e.key === 'Escape') setFullscreen(false); };
@@ -435,7 +446,7 @@ export default function Viewer() {
         setSelectedPath(result.path);
         setRendered('');
         setToc([]);
-        setPdfInitialPage(null);
+        setPdfInitialPage(pdfState.current[result.path]?.page || null);
         setLoading(false);
       });
     } else {
@@ -460,6 +471,7 @@ export default function Viewer() {
     setLoading(true);
     setFileName(file.name);
     scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
+    pdfState.current = {};         // 새 ZIP → PDF 위치 초기화
     clearRecent();                // 새 ZIP → 히스토리 초기화
     try {
       const zip = await JSZip.loadAsync(file);
@@ -485,16 +497,11 @@ export default function Viewer() {
         }
       }
       setZipTree(tree);
-      // 첫 번째 .md 파일 찾아서 렌더링
-      const first = Object.keys(zip.files).find(p => p.endsWith('.md') && !zip.files[p].dir);
-      if (first) {
-        setSelectedPath(first);
-        const dir = first.substring(0, first.lastIndexOf('/') + 1);
-        const resolveImg = (src) => resolveImagePath(src, dir, blobs);
-        const html = processContent(await zip.files[first].async('text'), resolveImg);
-        if (seq !== navSeq.current) return;          // 사용자가 이미 다른 문서로 이동
-        setContent(html);
-      }
+      // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
+      setSelectedPath('');
+      setPdfUrl('');
+      setRendered('');
+      setToc([]);
       setLoading(false);
     } catch (e) {
       if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
@@ -510,6 +517,7 @@ export default function Viewer() {
     setFileName(stored.name);
     setZipId(entry.id);                             // 세션 복원용
     scrollPositions.current = {};
+    pdfState.current = {};
     clearRecent();
     try {
       const zip = await JSZip.loadAsync(stored.blob);
@@ -530,15 +538,11 @@ export default function Viewer() {
         }
       }
       setZipTree(tree);
-      const first = Object.keys(zip.files).find(p => p.endsWith('.md') && !zip.files[p].dir);
-      if (first) {
-        setSelectedPath(first);
-        const dir = first.substring(0, first.lastIndexOf('/') + 1);
-        const resolveImg = (src) => resolveImagePath(src, dir, blobs);
-        const html = processContent(await zip.files[first].async('text'), resolveImg);
-        if (seq !== navSeq.current) return;
-        setContent(html);
-      }
+      // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
+      setSelectedPath('');
+      setPdfUrl('');
+      setRendered('');
+      setToc([]);
       setLoading(false);
     } catch (e) {
       if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
@@ -582,7 +586,7 @@ export default function Viewer() {
       setPdfUrl(url);
       setRendered('');
       setToc([]);
-      setPdfInitialPage(null);
+      setPdfInitialPage(pdfState.current[fullPath]?.page || null);
       setLoading(false);
       return;
     }
@@ -757,7 +761,7 @@ export default function Viewer() {
       setPdfUrl(url);
       setRendered('');
       setToc([]);
-      setPdfInitialPage(null);
+      setPdfInitialPage(pdfState.current[node.path]?.page || null);
       setLoading(false);
       return;
     }
@@ -798,7 +802,7 @@ export default function Viewer() {
         setPdfUrl(url);
         setRendered('');
         setToc([]);
-        setPdfInitialPage(null);
+        setPdfInitialPage(pdfState.current[path]?.page || null);
         setLoading(false);
       });
       return;
@@ -930,11 +934,11 @@ export default function Viewer() {
         )}
         <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
           {pdfUrl ? (
-            <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} />
+            <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} initialScrollTop={pdfState.current[selectedPath]?.scrollTop} />
           ) : rendered ? (
             <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
           ) : !loading ? (
-            <div className="viewer__empty">Upload a ZIP archive to get started</div>
+            <div className="viewer__empty">{zipTree ? 'Select a file from the sidebar to start reading' : 'Upload a ZIP archive to get started'}</div>
           ) : null}
           {loading && (
             <div className="viewer__loading-overlay">

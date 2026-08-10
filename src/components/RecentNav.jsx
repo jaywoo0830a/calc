@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useFullscreenPortal } from '../lib/fullscreenPortal.js';
-import { subscribeRecent, clearRecent, navigateRecent } from '../lib/recentHistory.js';
+import { subscribeRecent, clearRecent, removeRecent, navigateRecent } from '../lib/recentHistory.js';
 
 // ═══════════════════════════════════════════════════════════════
 // RecentNav — 🕘 최근 문서 히스토리 버튼 (✂️ Selecting 옆, 좌하단)
@@ -63,7 +63,7 @@ export default function RecentNav() {
           ) : (
             <ul className="recent-nav__list">
               {state.items.map((r) => (
-                <li key={r.path}>
+                <li key={r.path} className="recent-nav__row">
                   <button
                     className="recent-nav__item"
                     onClick={() => { setOpen(false); navigateRecent(r.path); }}
@@ -72,6 +72,12 @@ export default function RecentNav() {
                     <span className="recent-nav__icon">{r.path.endsWith('.pdf') ? '📕' : '📄'}</span>
                     <span className="recent-nav__name">{r.name}</span>
                   </button>
+                  <button
+                    className="recent-nav__delete"
+                    onClick={() => removeRecent(r.path)}
+                    title={`Remove ${r.name} from recent`}
+                    aria-label={`Remove ${r.name} from recent`}
+                  >🗑</button>
                 </li>
               ))}
             </ul>

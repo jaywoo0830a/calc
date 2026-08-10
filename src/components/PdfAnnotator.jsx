@@ -58,7 +58,7 @@ function annoRect(a, pageEl) {
   };
 }
 
-export default function PdfAnnotator({ url, filePath, initialPage }) {
+export default function PdfAnnotator({ url, filePath, initialPage, initialScrollTop }) {
   const [numPages, setNumPages] = useState(0);
   const [annotations, setAnnotations] = useState([]);
   const [tool, setTool] = useState(null); // null = read mode (default)
@@ -163,10 +163,41 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
     return null;
   }
 
-  // Scroll document to top after page renders (runs after commit, not before)
+  // ── 읽기 위치 복원/보고 ──
+  // 열 때 외부에서 전달된 시작 스크롤 (일회성) — url(문서)이 바뀔 때만 갱신
+  const initialScrollTopRef = useRef(initialScrollTop && initialScrollTop > 0 ? initialScrollTop : null);
+  const lastUrlRef = useRef(url);
+  if (lastUrlRef.current !== url) {
+    lastUrlRef.current = url;
+    initialScrollTopRef.current = (initialScrollTop && initialScrollTop > 0) ? initialScrollTop : null;
+  }
+
+  // 페이지/문서 로드 후 스크롤 — 복원값이 있으면 그 위치로, 아니면 맨 위로
   useEffect(() => {
-    documentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
-  }, [currentPage]);
+    const el = documentRef.current;
+    if (!el || !numPages) return;
+    if (initialScrollTopRef.current != null) {
+      el.scrollTop = initialScrollTopRef.current;
+      initialScrollTopRef.current = null; // 일회성 — 이후 페이지 전환은 맨 위
+    } else {
+      el.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [currentPage, numPages]);
+
+  // 페이지/스크롤 변경 → Viewer에 보고 (경로별 읽기 위치 보존용)
+  useEffect(() => {
+    if (!numPages) return;
+    const el = documentRef.current;
+    const report = () => {
+      window.dispatchEvent(new CustomEvent('viewer:pdf-page', {
+        detail: { path: filePath, page: currentPage, scrollTop: el ? el.scrollTop : 0 },
+      }));
+    };
+    report();
+    const onScroll = () => report();
+    if (el) el.addEventListener('scroll', onScroll, { passive: true });
+    return () => { if (el) el.removeEventListener('scroll', onScroll); };
+  }, [filePath, currentPage, numPages]);
 
   const touchStart = useRef({ x: 0, y: 0, time: 0, count: 0 });
   const [toc, setToc] = useState(null);         // PDF outline (resolved flat list)

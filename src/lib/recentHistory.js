@@ -36,6 +36,13 @@ export function clearRecent() {
   emit();
 }
 
+export function removeRecent(path) {
+  const next = items.filter((r) => r.path !== path);
+  if (next.length === items.length) return;
+  items = next;
+  emit();
+}
+
 export function registerRecentNavigate(fn) {
   navigateHandler = fn;
   emit();
