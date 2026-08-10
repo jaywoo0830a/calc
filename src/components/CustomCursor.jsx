@@ -1,18 +1,22 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { subscribeRangeSelect } from '../lib/rangeSelectState.js';
+import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 
 const INTERACTIVE_SELECTOR = 'a, button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"]), .clickable, summary, details';
 const PEN_SELECTOR = '.pdf-annotator__page-wrapper--pen';
 const TEXT_SELECTOR = '.react-pdf__Page__textContent span, [contenteditable="true"], textarea, input[type="text"], input[type="search"]';
 
 // ── RangeSelect(✂️ Selecting) 상태의 정밀 타깃 커서 ────────────
-// 단일 선택 색상 + 시작(①)/끝(②) 단계 배지 + 크로스헤어 눈금
+// 단일 선택 색상 + 크로스헤어 눈금. 단계 배지(①/②)는 터치(두 번 탭) 전용.
+// 데스크톱(드래그)에서는 배지를 없애고 더 작고 은은하게 표시해
+// 화면이 엉켜 보이지 않게 한다.
 const SELECTING_COLOR = '#3d5a80';
 
 function RangeCursor({ pos, step }) {
   const color = SELECTING_COLOR;
-  const size = 30;
+  const size = IS_TOUCH_PRIMARY ? 30 : 22;
+  const showBadge = IS_TOUCH_PRIMARY;
   const ticks = [
     { x: pos.x, y: pos.y - size / 2 - 4, w: 1.5, h: 7 }, // top
     { x: pos.x, y: pos.y + size / 2 + 4, w: 1.5, h: 7 }, // bottom
@@ -61,8 +65,8 @@ function RangeCursor({ pos, step }) {
           position: 'fixed',
           left: pos.x,
           top: pos.y,
-          width: 5,
-          height: 5,
+          width: IS_TOUCH_PRIMARY ? 5 : 4,
+          height: IS_TOUCH_PRIMARY ? 5 : 4,
           borderRadius: '50%',
           background: color,
           transform: 'translate(-50%, -50%)',
@@ -70,29 +74,31 @@ function RangeCursor({ pos, step }) {
           zIndex: 2147483647,
         }}
       />
-      {/* 단계 배지 ① / ② */}
-      <div
-        style={{
-          position: 'fixed',
-          left: pos.x + size / 2 - 5,
-          top: pos.y + size / 2 - 5,
-          width: 17,
-          height: 17,
-          borderRadius: '50%',
-          background: color,
-          color: '#fff',
-          fontSize: 10,
-          fontWeight: 700,
-          lineHeight: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontFamily: "'Noto Serif', serif",
-          boxShadow: '0 1px 3px rgba(0,0,0,0.35)',
-          pointerEvents: 'none',
-          zIndex: 2147483647,
-        }}
-      >{step === 0 ? '1' : '2'}</div>
+      {/* 단계 배지 ① / ② (터치 전용) */}
+      {showBadge && (
+        <div
+          style={{
+            position: 'fixed',
+            left: pos.x + size / 2 - 5,
+            top: pos.y + size / 2 - 5,
+            width: 17,
+            height: 17,
+            borderRadius: '50%',
+            background: color,
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 700,
+            lineHeight: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: "'Noto Serif', serif",
+            boxShadow: '0 1px 3px rgba(0,0,0,0.35)',
+            pointerEvents: 'none',
+            zIndex: 2147483647,
+          }}
+        >{step === 0 ? '1' : '2'}</div>
+      )}
     </>
   );
 }

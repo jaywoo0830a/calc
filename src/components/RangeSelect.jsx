@@ -70,9 +70,11 @@ export default function RangeSelect() {
   const [notice, setNotice] = useState(null);         // 일회성 안내 문구
   const [startPoint, setStartPoint] = useState(null); // 시작점 탭 마커 { x, y } (터치)
   const [tapFlash, setTapFlash] = useState(null);     // 탭 지점 순간 표시 { x, y, key }
+  const [showDesktopHint, setShowDesktopHint] = useState(false); // 데스크톱 힌트 자동 소멸
   const startRangeRef = useRef(null);
   const noticeTimerRef = useRef(null);
   const flashTimerRef = useRef(null);
+  const hintTimerRef = useRef(null);
 
   const flashNotice = useCallback((msg) => {
     setNotice(msg);
@@ -127,9 +129,23 @@ export default function RangeSelect() {
     return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); };
   }, [tapFlash]);
 
+  // 데스크톱 안내 힌트는 잠깐만 표시 (엉키지 않게 자동 소멸)
+  useEffect(() => {
+    if (IS_TOUCH_PRIMARY) return;
+    if (active) {
+      setShowDesktopHint(true);
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = setTimeout(() => setShowDesktopHint(false), 2500);
+    } else {
+      setShowDesktopHint(false);
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    }
+  }, [active]);
+
   useEffect(() => () => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
   }, []);
 
   // Selecting 상태를 CustomCursor 등에 공유 — active면 타깃 커서 표시
@@ -272,14 +288,15 @@ export default function RangeSelect() {
           : 'Selecting — select a range, then choose Solved / Wrong / Lookup'}
       >✂️</button>
 
-      {active && !selection && (
+      {active && !selection && IS_TOUCH_PRIMARY && (
         <div className="range-select__hint">
-          {IS_TOUCH_PRIMARY
-            ? (step === 0
-                ? '① Tap the start point'
-                : <><span>② Tap the end point</span><button className="range-select__redo" onClick={resetStart} title="Redo start point">↺</button></>)
-            : 'Select a range — drag on the text'}
+          {step === 0
+            ? '① Tap the start point'
+            : <><span>② Tap the end point</span><button className="range-select__redo" onClick={resetStart} title="Redo start point">↺</button></>}
         </div>
+      )}
+      {active && !selection && !IS_TOUCH_PRIMARY && showDesktopHint && (
+        <div className="range-select__hint">Select a range — drag on the text</div>
       )}
       {notice && <div className="range-select__hint range-select__hint--notice">{notice}</div>}
 
