@@ -188,6 +188,30 @@ function locateMarkdownProblem(p) {
   return null;
 }
 
+/**
+ * 점프 전 레이아웃 안정 대기 — 웹폰트/이미지가 늦게 로드되면
+ * 좌표(rect)가 흔들려 모바일/태블릿에서 이상한 곳으로 스크롤된다.
+ * 폰트와 이미지 로딩이 끝날 때까지 기다렸다가 점프한다. (타임아웃 보장)
+ */
+function waitForLayoutReady(container, timeout = 800) {
+  const waits = [];
+  if (document.fonts && document.fonts.ready) {
+    waits.push(Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, timeout))]));
+  }
+  const imgs = container ? Array.from(container.querySelectorAll('img')) : [];
+  for (const img of imgs) {
+    if (img.complete && img.naturalWidth > 0) continue;
+    const loaded = img.decode
+      ? img.decode().catch(() => {})
+      : new Promise((r) => {
+          img.addEventListener('load', r, { once: true });
+          img.addEventListener('error', r, { once: true });
+        });
+    waits.push(Promise.race([loaded, new Promise((r) => setTimeout(r, timeout))]));
+  }
+  return Promise.all(waits);
+}
+
 /** 마크다운 선택 위치를 좌표/컨텍스트 앵커로 저장 (문제 점프 정확도 향상) */
 function computeMarkdownRef() {
   const content = document.querySelector('.viewer__content');
@@ -381,9 +405,12 @@ export default function Viewer() {
   }, []);
 
   // 문서 전환 시 이전 스크롤 위치 저장 + 새 문서 스크롤 복원
+  // (유효한 문제 점프가 대기 중이면 건너뜀 — 점프 effect가 중심 정렬 스크롤 담당)
   useEffect(() => {
     const el = previewRef.current;
     if (!el) return;
+    const pending = pendingJumpRef.current;
+    if (pending && pending.seq === navSeq.current) return;
     const saved = scrollPositions.current[selectedPath];
     if (saved != null) {
       // requestAnimationFrame 으로 DOM 렌더 후 복원
@@ -781,49 +808,75 @@ export default function Viewer() {
     setProblemsOpen(false);
   }, [imageBlobs, setContent]);
 
-  // ── 마크다운 문제 점프: 렌더링 완료 후 위치 탐색 ────────────
-  // 고정 150ms 대기 대신 `rendered`가 실제로 갱신된 뒤 실행해
-  // 느린 태블릿/폰에서도 DOM이 준비된 상태로 좌표→컨텍스트→텍스트를 찾는다.
+  // ── 마크다운 문제 점프: 렌더링 완료 + 레이아웃 안정 후 위치 탐색 ──
+  // 고정 150ms 대기 대신 `rendered`가 실제로 갱신된 뒤, 웹폰트·이미지 로딩까지
+  // 기다렸다가 좌표→컨텍스트→텍스트로 찾는다. 스크롤 후 한 번 더 보정해
+  // 모바일/태블릿에서 늦게 뜨는 요소로 인한 어긋남까지 잡는다.
   useEffect(() => {
     if (!rendered || !pendingJumpRef.current) return;
     const { p, seq } = pendingJumpRef.current;
     pendingJumpRef.current = null;
     if (seq !== navSeq.current) return; // 더 새로운 탐색이 시작됨
-    const raf = requestAnimationFrame(() => {
+    const container = previewRef.current;
+    if (!container) return;
+    let cancelled = false;
+    let settleTimer = null;
+
+    const locateRect = (located) => (located.range ? located.range.getBoundingClientRect() : located.el.getBoundingClientRect());
+
+    // 점프 실행 — 중심 정렬 스크롤 + 하이라이트/플래시
+    const jump = (behavior) => {
       const located = locateMarkdownProblem(p);
-      if (!located) return;
-      const container = previewRef.current;
+      if (!located) return null;
+      const rect = locateRect(located);
+      if (rect && rect.height) {
+        const crect = container.getBoundingClientRect();
+        container.scrollTo({
+          top: Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2),
+          behavior,
+        });
+      }
       if (located.range) {
-        // ① 좌표 기반: 정확한 범위로 스크롤 + 잠깐 하이라이트
-        const rect = located.range.getBoundingClientRect();
-        if (container && rect.height) {
-          const crect = container.getBoundingClientRect();
-          container.scrollTo({
-            top: Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2),
-            behavior: 'smooth',
-          });
-        }
+        // ① 좌표 기반: 정확한 범위 하이라이트
         try {
           const sel = window.getSelection();
           sel.removeAllRanges();
           sel.addRange(located.range);
         } catch { /* ignore */ }
         setTimeout(() => window.getSelection()?.removeAllRanges(), 2500);
-      } else if (located.el) {
+      } else {
         // ②/③ 블록 플래시
-        const rect = located.el.getBoundingClientRect();
-        if (container && rect.height) {
-          const crect = container.getBoundingClientRect();
-          container.scrollTo({
-            top: Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2),
-            behavior: 'smooth',
-          });
-        }
         located.el.classList.add('viewer__problem-flash');
         setTimeout(() => located.el.classList.remove('viewer__problem-flash'), 2000);
       }
+      return located;
+    };
+
+    // 1차: 폰트·이미지 로딩이 끝난 뒤 정확한 좌표로 점프
+    waitForLayoutReady(container).then(() => {
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        jump('smooth');
+        // 2차: 스크롤이 끝난 뒤 한 번 더 보정 (늦게 뜨는 요소로 인한 잔여 어긋남)
+        settleTimer = setTimeout(() => {
+          if (cancelled) return;
+          const re = locateMarkdownProblem(p);
+          if (!re) return;
+          const rect = locateRect(re);
+          if (!rect || !rect.height) return;
+          const crect = container.getBoundingClientRect();
+          const target = Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2);
+          const drift = Math.abs(target - container.scrollTop);
+          // 사용자가 이미 스크롤을 움직였으면(크게 벗어났으면) 건드리지 않는다
+          if (drift > 4 && drift < container.clientHeight * 0.9) {
+            container.scrollTo({ top: target, behavior: 'auto' });
+          }
+        }, 350);
+      });
     });
-    return () => cancelAnimationFrame(raf);
+
+    return () => { cancelled = true; if (settleTimer) clearTimeout(settleTimer); };
   }, [rendered, selectedPath]);
 
   // 상태 지정(맞음/틀림) — 같은 상태 재클릭도 "한 번 더 풀었다"로 attempts 기록
