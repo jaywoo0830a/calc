@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { useFullscreenPortal } from '../lib/fullscreenPortal.js';
 
 // ═══════════════════════════════════════════════════════════════
 // WordLookup — 영영사전(dictionaryapi.dev) 표시 전용 컴포넌트
@@ -180,8 +182,10 @@ export default function WordLookup() {
   const { word, x, y, status, data } = state || {};
   const hasEntry = status === 'done' && data && !data.notFound && !data.error;
 
-  if (!state) return null;
-  return (
+  // Native Fullscreen(예: PDF)에서는 body 외부 요소가 안 보이므로 포털로 이동
+  const portalTarget = useFullscreenPortal();
+  if (!state || !portalTarget) return null;
+  return createPortal(
     <div
       className="word-lookup"
       style={{ left: x, top: y }}
@@ -236,6 +240,7 @@ export default function WordLookup() {
       </div>
 
       <div className="word-lookup__foot">English–English · dictionaryapi.dev</div>
-    </div>
+    </div>,
+    portalTarget
   );
 }

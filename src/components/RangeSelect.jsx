@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { isCandidate } from './WordLookup.jsx';
 import { setRangeSelectState } from '../lib/rangeSelectState.js';
 import { IS_TOUCH_PRIMARY } from '../lib/device.js';
+import { useFullscreenPortal } from '../lib/fullscreenPortal.js';
 
 // ═══════════════════════════════════════════════════════════════
 // RangeSelect — ✂️ Selecting: 범위 먼저 선택 → 그다음 액션 (전 기기 단일 흐름)
@@ -251,7 +253,11 @@ export default function RangeSelect() {
     return () => window.removeEventListener('keydown', onKey);
   }, [active, exit]);
 
-  return (
+  // Native Fullscreen(예: PDF)에서는 body 외부 요소가 안 보이므로 포털로 이동
+  const portalTarget = useFullscreenPortal();
+  if (!portalTarget) return null;
+
+  return createPortal(
     <div className="range-select">
       <button
         className={'range-select__trigger' + (active ? ' range-select__trigger--open' : '')}
@@ -309,6 +315,7 @@ export default function RangeSelect() {
           >✕</button>
         </div>
       )}
-    </div>
+    </div>,
+    portalTarget
   );
 }
