@@ -1,0 +1,147 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: recent-nav — 🕘 최근 문서 히스토리 (✂️ 옆 플로팅 버튼 + 패널)
+// ============================================================
+
+.recent-nav {
+  position: fixed;
+  left: calc($sp-4 + 2.5rem + $sp-1); // ✂️(1rem, 2.5rem 원) 옆
+  bottom: calc($sp-4 + env(safe-area-inset-bottom, 0px));
+  z-index: 450;
+
+  &__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: $border-thin solid rgba(212, 201, 181, 0.55);
+    border-radius: 50%;
+    background: rgba(255, 254, 247, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: $shadow-sm;
+    font-size: $fs-step-1;
+    line-height: 1;
+    color: $c-ink-soft;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      border-color: $c-accent;
+      color: $c-accent;
+      background: rgba(255, 254, 247, 0.7);
+    }
+
+    &--open {
+      background: rgba(92, 61, 46, 0.55);
+      border-color: rgba(92, 61, 46, 0.7);
+      color: #fff;
+
+      &:hover { background: rgba(92, 61, 46, 0.75); color: #fff; }
+    }
+  }
+
+  // ---- 오버레이 패널 ----
+  &__panel {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 0.5rem);
+    width: 16rem;
+    max-height: 20rem;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 254, 247, 0.97);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-xl;
+    box-shadow: $shadow-lg;
+    overflow: hidden;
+    animation: recentNavIn 0.15s ease;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-2 $sp-3;
+    border-bottom: $border-thin solid $c-rule-light;
+    background: $c-page-dark;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    color: $c-ink-soft;
+  }
+
+  &__clear {
+    border: none;
+    background: none;
+    color: $c-ink-faint;
+    font-size: $fs-step-0;
+    line-height: 1;
+    cursor: pointer;
+    padding: $sp-1;
+    border-radius: $radius-md;
+    transition: all $transition-fast;
+
+    &:hover { background: $c-accent-light; color: $c-accent; }
+  }
+
+  &__empty {
+    padding: $sp-6 $sp-3;
+    text-align: center;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-style: italic;
+    color: $c-ink-faint;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: $sp-1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    width: 100%;
+    border: none;
+    background: none;
+    border-radius: $radius-md;
+    padding: $sp-1 $sp-2;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    cursor: pointer;
+    text-align: left;
+    transition: background $transition-fast;
+
+    &:hover { background: $c-accent-light; color: $c-accent; }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    font-size: $fs-step-0;
+  }
+
+  &__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// ---- Keyframes ---------------------------------------------
+@keyframes recentNavIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

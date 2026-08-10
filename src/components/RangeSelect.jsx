@@ -29,7 +29,8 @@ const EXCLUDE_SELECTOR = [
   '.pdf-annotator__nav',
   '.calculator__nav',
   '.viewer__controls',
-  '.range-select',                     // 이 도크 자체
+  '.range-select',                     // ✂️ 도크 자체
+  '.recent-nav',                       // 🕘 히스토리 버튼/패널
 ].join(', ');
 
 // 좌표 → caret Range (브라우저별 호환)

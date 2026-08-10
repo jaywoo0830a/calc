@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { marked } from 'marked';
+import { pushRecent, clearRecent, registerRecentNavigate } from '../lib/recentHistory.js';
 import katex from 'katex';
 import JSZip from 'jszip';
 import hljs from 'highlight.js';
@@ -176,7 +177,6 @@ export default function Viewer() {
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const [readability, setReadability] = useState(0);
-  const [recent, setRecent] = useState([]);       // 최근 읽은 문서 [{ path, name }] (최신순)
   const zipRef = useRef(null);
   const navSeq = useRef(0); // 문서 전환 경합 방지 — 최신 탐색만 적용
 
@@ -460,7 +460,7 @@ export default function Viewer() {
     setLoading(true);
     setFileName(file.name);
     scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
-    setRecent([]);                 // 새 ZIP → 히스토리 초기화
+    clearRecent();                // 새 ZIP → 히스토리 초기화
     try {
       const zip = await JSZip.loadAsync(file);
       if (seq !== navSeq.current) return;            // 더 새로운 업로드/탐색이 시작됨
@@ -510,7 +510,7 @@ export default function Viewer() {
     setFileName(stored.name);
     setZipId(entry.id);                             // 세션 복원용
     scrollPositions.current = {};
-    setRecent([]);
+    clearRecent();
     try {
       const zip = await JSZip.loadAsync(stored.blob);
       if (seq !== navSeq.current) return;
@@ -773,19 +773,11 @@ export default function Viewer() {
     catch (e) { setContent('<p style="color:red">Read error: ' + e.message + '</p>'); }
   }, [imageBlobs, selectedPath, setContent]);
 
-  // ── 최근 읽은 문서 히스토리 (답안 ↔ 문제 문서 빠른 전환) ──
-  const recordRecent = useCallback((path) => {
-    if (!path) return;
-    setRecent((prev) => [
-      { path, name: path.split('/').pop() },
-      ...prev.filter((r) => r.path !== path),
-    ].slice(0, 8));
-  }, []);
-
+  // ── 최근 문서 히스토리 (전역 플로팅 🕘 버튼과 공유) ──
   // 문서가 열릴 때마다 (트리/크로스링크/검색/문제점프/복원) 히스토리에 기록
   useEffect(() => {
-    if (selectedPath) recordRecent(selectedPath);
-  }, [selectedPath, recordRecent]);
+    if (selectedPath) pushRecent(selectedPath);
+  }, [selectedPath]);
 
   // 히스토리 항목 클릭 → 해당 문서를 트리 없이 다시 열기
   const openRecent = useCallback((path) => {
@@ -820,6 +812,12 @@ export default function Viewer() {
       setLoading(false);
     }).catch(() => { setLoading(false); });
   }, [imageBlobs, selectedPath, setContent]);
+
+  // 전역 🕘 버튼이 문서를 열도록 내비게이션 핸들러 등록
+  useEffect(() => registerRecentNavigate(openRecent), [openRecent]);
+
+  // Viewer를 떠나면 핸들러 해제 + 히스토리 정리
+  useEffect(() => () => { registerRecentNavigate(null); clearRecent(); }, []);
 
   return (
     <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')} style={readabilityVars}>
@@ -893,29 +891,6 @@ export default function Viewer() {
               >🗑️</button>
             </div>
           ))}
-        </div>
-      )}
-      {!fullscreen && recent.length > 0 && (
-        <div className="viewer__recent">
-          <span className="viewer__recent-title">🕘 Recent</span>
-          <div className="viewer__recent-chips">
-            {recent.map((r) => (
-              <button
-                key={r.path}
-                className={'viewer__recent-chip' + (r.path === selectedPath ? ' viewer__recent-chip--active' : '')}
-                onClick={() => openRecent(r.path)}
-                title={r.path}
-              >
-                {r.path.endsWith('.pdf') ? '📕' : '📄'} {r.name}
-              </button>
-            ))}
-          </div>
-          <button
-            className="viewer__recent-clear"
-            onClick={() => setRecent([])}
-            title="Clear history"
-            aria-label="Clear history"
-          >✕</button>
         </div>
       )}
       <div className="viewer__panes">
