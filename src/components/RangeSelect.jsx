@@ -170,7 +170,7 @@ export default function RangeSelect() {
       rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
     });
     // 액션 바 위치 (선택 영역 위, 공간 부족 시 아래, 뷰포트 안으로 보정)
-    const barW = 320, barH = 44, gap = 10;
+    const barW = 190, barH = 44, gap = 10;
     let bx = rect.left + (rect.right - rect.left) / 2 - barW / 2;
     bx = Math.max(gap, Math.min(bx, window.innerWidth - barW - gap));
     let by = rect.top - barH - gap;
@@ -293,20 +293,18 @@ export default function RangeSelect() {
         </button>
       )}
 
-      {/* 선택 확정 후 액션 바 — 위치는 선택 영역 근처 */}
+      {/* 선택 확정 후 액션 바 — 위치는 선택 영역 근처 (컴팩트 아이콘) */}
       {selection && barPos && (
-        <div className="range-select__bar range-select__bar--fixed" style={{ left: barPos.x, top: barPos.y }}>
-          <span className="range-select__sel-label" title={selection.text}>
-            {selection.text.length > 16 ? selection.text.slice(0, 16) + '…' : selection.text}
-          </span>
-          <button className="range-select__mode range-select__mode--solved" onClick={() => dispatchAction('solved')} title="Mark as solved">✓ Solved</button>
-          <button className="range-select__mode range-select__mode--wrong" onClick={() => dispatchAction('wrong')} title="Mark as wrong">✗ Wrong</button>
-          <button className="range-select__mode range-select__mode--lookup" onClick={() => dispatchAction('lookup')} title="Look up in dictionary">📖 Lookup</button>
-          <button className="range-select__redo" onClick={redoSelection} title="Re-select the range">↺</button>
+        <div className="range-select__bar range-select__bar--fixed" style={{ left: barPos.x, top: barPos.y }} title={selection.text}>
+          <button className="range-select__mode range-select__mode--solved" onClick={() => dispatchAction('solved')} title="Mark as solved" aria-label="Mark as solved">✓</button>
+          <button className="range-select__mode range-select__mode--wrong" onClick={() => dispatchAction('wrong')} title="Mark as wrong" aria-label="Mark as wrong">✗</button>
+          <button className="range-select__mode range-select__mode--lookup" onClick={() => dispatchAction('lookup')} title="Look up in dictionary" aria-label="Look up in dictionary">📖</button>
+          <button className="range-select__redo" onClick={redoSelection} title="Re-select the range" aria-label="Re-select the range">↺</button>
           <button
             className="range-select__cancel"
             onClick={() => { window.getSelection()?.removeAllRanges(); exit(); }}
             title="Dismiss selection"
+            aria-label="Dismiss selection"
           >✕</button>
         </div>
       )}
