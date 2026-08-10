@@ -4,14 +4,16 @@ import { setRangeSelectState } from '../lib/rangeSelectState.js';
 import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 
 // ═══════════════════════════════════════════════════════════════
-// RangeSelect — ✂️ Selecting: 범위 먼저 선택 → 그다음 액션 (터치 기기 전용)
+// RangeSelect — ✂️ Selecting: 범위 먼저 선택 → 그다음 액션 (전 기기 단일 흐름)
 // ─────────────────────────────────────────────────────────────
 // 1. ✂️ Selecting 켜기
-// 2. 시작점 탭(①) → 끝점 탭(②) → 범위가 하이라이트된다
-// 3. 근처 액션 바에서 선택: ✓ Solved / ✗ Wrong / 📖 Lookup / ✕
-//   - Solved/Wrong → window 'problems:mark' 이벤트 (Viewer/PDF가 처리)
-//   - Lookup       → window 'wordlookup:open' 이벤트 (WordLookup이 처리)
-// 데스크톱은 클릭·드래그 기반(선택 툴바)을 사용하므로 이 도구는 숨긴다.
+// 2. 범위 선택 — 데스크톱: 드래그 / 터치: 시작점·끝점 탭(①→②)
+// 3. 범위가 하이라이트되고 근처 액션 바가 뜬다
+// 4. 액션 선택: ✓ Solved / ✗ Wrong / 📖 Lookup / ✕
+//   - Solved/Wrong → window 'problems:mark' (Viewer/PDF가 처리)
+//   - Lookup       → window 'wordlookup:open' (WordLookup이 처리)
+// 다른 선택 기반 오버레이(드래그 툴바 등)를 모두 제거해
+// Android 네이티브 AI 팝업과도 겹치지 않는 단일 흐름을 만든다.
 // ═══════════════════════════════════════════════════════════════
 
 // 탭이 무시되어야 하는 영역 (버튼/링크/에디터/기존 툴바/이 도크 자체)
@@ -20,8 +22,7 @@ const EXCLUDE_SELECTOR = [
   '[contenteditable="true"]',
   '.cm-content',                       // CodeMirror (MathSpace / Playground)
   '.word-lookup',                      // 사전 카드
-  '.viewer__md-sel',                   // 마크다운 선택 툴바
-  '.pdf-annotator__sel-trigger',       // PDF 선택 툴바
+  '.pdf-annotator__sel-trigger',       // PDF 하이라이트/밑줄 툴바
   '.pdf-annotator__toolbar',
   '.pdf-annotator__nav',
   '.calculator__nav',
@@ -112,18 +113,61 @@ export default function RangeSelect() {
     exit();
   }, [selection, exit, flashNotice]);
 
-  // ── 탭 처리 (Selecting 중에만 capture로 가로챔) ──
+  // 범위 확정 공용 처리 — 하이라이트 + 액션 바 표시
+  const finishWithRange = useCallback((range) => {
+    const text = range.toString().replace(/\s+/g, ' ').trim();
+    if (!text) { flashNotice('No text in that range — try again'); setStep(0); startRangeRef.current = null; return; }
+    const rect = range.getBoundingClientRect();
+    // 실제 브라우저 선택을 적용해 사용자가 범위를 눈으로 확인 (안정감)
+    try {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch { /* ignore */ }
+    setStep(0);
+    startRangeRef.current = null;
+    setSelection({
+      text,
+      rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+    });
+    // 액션 바 위치 (선택 영역 위, 공간 부족 시 아래)
+    const barW = 320, barH = 44, gap = 10;
+    let bx = rect.left + (rect.right - rect.left) / 2 - barW / 2;
+    bx = Math.max(gap, Math.min(bx, window.innerWidth - barW - gap));
+    let by = rect.top - barH - gap;
+    if (by < gap) by = rect.bottom + gap;
+    by = Math.max(gap, by);
+    setBarPos({ x: Math.round(bx), y: Math.round(by) });
+  }, [flashNotice]);
+
+  // ── 데스크톱: 드래그로 범위 선택 ──
   useEffect(() => {
-    if (!active) return;
+    if (!active || IS_TOUCH_PRIMARY || selection) return;
+    const onMouseUp = (e) => {
+      const t = e.target;
+      if (!t || !t.closest) return;
+      if (t.closest(EXCLUDE_SELECTOR)) return;
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+      const range = sel.getRangeAt(0);
+      if (!caretInBody(range)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      finishWithRange(range);
+    };
+    document.addEventListener('mouseup', onMouseUp, true);
+    return () => document.removeEventListener('mouseup', onMouseUp, true);
+  }, [active, selection, finishWithRange]);
+
+  // ── 터치: 시작점·끝점 두 번 탭 (Android AI 팝업과 안 겹치도록 capture 차단) ──
+  useEffect(() => {
+    if (!active || !IS_TOUCH_PRIMARY || selection) return;
     const onTap = (e) => {
       const t = e.target;
       if (!t || !t.closest) return;
       if (t.closest(EXCLUDE_SELECTOR)) return;
       e.preventDefault();
       e.stopPropagation();
-
-      // 액션 바가 떠 있으면 더 이상 탭으로 선택하지 않음 (안정성)
-      if (selection) return;
 
       const caret = caretAtPoint(e.clientX, e.clientY);
       if (!caret || !caretInBody(caret)) return;
@@ -150,32 +194,7 @@ export default function RangeSelect() {
       const range = document.createRange();
       range.setStart(start.startContainer, start.startOffset);
       range.setEnd(end.endContainer, end.endOffset);
-      const text = range.toString().replace(/\s+/g, ' ').trim();
-      if (!text) { flashNotice('No text in that range — try again'); setStep(0); startRangeRef.current = null; return; }
-      const rect = range.getBoundingClientRect();
-
-      // 실제 브라우저 선택을 적용해 사용자가 범위를 눈으로 확인 (안정감)
-      try {
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-      } catch { /* ignore */ }
-
-      setStep(0);
-      startRangeRef.current = null;
-      setSelection({
-        text,
-        rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
-      });
-
-      // 액션 바 위치 (선택 영역 위, 공간 부족 시 아래)
-      const barW = 320, barH = 44, gap = 10;
-      let bx = rect.left + (rect.right - rect.left) / 2 - barW / 2;
-      bx = Math.max(gap, Math.min(bx, window.innerWidth - barW - gap));
-      let by = rect.top - barH - gap;
-      if (by < gap) by = rect.bottom + gap;
-      by = Math.max(gap, by);
-      setBarPos({ x: Math.round(bx), y: Math.round(by) });
+      finishWithRange(range);
     };
     document.addEventListener('click', onTap, true);
     document.addEventListener('touchstart', onTap, true);
@@ -183,7 +202,7 @@ export default function RangeSelect() {
       document.removeEventListener('click', onTap, true);
       document.removeEventListener('touchstart', onTap, true);
     };
-  }, [active, step, selection, flashNotice]);
+  }, [active, step, selection, flashNotice, finishWithRange]);
 
   // Esc → Selecting 종료
   useEffect(() => {
@@ -193,9 +212,6 @@ export default function RangeSelect() {
     return () => window.removeEventListener('keydown', onKey);
   }, [active, exit]);
 
-  // 데스크톱은 클릭·드래그 기반(선택 툴바)을 사용 — ✂️ Selecting은 터치 기기 전용
-  if (!IS_TOUCH_PRIMARY) return null;
-
   return (
     <div className="range-select">
       <button
@@ -203,13 +219,15 @@ export default function RangeSelect() {
         onClick={toggle}
         aria-pressed={active}
         title={active
-          ? 'Selecting — tap the start and end points'
-          : 'Selecting — tap a range, then choose Solved / Wrong / Lookup'}
+          ? 'Selecting — select a range (drag on desktop, tap start & end on touch)'
+          : 'Selecting — select a range, then choose Solved / Wrong / Lookup'}
       >✂️ {active ? 'Selecting…' : 'Selecting'}</button>
 
       {active && !selection && (
         <div className="range-select__hint">
-          {step === 0 ? '① Tap the start point' : '② Tap the end point'}
+          {IS_TOUCH_PRIMARY
+            ? (step === 0 ? '① Tap the start point' : '② Tap the end point')
+            : 'Select a range — drag on the text'}
         </div>
       )}
       {notice && <div className="range-select__hint range-select__hint--notice">{notice}</div>}

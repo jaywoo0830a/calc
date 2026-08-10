@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { marked } from 'marked';
-import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 import katex from 'katex';
 import JSZip from 'jszip';
 import hljs from 'highlight.js';
@@ -172,12 +171,8 @@ export default function Viewer() {
   const [problemsFilter, setProblemsFilter] = useState('all'); // all | solved | wrong
   const [problemsScope, setProblemsScope] = useState('current'); // current(현재 문서) | all(전체)
   const [pdfInitialPage, setPdfInitialPage] = useState(null);  // 문제 점프용 시작 페이지
-  const [mdSel, setMdSel] = useState(null);                    // { x, y, text } 마크다운 선택 툴바
   const [loading, setLoading] = useState(false);               // ZIP 로딩 표시
   const [mdToast, setMdToast] = useState(null);                // 등록 피드백 (PDF와 통일)
-  const mdSelTextRef = useRef('');      // 현재 표시 중인 선택 텍스트
-  const mdDismissedRef = useRef('');    // 방금 닫은 선택 텍스트 (재표시 방지)
-  const mdSelTimerRef = useRef(null);   // selectionchange 디바운스 타이머
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const [readability, setReadability] = useState(0);
@@ -440,7 +435,6 @@ export default function Viewer() {
         setSelectedPath(result.path);
         setRendered('');
         setToc([]);
-        setMdSel(null);
         setPdfInitialPage(null);
         setLoading(false);
       });
@@ -577,7 +571,6 @@ export default function Viewer() {
       scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
     }
     setSelectedPath(fullPath);
-    setMdSel(null);
 
     if (isPdf) {
       const blob = await file.async('blob');
@@ -636,85 +629,6 @@ export default function Viewer() {
     }
   }, [navigateTo]);
 
-  // ── 마크다운 텍스트 선택 → 문제 등록 툴바 ───────────────
-  // mouseup(데스크톱) + touchend(모바일) 모두에서 동작하는 공용 감지 함수
-  const detectMdSelection = useCallback(() => {
-    // 터치 기기는 ✂️ 셀렉트 모드(두 번 탭)를 사용 — 드래그 툴바는 데스크톱 전용
-    if (IS_TOUCH_PRIMARY) { mdSelTextRef.current = ''; setMdSel(null); return; }
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-      mdSelTextRef.current = '';
-      setMdSel(null);
-      return;
-    }
-    const text = sel.toString().trim();
-    if (!text || text.length > 2000) { mdSelTextRef.current = ''; setMdSel(null); return; }
-    const range = sel.getRangeAt(0);
-    if (!previewRef.current?.contains(range.commonAncestorContainer)) {
-      mdSelTextRef.current = '';
-      setMdSel(null);
-      return;
-    }
-    if (text === mdDismissedRef.current) return;      // 방금 닫은 선택은 재표시 안 함
-    if (mdSelTextRef.current === text) return;         // 이미 같은 선택 표시 중 (중복 방지)
-    const rect = range.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) return;
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const tw = 168, th = 40, gap = 8;
-    let x = rect.right + gap;
-    let y = rect.bottom + gap;
-    if (x + tw > vw - gap) x = rect.left - tw - gap;
-    x = Math.max(gap, Math.min(x, vw - tw - gap));
-    if (y + th > vh - gap) y = rect.top - th - gap;
-    y = Math.max(gap, Math.min(y, vh - th - gap));
-    mdSelTextRef.current = text;
-    setMdSel({ x, y, text });
-  }, []);
-
-  const handleMdMouseUp = useCallback((e) => {
-    if (e.target.closest('a, button, .viewer__md-sel')) return;
-    setTimeout(detectMdSelection, 0);                // 데스크톱
-  }, [detectMdSelection]);
-
-  const handleMdTouchEnd = useCallback((e) => {
-    if (e.target.closest('a, button, .viewer__md-sel')) return;
-    setTimeout(detectMdSelection, 80);               // 모바일 — 선택 확정 대기
-  }, [detectMdSelection]);
-
-  const dismissMdSel = useCallback(() => {
-    if (mdSel) mdDismissedRef.current = mdSel.text;
-    mdSelTextRef.current = '';
-    setMdSel(null);
-  }, [mdSel]);
-
-  // 툴바 바깥 클릭/터치 시 닫기
-  useEffect(() => {
-    if (!mdSel) return;
-    const onDown = (e) => { if (!e.target.closest('.viewer__md-sel')) dismissMdSel(); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('touchstart', onDown);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('touchstart', onDown);
-    };
-  }, [mdSel, dismissMdSel]);
-
-  // 마크다운 선택 감지 — selectionchange (데스크톱+모바일 공용, 디바운스)
-  // touchend만으로는 불안정해서, 선택이 바뀔 때마다 브라우저가 알려주는
-  // selectionchange 이벤트를 사용한다 (iOS/Android long-press 선택 포함).
-  useEffect(() => {
-    if (!rendered) return;
-    const onSelChange = () => {
-      if (mdSelTimerRef.current) clearTimeout(mdSelTimerRef.current);
-      mdSelTimerRef.current = setTimeout(detectMdSelection, 30);
-    };
-    document.addEventListener('selectionchange', onSelChange);
-    return () => {
-      document.removeEventListener('selectionchange', onSelChange);
-      if (mdSelTimerRef.current) clearTimeout(mdSelTimerRef.current);
-    };
-  }, [rendered, detectMdSelection]);
-
   // 등록 피드백 자동 해제
   useEffect(() => {
     if (!mdToast) return;
@@ -722,27 +636,7 @@ export default function Viewer() {
     return () => clearTimeout(t);
   }, [mdToast]);
 
-  const registerMdProblem = useCallback((status) => {
-    if (!mdSel || !selectedPath) return;
-    api.saveProblem({
-      docId: selectedPath,
-      docPath: selectedPath,
-      ref: '',
-      text: mdSel.text,
-      status,
-    }).then(() => {
-      dismissMdSel();
-      window.getSelection()?.removeAllRanges();
-      refreshProblems();
-      setMdToast(status === 'solved' ? '✓ Marked as solved' : '✗ Marked as wrong');
-    }).catch(() => {
-      dismissMdSel();
-      window.getSelection()?.removeAllRanges();
-      setMdToast('Failed to save — check server');
-    });
-  }, [mdSel, selectedPath, refreshProblems, dismissMdSel]);
-
-  // ── RangeSelect(✂️ 모드 + 두 번 탭) → 문제 등록 (마크다운 문서) ──
+  // ── RangeSelect(✂️ Selecting) → 문제 등록 (마크다운 문서) ──
   // PDF가 열려 있으면 PdfAnnotator가 처리하므로 여기선 건너뛴다.
   useEffect(() => {
     if (pdfUrl) return;
@@ -773,7 +667,6 @@ export default function Viewer() {
     const file = zip.files[p.doc_path];
     if (!file || file.dir) return;
     const seq = ++navSeq.current;                    // 문제 점프 = 최신 탐색
-    setMdSel(null);
     setSelectedPath(p.doc_path);
     if (p.doc_path.endsWith('.pdf')) {
       setPdfInitialPage(p.ref ? Number(p.ref) || null : null);
@@ -860,7 +753,6 @@ export default function Viewer() {
       scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
     }
     setSelectedPath(node.path);
-    setMdSel(null);
     // PDF 파일 처리
     if (node.name.endsWith('.pdf')) {
       const blob = await node.file.async('blob');
@@ -999,30 +891,10 @@ export default function Viewer() {
           {pdfUrl ? (
             <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} />
           ) : rendered ? (
-            <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} onMouseUp={handleMdMouseUp} onTouchEnd={handleMdTouchEnd} />
+            <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
           ) : !loading ? (
             <div className="viewer__empty">Upload a ZIP archive to get started</div>
           ) : null}
-          {mdSel && (
-            <div className="viewer__md-sel" style={{ position: 'fixed', left: mdSel.x, top: mdSel.y, zIndex: 250 }}>
-              <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('solved')} title="Mark as solved">✓ Solved</button>
-              <button
-                className="viewer__md-sel-lookup"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect();
-                  window.dispatchEvent(new CustomEvent('wordlookup:open', {
-                    detail: {
-                      text: mdSel.text,
-                      rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
-                    },
-                  }));
-                }}
-                title="Look up in dictionary"
-              >📖</button>
-              <button onMouseDown={(e) => e.preventDefault()} onClick={() => registerMdProblem('wrong')} title="Mark as wrong">✗ Wrong</button>
-            </div>
-          )}
           {loading && (
             <div className="viewer__loading-overlay">
               <div className="viewer__spinner" />

@@ -1,14 +1,13 @@
 @use 'variables' as *;
 
 // ============================================================
-// Block: range-select — 모드 + 두 번 탭 범위 선택 도구
-// (좌하단 📖 Lookup 토글 위에 고정)
+// Block: range-select — ✂️ Selecting 범위 선택 도구 (좌하단 고정)
 // ============================================================
 
 .range-select {
   position: fixed;
   left: $sp-4;
-  bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px)); // 📖 Lookup 토글 위
+  bottom: calc($sp-4 + env(safe-area-inset-bottom, 0px));
   z-index: 450;
   display: flex;
   flex-direction: column;
@@ -105,11 +104,6 @@
     &--lookup {
       color: $c-accent;
       &:hover { background: $c-accent-soft; }
-    }
-
-    &--active {
-      box-shadow: inset 0 0 0 1.5px currentColor;
-      background: rgba(0, 0, 0, 0.05);
     }
   }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
-import { IS_TOUCH_PRIMARY } from '../lib/device.js';
+import { getRangeSelectState } from '../lib/rangeSelectState.js';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
 import { api } from '../lib/api.js';
@@ -31,7 +31,6 @@ const TOOLS = {
   highlight: { label: '🖍️ Highlight', icon: '🖍️' },
   underline: { label: '⎁ Underline', icon: '⎁' },
   comment:   { label: '💬 Comment', icon: '💬' },
-  problem:   { label: '🎯 Problem', icon: '🎯' },
 };
 function getPageCanvasRect(pageEl) {
   if (!pageEl) return null;
@@ -254,7 +253,7 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
 
   // Clear trigger when switching away from selection-based tools
   useEffect(() => {
-    if (tool !== 'highlight' && tool !== 'underline' && tool !== 'problem') {
+    if (tool !== 'highlight' && tool !== 'underline') {
       setSelTrigger(null);
       savedSelectionRef.current = null;
       lastDetectedText.current = '';
@@ -340,30 +339,7 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // ── 푼/틀린 문제 등록 (서버 DB) ───────────────────────
-  const registerProblem = useCallback((status) => {
-    const data = savedSelectionRef.current;
-    if (!data || !data.text.trim()) return;
-    api.saveProblem({
-      docId: filePath,
-      docPath: filePath,
-      ref: String(data.pageNumber),
-      text: data.text,
-      status,
-    }).then(() => {
-      setSelTrigger(null);
-      savedSelectionRef.current = null;
-      window.getSelection()?.removeAllRanges();
-      setToast(status === 'solved' ? '✓ Marked as solved' : '✗ Marked as wrong');
-    }).catch(() => {
-      setSelTrigger(null);
-      savedSelectionRef.current = null;
-      window.getSelection()?.removeAllRanges();
-      setToast('Failed to save — check server');
-    });
-  }, [filePath]);
-
-  // ── RangeSelect(✂️ 모드 + 두 번 탭) → 문제 등록 ──
+  // ── RangeSelect(✂️ Selecting) → 문제 등록 ──
   useEffect(() => {
     const onMark = (e) => {
       const { text, status } = e.detail || {};
@@ -385,11 +361,19 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
     return () => window.removeEventListener('problems:mark', onMark);
   }, [filePath, currentPage, refreshProblems]);
 
-  // ── Polling: check selection every 250ms (problem/highlight/underline) ──
+  // ── Polling: check selection every 250ms (highlight/underline) ──
+  // ✂️ Selecting 중에는 비활성화 — 하이라이트 툴바와 겹치지 않게
   useEffect(() => {
-    if (tool !== 'highlight' && tool !== 'underline' && tool !== 'problem') return;
-    if (IS_TOUCH_PRIMARY) return; // 터치 기기는 ✂️ 셀렉트 모드(두 번 탭) 사용
+    if (tool !== 'highlight' && tool !== 'underline') return;
+    if (getRangeSelectState().active) return;
     const id = setInterval(() => {
+      // Selecting이 켜지는 즉시 멈춤
+      if (getRangeSelectState().active) {
+        setSelTrigger(null);
+        savedSelectionRef.current = null;
+        lastDetectedText.current = '';
+        return;
+      }
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
         // Selection gone — hide trigger
@@ -918,14 +902,14 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
                   maxWidth: (fullscreen || zoomLevel > 1) ? 'none' : undefined,
                   height: (fullscreen || zoomLevel > 1) ? 'auto' : undefined,
                   minHeight: (fullscreen || zoomLevel > 1) ? undefined : undefined,
-                  cursor: (tool === 'highlight' || tool === 'underline' || tool === 'problem') ? 'text' : undefined,
+                  cursor: (tool === 'highlight' || tool === 'underline') ? 'text' : undefined,
                 }}
               >
                 <Page
                   pageNumber={pageNumber}
                   width={pageW}
                   devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
-                  renderTextLayer={tool === 'highlight' || tool === 'underline' || tool === 'problem'}
+                  renderTextLayer={tool === 'highlight' || tool === 'underline'}
                   renderAnnotationLayer={true}
                   onRenderSuccess={() => setPageRenderTick(t => t + 1)}
                 />
@@ -946,8 +930,8 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
         )}
       </div>
 
-      {/* Selection trigger — floating confirm toolbar (problem / highlight / underline 전용) */}
-      {selTrigger && (tool === 'problem' || tool === 'highlight' || tool === 'underline') && (
+      {/* Selection trigger — floating confirm toolbar (highlight / underline 전용) */}
+      {selTrigger && (tool === 'highlight' || tool === 'underline') && (
         <div
           className="pdf-annotator__sel-trigger"
           style={{
@@ -958,38 +942,6 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
           }}
         >
           <div className="pdf-annotator__sel-trigger-inner">
-            <button
-              className="pdf-annotator__sel-lookup"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={(e) => {
-                const data = savedSelectionRef.current;
-                if (!data) return;
-                const r = e.currentTarget.getBoundingClientRect();
-                window.dispatchEvent(new CustomEvent('wordlookup:open', {
-                  detail: {
-                    text: data.text,
-                    rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
-                  },
-                }));
-              }}
-              title="Look up in dictionary"
-            >📖</button>
-            {tool === 'problem' && (
-              <>
-                <button
-                  className="pdf-annotator__sel-problem"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => registerProblem('solved')}
-                  title="Mark as solved (again)"
-                >✓ Solved</button>
-                <button
-                  className="pdf-annotator__sel-problem pdf-annotator__sel-problem--wrong"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => registerProblem('wrong')}
-                  title="Mark as wrong (again)"
-                >✗ Wrong</button>
-              </>
-            )}
             {(tool === 'highlight' || tool === 'underline') && (
               <>
                 {tool === 'highlight' && HIGHLIGHT_COLORS.map((c) => (

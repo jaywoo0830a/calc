@@ -942,49 +942,6 @@
     pointer-events: none;
     animation: lightboxIn 0.2s ease;
   }
-
-  // ---- 마크다운 선택 → 문제 등록 툴바 ----------------------
-  &__md-sel {
-    display: flex;
-    gap: 0.25rem;
-    padding: 0.35rem 0.5rem;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    border-radius: 2rem;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-    white-space: nowrap;
-
-    button {
-      border: none;
-      border-radius: 2rem;
-      padding: 0.3rem 0.75rem;
-      font-family: $ff;
-      font-size: $fs-step--1;
-      cursor: pointer;
-      transition: background 0.15s ease;
-
-      &:first-child {
-        background: rgba(61, 90, 64, 0.14);
-        color: $c-equals;
-        &:hover { background: rgba(61, 90, 64, 0.22); }
-      }
-      &:last-child {
-        background: $c-error-light;
-        color: $c-error;
-        &:hover { background: $c-error-soft; }
-      }
-    }
-
-    // 사전 조회 버튼 (가운데) — 명시적으로 구분되는 액센트 스타일
-    &__md-sel-lookup {
-      background: $c-accent-soft;
-      color: $c-accent;
-
-      &:hover { background: $c-accent-light; }
-    }
-  }
 }
 
 // ---- Keyframe animations -----------------------------------

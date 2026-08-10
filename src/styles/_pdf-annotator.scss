@@ -274,46 +274,6 @@
     &:hover { background: rgba(0, 0, 0, 0.12); color: #555; }
   }
 
-  // ---- 푼/틀린 문제 등록 버튼 (선택 툴바, md-sel과 동일 pill 스타일) ---
-  &__sel-problem {
-    padding: 0.3rem 0.75rem;
-    border: none;
-    border-radius: 2rem;
-    background: rgba(61, 90, 64, 0.14);
-    color: $c-equals;
-    font-family: $ff;
-    font-size: $fs-step--1;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.15s ease;
-
-    &:hover { background: rgba(61, 90, 64, 0.22); }
-
-    &--wrong {
-      background: $c-error-light;
-      color: $c-error;
-
-      &:hover { background: $c-error-soft; }
-    }
-  }
-
-  // ---- 사전 조회 버튼 (선택 툴바 앞, 명시적 구분) ----
-  &__sel-lookup {
-    padding: 0.3rem 0.6rem;
-    border: none;
-    border-radius: 2rem;
-    background: rgba(92, 61, 46, 0.12);
-    color: $c-accent;
-    font-family: $ff;
-    font-size: $fs-step--2;
-    font-weight: $fw-semibold;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.15s ease;
-
-    &:hover { background: rgba(92, 61, 46, 0.22); }
-  }
-
   &__toast {
     position: fixed;
     bottom: 2rem;
