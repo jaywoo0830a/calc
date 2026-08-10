@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { marked } from 'marked';
+import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 import katex from 'katex';
 import JSZip from 'jszip';
 import hljs from 'highlight.js';
@@ -638,6 +639,8 @@ export default function Viewer() {
   // ── 마크다운 텍스트 선택 → 문제 등록 툴바 ───────────────
   // mouseup(데스크톱) + touchend(모바일) 모두에서 동작하는 공용 감지 함수
   const detectMdSelection = useCallback(() => {
+    // 터치 기기는 ✂️ 셀렉트 모드(두 번 탭)를 사용 — 드래그 툴바는 데스크톱 전용
+    if (IS_TOUCH_PRIMARY) { mdSelTextRef.current = ''; setMdSel(null); return; }
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.toString().trim()) {
       mdSelTextRef.current = '';

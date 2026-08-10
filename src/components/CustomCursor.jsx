@@ -1,11 +1,107 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { subscribeRangeSelect } from '../lib/rangeSelectState.js';
 
 const INTERACTIVE_SELECTOR = 'a, button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"]), .clickable, summary, details';
 const PEN_SELECTOR = '.pdf-annotator__page-wrapper--pen';
 const TEXT_SELECTOR = '.react-pdf__Page__textContent span, [contenteditable="true"], textarea, input[type="text"], input[type="search"]';
 
-function CursorElement({ pos, mode }) {
+// ── RangeSelect(✂️) armed 상태의 정밀 타깃 커서 ────────────────
+// 모드별 색상 + 시작(①)/끝(②) 단계 배지 + 크로스헤어 눈금
+const RANGE_COLORS = { solved: '#3d5a40', wrong: '#b5433a', lookup: '#5c3d2e' };
+
+function RangeCursor({ pos, step, mode }) {
+  const color = RANGE_COLORS[mode] || '#5c3d2e';
+  const size = 30;
+  const ticks = [
+    { x: pos.x, y: pos.y - size / 2 - 4, w: 1.5, h: 7 }, // top
+    { x: pos.x, y: pos.y + size / 2 + 4, w: 1.5, h: 7 }, // bottom
+    { x: pos.x - size / 2 - 4, y: pos.y, w: 7, h: 1.5 }, // left
+    { x: pos.x + size / 2 + 4, y: pos.y, w: 7, h: 1.5 }, // right
+  ];
+  return (
+    <>
+      {/* 타깃 링 (펄스) */}
+      <div
+        style={{
+          position: 'fixed',
+          left: pos.x,
+          top: pos.y,
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          border: `1.5px solid ${color}`,
+          boxShadow: `0 0 0 3px ${color}26, 0 1px 4px rgba(0,0,0,0.15)`,
+          pointerEvents: 'none',
+          zIndex: 2147483647,
+          animation: 'rangeCursorPulse 1.1s ease-in-out infinite',
+          willChange: 'transform, opacity',
+        }}
+      />
+      {/* 크로스헤어 눈금 */}
+      {ticks.map((t, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'fixed',
+            left: t.x,
+            top: t.y,
+            width: t.w,
+            height: t.h,
+            background: color,
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none',
+            zIndex: 2147483647,
+          }}
+        />
+      ))}
+      {/* 중심점 */}
+      <div
+        style={{
+          position: 'fixed',
+          left: pos.x,
+          top: pos.y,
+          width: 5,
+          height: 5,
+          borderRadius: '50%',
+          background: color,
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
+          zIndex: 2147483647,
+        }}
+      />
+      {/* 단계 배지 ① / ② */}
+      <div
+        style={{
+          position: 'fixed',
+          left: pos.x + size / 2 - 5,
+          top: pos.y + size / 2 - 5,
+          width: 17,
+          height: 17,
+          borderRadius: '50%',
+          background: color,
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: 700,
+          lineHeight: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: "'Noto Serif', serif",
+          boxShadow: '0 1px 3px rgba(0,0,0,0.35)',
+          pointerEvents: 'none',
+          zIndex: 2147483647,
+        }}
+      >{step === 1 ? '1' : '2'}</div>
+    </>
+  );
+}
+
+function CursorElement({ pos, mode, range }) {
+  const armed = !!(range && range.armed);
+  if (armed) {
+    return <RangeCursor pos={pos} step={range.step} mode={range.mode} />;
+  }
   const isHidden = mode === 'hidden';
   const isPen = mode === 'pen';
   const isText = mode === 'text';
@@ -65,6 +161,7 @@ function CursorElement({ pos, mode }) {
 export default function CustomCursor() {
   const [pos, setPos] = useState({ x: -100, y: -100 });
   const [mode, setMode] = useState('default');
+  const [range, setRange] = useState(null);
   const [portalTarget, setPortalTarget] = useState(null);
   const rafRef = useRef(null);
   const targetRef = useRef({ x: -100, y: -100 });
@@ -91,6 +188,9 @@ export default function CustomCursor() {
     window.addEventListener('touchstart', onTouch, { once: true });
     return () => window.removeEventListener('touchstart', onTouch);
   }, []);
+
+  // RangeSelect(✂️) armed 상태 구독 — 장전되면 커서가 타깃으로 바뀐다
+  useEffect(() => subscribeRangeSelect(setRange), []);
 
   const detectMode = useCallback((el) => {
     if (!el) return 'default';
@@ -151,7 +251,7 @@ export default function CustomCursor() {
     };
   }, [handleMouseMove, handleMouseDown, handleMouseUp, handleMouseLeave, handleMouseEnter]);
 
-  const cursor = <CursorElement pos={pos} mode={mode} />;
+  const cursor = <CursorElement pos={pos} mode={mode} range={range} />;
 
   // Portal into fullscreen element when native fullscreen is active,
   // otherwise render into document.body so it's always on top

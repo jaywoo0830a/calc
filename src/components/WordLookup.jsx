@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 
 // ═══════════════════════════════════════════════════════════════
 // WordLookup — 영영사전(dictionaryapi.dev) 오버레이
@@ -181,9 +182,9 @@ export default function WordLookup() {
     openCard(text.toLowerCase(), rect);
   }, [openCard]);
 
-  // 선택 변화 감지 — 📖 Lookup 모드가 ON일 때만 자동 표시
+  // 선택 변화 감지 — 📖 Lookup 모드가 ON일 때만 자동 표시 (터치 기기는 ✂️ 사용)
   const detect = useCallback(() => {
-    if (modeRef.current !== 'on') return;
+    if (IS_TOUCH_PRIMARY || modeRef.current !== 'on') return;
     openForSelection();
   }, [openForSelection]);
 
@@ -286,17 +287,19 @@ export default function WordLookup() {
 
   return (
     <>
-      {/* 좌하단 고정 토글 — ON이면 단어 선택 시 자동 조회 */}
-      <button
-        className={'word-lookup__toggle' + (mode === 'on' ? ' word-lookup__toggle--on' : '')}
-        onClick={toggleMode}
-        aria-pressed={mode === 'on'}
-        title={mode === 'on'
-          ? 'Lookup mode is ON — select a word to look it up. (Double-click a word also works.)'
-          : 'Lookup mode is OFF. Double-click a word, press Ctrl+Alt+D, or use the 📖 button in the selection toolbar.'}
-      >
-        📖 Lookup{mode === 'on' ? ' ON' : ''}
-      </button>
+      {/* 좌하단 고정 토글 — ON이면 단어 선택 시 자동 조회 (데스크톱 전용, 터치는 ✂️ 사용) */}
+      {!IS_TOUCH_PRIMARY && (
+        <button
+          className={'word-lookup__toggle' + (mode === 'on' ? ' word-lookup__toggle--on' : '')}
+          onClick={toggleMode}
+          aria-pressed={mode === 'on'}
+          title={mode === 'on'
+            ? 'Lookup mode is ON — select a word to look it up. (Double-click a word also works.)'
+            : 'Lookup mode is OFF. Double-click a word, press Ctrl+Alt+D, or use the 📖 button in the selection toolbar.'}
+        >
+          📖 Lookup{mode === 'on' ? ' ON' : ''}
+        </button>
+      )}
 
       {state && (
       <div

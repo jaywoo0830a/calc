@@ -1,14 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { isCandidate } from './WordLookup.jsx';
+import { setRangeSelectState } from '../lib/rangeSelectState.js';
+import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 
 // ═══════════════════════════════════════════════════════════════
-// RangeSelect — "모드 + 두 번 탭" 방식의 범위 선택 도구
+// RangeSelect — "모드 + 두 번 탭" 방식의 범위 선택 도구 (터치 기기 전용)
 // ─────────────────────────────────────────────────────────────
 // ✂️ 도크를 펼쳐 모드를 고른 뒤 (✓ Solved / ✗ Wrong / 📖 Lookup),
 // 시작점과 끝점을 차례로 탭하면 그 사이 텍스트에 대해 동작한다.
 //   - Solved/Wrong → window 'problems:mark' 이벤트 (Viewer/PDF가 처리)
 //   - Lookup       → window 'wordlookup:open' 이벤트 (WordLookup이 처리)
-// 기존 드래그 선택 툴바와 별개로 동작하는 추가 트리거 방식이다.
+// 데스크톱은 클릭·드래그 기반(선택 툴바)을 사용하므로 이 도크는 숨긴다.
 // ═══════════════════════════════════════════════════════════════
 
 // 탭이 무시되어야 하는 영역 (버튼/링크/에디터/기존 툴바/이 도크 자체)
@@ -82,6 +84,11 @@ export default function RangeSelect() {
 
   useEffect(() => () => { if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current); }, []);
 
+  // armed 상태를 CustomCursor 등에 공유 (모드/단계에 따라 커서가 바뀐다)
+  useEffect(() => {
+    setRangeSelectState({ armed: !!(mode && step > 0), step, mode });
+  }, [mode, step]);
+
   // ── 탭 처리 (armed 중에만 capture로 가로챔) ──
   useEffect(() => {
     if (step === 0 || !mode) return;
@@ -147,6 +154,9 @@ export default function RangeSelect() {
   }, [open, step, reset]);
 
   const label = mode === 'solved' ? 'Mark solved' : mode === 'wrong' ? 'Mark wrong' : 'Look up';
+
+  // 데스크톱은 클릭·드래그 기반(선택 툴바)을 사용 — ✂️ 도크는 터치 기기 전용
+  if (!IS_TOUCH_PRIMARY) return null;
 
   return (
     <div className="range-select">

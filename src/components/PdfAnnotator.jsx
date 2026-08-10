@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
+import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
 import { api } from '../lib/api.js';
@@ -387,6 +388,7 @@ export default function PdfAnnotator({ url, filePath, initialPage }) {
   // ── Polling: check selection every 250ms (problem/highlight/underline) ──
   useEffect(() => {
     if (tool !== 'highlight' && tool !== 'underline' && tool !== 'problem') return;
+    if (IS_TOUCH_PRIMARY) return; // 터치 기기는 ✂️ 셀렉트 모드(두 번 탭) 사용
     const id = setInterval(() => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {

@@ -136,3 +136,9 @@
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+// RangeSelect armed 시 타깃 커서 링 펄스
+@keyframes rangeCursorPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1);    opacity: 0.95; }
+  50%      { transform: translate(-50%, -50%) scale(1.15); opacity: 0.65; }
+}
