@@ -263,10 +263,13 @@ export default function RangeSelect() {
         className={'range-select__trigger' + (active ? ' range-select__trigger--open' : '')}
         onClick={toggle}
         aria-pressed={active}
+        aria-label={active
+          ? 'Selecting is active — select a range, then choose Solved / Wrong / Lookup'
+          : 'Selecting — select a range, then choose Solved / Wrong / Lookup'}
         title={active
           ? 'Selecting — select a range (drag on desktop, tap start & end on touch)'
           : 'Selecting — select a range, then choose Solved / Wrong / Lookup'}
-      >✂️ {active ? 'Selecting…' : 'Selecting'}</button>
+      >✂️</button>
 
       {active && !selection && (
         <div className="range-select__hint">

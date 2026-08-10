@@ -14,34 +14,39 @@
   align-items: flex-start;
   gap: $sp-2;
 
-  // ---- ✂️ 도크 토글 버튼 ----
+  // ---- ✂️ Selecting 토글 버튼 (컴팩트 원형, 반투명) ----
   &__trigger {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.45rem 0.85rem;
-    border: $border-thin solid $c-rule;
-    border-radius: 2rem;
-    background: rgba(255, 254, 247, 0.92);
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: $border-thin solid rgba(212, 201, 181, 0.55);
+    border-radius: 50%;
+    background: rgba(255, 254, 247, 0.45);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    box-shadow: $shadow-md;
-    font-family: $ff;
-    font-size: $fs-step-0;
+    box-shadow: $shadow-sm;
+    font-size: $fs-step-1;
+    line-height: 1;
     color: $c-ink-soft;
     cursor: pointer;
-    white-space: nowrap;
     transition: all $transition-fast;
 
-    &:hover { border-color: $c-accent; color: $c-accent; }
+    &:hover {
+      border-color: $c-accent;
+      color: $c-accent;
+      background: rgba(255, 254, 247, 0.7);
+    }
 
     &--open {
-      background: $c-accent;
-      border-color: $c-accent;
+      background: rgba(92, 61, 46, 0.55);
+      border-color: rgba(92, 61, 46, 0.7);
       color: #fff;
-      box-shadow: $shadow-lg;
+      animation: rangeTriggerPulse 1.4s ease-in-out infinite;
 
-      &:hover { background: $c-accent-hover; color: #fff; }
+      &:hover { background: rgba(92, 61, 46, 0.75); color: #fff; }
     }
   }
 
@@ -226,6 +231,12 @@
 @keyframes rangeSelectFlash {
   from { transform: scale(0.6); opacity: 1; }
   to   { transform: scale(1.4); opacity: 0; }
+}
+
+// Selecting 활성 시 토글 버튼 펄스 링
+@keyframes rangeTriggerPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(92, 61, 46, 0.35); }
+  50%      { box-shadow: 0 0 0 6px rgba(92, 61, 46, 0); }
 }
 
 // RangeSelect armed 시 타깃 커서 링 펄스
