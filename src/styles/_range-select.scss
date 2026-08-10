@@ -126,6 +126,9 @@
 
   // ---- 진행 단계 / 안내 힌트 ----
   &__hint {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
     padding: 0.35rem 0.85rem;
     background: rgba(44, 36, 22, 0.92);
     color: $c-ink-inverse;
@@ -141,12 +144,88 @@
       background: rgba(181, 67, 58, 0.95);
     }
   }
+
+  // ---- 재탭/재선택 버튼 ----
+  &__redo {
+    padding: 0.15rem 0.5rem;
+    border: none;
+    border-radius: 2rem;
+    background: rgba(255, 255, 255, 0.25);
+    color: inherit;
+    font-size: $fs-step--1;
+    line-height: 1;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background 0.15s ease;
+
+    &:hover { background: rgba(255, 255, 255, 0.45); }
+  }
+
+  // ---- 탭 지점 순간 표시 (터치용 — 커서 대체 피드백) ----
+  &__flash {
+    position: fixed;
+    width: 28px;
+    height: 28px;
+    margin: -14px 0 0 -14px;
+    border: 2px solid $c-accent;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 500;
+    animation: rangeSelectFlash 0.4s ease-out forwards;
+  }
+
+  // ---- 시작점 마커 (터치 — 탭 위치 표시 + 탭하면 재탭) ----
+  &__marker {
+    position: fixed;
+    width: 0;
+    height: 0;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    z-index: 500;
+
+    &-dot {
+      position: absolute;
+      left: -4px;
+      top: -4px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: $c-accent;
+      box-shadow: 0 0 0 3px rgba(92, 61, 46, 0.25);
+    }
+
+    &-badge {
+      position: absolute;
+      left: -11px;
+      top: -30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: $c-accent;
+      color: #fff;
+      font-family: $ff;
+      font-size: 0.8rem;
+      font-weight: $fw-bold;
+      box-shadow: $shadow-md;
+    }
+  }
 }
 
 // ---- Keyframes ---------------------------------------------
 @keyframes rangeSelectIn {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+// 탭 지점 표시 소멸 애니메이션
+@keyframes rangeSelectFlash {
+  from { transform: scale(0.6); opacity: 1; }
+  to   { transform: scale(1.4); opacity: 0; }
 }
 
 // RangeSelect armed 시 타깃 커서 링 펄스

@@ -65,13 +65,33 @@ export default function RangeSelect() {
   const [selection, setSelection] = useState(null);   // 확정된 범위 { text, rect }
   const [barPos, setBarPos] = useState(null);         // 액션 바 위치 { x, y }
   const [notice, setNotice] = useState(null);         // 일회성 안내 문구
+  const [startPoint, setStartPoint] = useState(null); // 시작점 탭 마커 { x, y } (터치)
+  const [tapFlash, setTapFlash] = useState(null);     // 탭 지점 순간 표시 { x, y, key }
   const startRangeRef = useRef(null);
   const noticeTimerRef = useRef(null);
+  const flashTimerRef = useRef(null);
 
   const flashNotice = useCallback((msg) => {
     setNotice(msg);
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     noticeTimerRef.current = setTimeout(() => setNotice(null), 2000);
+  }, []);
+
+  // 시작점 마커 재설정 (잘못 탭 → 재탭)
+  const resetStart = useCallback(() => {
+    setStep(0);
+    setStartPoint(null);
+    startRangeRef.current = null;
+  }, []);
+
+  // 선택 재실행 (잘못 선택 → 다시 선택)
+  const redoSelection = useCallback(() => {
+    window.getSelection()?.removeAllRanges();
+    setSelection(null);
+    setBarPos(null);
+    setStep(0);
+    setStartPoint(null);
+    startRangeRef.current = null;
   }, []);
 
   // Selecting 종료 (선택/액션 바 정리 + 커서 복귀)
@@ -80,6 +100,8 @@ export default function RangeSelect() {
     setStep(0);
     setSelection(null);
     setBarPos(null);
+    setStartPoint(null);
+    setTapFlash(null);
     startRangeRef.current = null;
   }, []);
 
@@ -90,10 +112,22 @@ export default function RangeSelect() {
     setStep(0);
     setSelection(null);
     setBarPos(null);
+    setStartPoint(null);
+    setTapFlash(null);
     startRangeRef.current = null;
   }, [active]);
 
-  useEffect(() => () => { if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current); }, []);
+  // 탭 지점 표시 자동 소멸
+  useEffect(() => {
+    if (!tapFlash) return;
+    flashTimerRef.current = setTimeout(() => setTapFlash(null), 400);
+    return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); };
+  }, [tapFlash]);
+
+  useEffect(() => () => {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+  }, []);
 
   // Selecting 상태를 CustomCursor 등에 공유 — active면 타깃 커서 표시
   useEffect(() => {
@@ -125,6 +159,8 @@ export default function RangeSelect() {
       sel.addRange(range);
     } catch { /* ignore */ }
     setStep(0);
+    setStartPoint(null);
+    setTapFlash(null);
     startRangeRef.current = null;
     setSelection({
       text,
@@ -174,6 +210,8 @@ export default function RangeSelect() {
 
       if (step === 0) {
         startRangeRef.current = caret;
+        setStartPoint({ x: e.clientX, y: e.clientY });
+        setTapFlash({ x: e.clientX, y: e.clientY, key: Date.now() });
         setStep(1);
         return;
       }
@@ -185,7 +223,7 @@ export default function RangeSelect() {
       // PDF: 같은 페이지 안에서만 허용
       const sp = pageOf(start), ep = pageOf(end);
       if (sp || ep) {
-        if (sp !== ep) { flashNotice('PDF: tap both points on the same page'); setStep(0); startRangeRef.current = null; return; }
+        if (sp !== ep) { flashNotice('PDF: tap both points on the same page'); resetStart(); return; }
       }
 
       // 시작/끝 순서 정규화 (거꾸로 탭해도 동작)
@@ -194,6 +232,7 @@ export default function RangeSelect() {
       const range = document.createRange();
       range.setStart(start.startContainer, start.startOffset);
       range.setEnd(end.endContainer, end.endOffset);
+      setTapFlash({ x: e.clientX, y: e.clientY, key: Date.now() });
       finishWithRange(range);
     };
     document.addEventListener('click', onTap, true);
@@ -202,7 +241,7 @@ export default function RangeSelect() {
       document.removeEventListener('click', onTap, true);
       document.removeEventListener('touchstart', onTap, true);
     };
-  }, [active, step, selection, flashNotice, finishWithRange]);
+  }, [active, step, selection, flashNotice, finishWithRange, resetStart]);
 
   // Esc → Selecting 종료
   useEffect(() => {
@@ -226,11 +265,32 @@ export default function RangeSelect() {
       {active && !selection && (
         <div className="range-select__hint">
           {IS_TOUCH_PRIMARY
-            ? (step === 0 ? '① Tap the start point' : '② Tap the end point')
+            ? (step === 0
+                ? '① Tap the start point'
+                : <><span>② Tap the end point</span><button className="range-select__redo" onClick={resetStart} title="Redo start point">↺</button></>)
             : 'Select a range — drag on the text'}
         </div>
       )}
       {notice && <div className="range-select__hint range-select__hint--notice">{notice}</div>}
+
+      {/* 탭 지점 순간 표시 (터치용 — 커서 대체 피드백) */}
+      {tapFlash && (
+        <div key={tapFlash.key} className="range-select__flash" style={{ left: tapFlash.x, top: tapFlash.y }} />
+      )}
+
+      {/* 시작점 마커 — 터치 지점 표시 + 탭하면 재탭 */}
+      {IS_TOUCH_PRIMARY && startPoint && step === 1 && (
+        <button
+          className="range-select__marker"
+          style={{ left: startPoint.x, top: startPoint.y }}
+          onClick={resetStart}
+          title="Start point — tap to redo"
+          aria-label="Start point — tap to redo"
+        >
+          <span className="range-select__marker-dot" />
+          <span className="range-select__marker-badge">①</span>
+        </button>
+      )}
 
       {/* 선택 확정 후 액션 바 — 위치는 선택 영역 근처 */}
       {selection && barPos && (
@@ -241,6 +301,7 @@ export default function RangeSelect() {
           <button className="range-select__mode range-select__mode--solved" onClick={() => dispatchAction('solved')} title="Mark as solved">✓ Solved</button>
           <button className="range-select__mode range-select__mode--wrong" onClick={() => dispatchAction('wrong')} title="Mark as wrong">✗ Wrong</button>
           <button className="range-select__mode range-select__mode--lookup" onClick={() => dispatchAction('lookup')} title="Look up in dictionary">📖 Lookup</button>
+          <button className="range-select__redo" onClick={redoSelection} title="Re-select the range">↺</button>
           <button
             className="range-select__cancel"
             onClick={() => { window.getSelection()?.removeAllRanges(); exit(); }}
