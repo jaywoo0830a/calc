@@ -167,3 +167,10 @@
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+// ---- Mobile: 하단 PDF 네비의 왼쪽 자리(✂️/🕘 전용)에 맞추기 ----
+@media (max-width: 767px) {
+  .recent-nav {
+    bottom: calc($sp-2 + env(safe-area-inset-bottom, 0px));
+  }
+}

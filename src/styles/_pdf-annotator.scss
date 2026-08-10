@@ -1249,8 +1249,14 @@
 
     &__nav {
       gap: 0.25rem;
-      padding: $sp-1 $sp-2;
+      padding: $sp-1 $sp-2 $sp-1 7rem; // 왼쪽은 ✂️/🕘 자리 확보
       margin: 0 $sp-1 $sp-1 $sp-1;
+      justify-content: flex-start;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar { display: none; }
     }
 
     &__nav-btn {
@@ -1261,6 +1267,31 @@
     &__page-input {
       width: 2.75rem;
       height: 2rem;
+    }
+
+    // 정렬 모드(◧◰◩)는 모바일에서 숨김 — 네비 정리
+    &__layout-modes {
+      display: none;
+    }
+
+    // 줌 슬라이더 컴팩트
+    &__zoom-slider {
+      gap: 0.125rem;
+      margin-left: $sp-1;
+      padding-left: $sp-1;
+
+      input[type='range'] {
+        width: 2.5rem;
+      }
+
+      // 1:1 리셋 버튼 숨김
+      button:last-of-type {
+        display: none;
+      }
+    }
+
+    &__zoom-label {
+      min-width: 1.75rem;
     }
   }
 }
