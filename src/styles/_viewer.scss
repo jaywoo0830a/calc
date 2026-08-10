@@ -964,3 +964,33 @@
     }
   }
 }
+
+// ============================================================
+// Mobile (≤ 767px): 상단 영역(업로드/검색/아카이브) 압축
+// — 모바일 세로 화면에서 문서 읽기 공간을 최대한 확보
+// ============================================================
+@media (max-width: 767px) {
+  .viewer {
+    &__upload {
+      padding: $sp-2 $sp-3;
+      margin-bottom: $sp-2;
+    }
+
+    &__search-area {
+      margin-bottom: $sp-2;
+    }
+
+    &__search-bar {
+      padding: $sp-1 $sp-2;
+    }
+
+    &__stored {
+      margin-bottom: $sp-2;
+      padding: $sp-1 0;
+    }
+
+    &__preview {
+      padding: $sp-2;
+    }
+  }
+}

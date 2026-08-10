@@ -1213,3 +1213,54 @@
     will-change: transform;
   }
 }
+
+// ============================================================
+// Mobile (≤ 767px): 툴바/네비를 한 줄로 압축 — 세로 공간 확보
+// (8개 도구 버튼이 줄바꿈으로 2~3줄 차지하던 것을 가로 스크롤 1줄로)
+// ============================================================
+@media (max-width: 767px) {
+  .pdf-annotator {
+    &__toolbar {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding: $sp-1;
+      margin: $sp-1 $sp-1 0 $sp-1;
+
+      &::-webkit-scrollbar { display: none; }
+    }
+
+    &__tools {
+      flex-wrap: nowrap;
+      gap: 0.25rem;
+    }
+
+    &__tool {
+      padding: $sp-1 $sp-2;
+      font-size: $fs-step--2;
+      flex-shrink: 0;
+    }
+
+    &__fullscreen-btn,
+    &__md-btn {
+      flex-shrink: 0;
+    }
+
+    &__nav {
+      gap: 0.25rem;
+      padding: $sp-1 $sp-2;
+      margin: 0 $sp-1 $sp-1 $sp-1;
+    }
+
+    &__nav-btn {
+      width: 2rem;
+      height: 2rem;
+    }
+
+    &__page-input {
+      width: 2.75rem;
+      height: 2rem;
+    }
+  }
+}
