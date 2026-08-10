@@ -70,10 +70,13 @@
   &__bar--fixed {
     position: fixed;
     z-index: 600;
+    max-width: calc(100vw - 1.25rem); // 좁은 화면에서도 뷰포트 밖으로 안 나가게
   }
 
   // 선택된 텍스트 미리보기
   &__sel-label {
+    flex-shrink: 1;
+    min-width: 0;
     max-width: 10rem;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -94,6 +97,7 @@
     color: $c-ink-soft;
     cursor: pointer;
     white-space: nowrap;
+    flex-shrink: 0;
     transition: background 0.15s ease, box-shadow 0.15s ease;
 
     &--solved {
@@ -124,6 +128,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
     transition: all 0.15s ease;
 
     &:hover { background: rgba(0, 0, 0, 0.12); color: #555; }
@@ -161,6 +166,7 @@
     line-height: 1;
     cursor: pointer;
     pointer-events: auto;
+    flex-shrink: 0;
     transition: background 0.15s ease;
 
     &:hover { background: rgba(255, 255, 255, 0.45); }

@@ -169,13 +169,13 @@ export default function RangeSelect() {
       text,
       rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
     });
-    // 액션 바 위치 (선택 영역 위, 공간 부족 시 아래)
+    // 액션 바 위치 (선택 영역 위, 공간 부족 시 아래, 뷰포트 안으로 보정)
     const barW = 320, barH = 44, gap = 10;
     let bx = rect.left + (rect.right - rect.left) / 2 - barW / 2;
     bx = Math.max(gap, Math.min(bx, window.innerWidth - barW - gap));
     let by = rect.top - barH - gap;
     if (by < gap) by = rect.bottom + gap;
-    by = Math.max(gap, by);
+    by = Math.max(gap, Math.min(by, window.innerHeight - barH - gap));
     setBarPos({ x: Math.round(bx), y: Math.round(by) });
   }, [flashNotice]);
 
@@ -272,13 +272,6 @@ export default function RangeSelect() {
           : 'Selecting — select a range, then choose Solved / Wrong / Lookup'}
       >✂️</button>
 
-      {active && !selection && IS_TOUCH_PRIMARY && (
-        <div className="range-select__hint">
-          {step === 0
-            ? '① Tap the start point'
-            : <><span>② Tap the end point</span><button className="range-select__redo" onClick={resetStart} title="Redo start point">↺</button></>}
-        </div>
-      )}
       {notice && <div className="range-select__hint range-select__hint--notice">{notice}</div>}
 
       {/* 탭 지점 순간 표시 (터치용 — 커서 대체 피드백) */}

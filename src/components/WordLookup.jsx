@@ -150,21 +150,13 @@ export default function WordLookup() {
     return () => window.removeEventListener('wordlookup:open', onOpen);
   }, [openCard]);
 
-  // 바깥 클릭 / 스크롤 / Esc → 닫기
+  // 명시적으로 닫을 때만 사라짐 — 카드의 × 버튼 또는 Esc
+  // (스크롤/바깥 클릭으로는 닫히지 않는다 — 읽다가 사라지는 것 방지)
   useEffect(() => {
     if (!state) return;
-    const onDown = (e) => { if (!e.target.closest('.word-lookup')) dismiss(); };
     const onKey = (e) => { if (e.key === 'Escape') dismiss(); };
-    document.addEventListener('mousedown', onDown, true);
-    document.addEventListener('touchstart', onDown, true);
-    document.addEventListener('scroll', dismiss, true);
     window.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown, true);
-      document.removeEventListener('touchstart', onDown, true);
-      document.removeEventListener('scroll', dismiss, true);
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [state, dismiss]);
 
   // 언마운트 시 오디오 정리
