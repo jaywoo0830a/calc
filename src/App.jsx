@@ -4,11 +4,13 @@ import Viewer from './pages/Viewer.jsx';
 import Playground from './pages/Playground.jsx';
 import MathSpace from './pages/MathSpace.jsx';
 import CustomCursor from './components/CustomCursor.jsx';
+import WordLookup from './components/WordLookup.jsx';
 
 export default function App() {
   return (
     <BrowserRouter>
       <CustomCursor />
+      <WordLookup />
       <Routes>
         <Route path="/" element={<Calculator />} />
         <Route path="/viewer" element={<Viewer />} />

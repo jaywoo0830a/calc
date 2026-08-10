@@ -1,0 +1,168 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: word-lookup — 영영사전 오버레이 카드
+// ============================================================
+
+.word-lookup {
+  position: fixed;
+  z-index: 600;                       // viewer 툴바(250)보다 위
+  width: 320px;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 254, 247, 0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: $border-thin solid $c-rule;
+  border-radius: $radius-xl;
+  box-shadow: $shadow-lg;
+  font-family: $ff;
+  font-size: $fs-step--1;
+  color: $c-ink;
+  overflow: hidden;
+  animation: wordLookupIn 0.15s ease;
+
+  // ---- Header: 단어 + 발음 + 오디오 + 닫기 ----
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    padding: $sp-3 $sp-4 $sp-2;
+    border-bottom: $border-thin solid $c-rule-light;
+    background: $c-page-dark;
+  }
+
+  &__word {
+    font-weight: $fw-bold;
+    font-size: $fs-step-1;
+    color: $c-accent;
+    text-transform: lowercase;
+  }
+
+  &__phonetic {
+    color: $c-ink-soft;
+    font-style: italic;
+    font-size: $fs-step--1;
+  }
+
+  &__audio,
+  &__close {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: $fs-step-0;
+    color: $c-ink-soft;
+    padding: 0.15rem 0.3rem;
+    border-radius: $radius-md;
+    line-height: 1;
+    transition: background $transition-fast, color $transition-fast;
+
+    &:hover {
+      background: $c-accent-light;
+      color: $c-accent;
+    }
+  }
+
+  &__close {
+    margin-left: auto;
+    font-size: $fs-step-1;
+  }
+
+  // ---- Body: 정의 목록 ----
+  &__body {
+    overflow-y: auto;
+    padding: $sp-2 $sp-4 $sp-3;
+  }
+
+  &__loading {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    color: $c-ink-soft;
+    font-style: italic;
+  }
+
+  &__spinner {
+    width: 0.875rem;
+    height: 0.875rem;
+    border: 2px solid $c-rule;
+    border-top-color: $c-accent;
+    border-radius: 50%;
+    animation: wordLookupSpin 0.7s linear infinite;
+  }
+
+  &__empty {
+    color: $c-ink-soft;
+    font-style: italic;
+    padding: 0.25rem 0;
+    line-height: 1.5;
+  }
+
+  &__meaning {
+    margin-bottom: $sp-3;
+
+    &:last-child { margin-bottom: 0; }
+  }
+
+  &__pos {
+    display: inline-block;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-equals;
+    background: rgba(61, 90, 64, 0.1);
+    border-radius: $radius-sm;
+    padding: 0.1rem 0.4rem;
+    margin-bottom: 0.25rem;
+  }
+
+  &__defs {
+    margin: 0;
+    padding-left: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  &__def {
+    line-height: 1.45;
+  }
+
+  &__def-text {
+    color: $c-ink;
+  }
+
+  &__example {
+    display: block;
+    font-style: italic;
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+  }
+
+  &__origin {
+    margin-top: 0.25rem;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-style: italic;
+  }
+
+  // ---- Footer ----
+  &__foot {
+    padding: 0.3rem $sp-4;
+    border-top: $border-thin solid $c-rule-light;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    text-align: right;
+    background: $c-page-dark;
+  }
+}
+
+// ---- Keyframes ---------------------------------------------
+@keyframes wordLookupIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes wordLookupSpin {
+  to { transform: rotate(360deg); }
+}
