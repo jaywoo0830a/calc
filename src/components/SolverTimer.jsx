@@ -65,6 +65,10 @@ export default function SolverTimer() {
         ? 'Start 10-minute timer'
         : 'Resume timer';
 
+  // 첫 렌더에서는 포털 타깃(document.body)이 아직 준비되지 않으므로
+  // null 가드가 없으면 createPortal(null 타깃) 런타임 에러로 앱이 깨진다.
+  if (!portalTarget) return null;
+
   const timer = (
     <div
       className={
