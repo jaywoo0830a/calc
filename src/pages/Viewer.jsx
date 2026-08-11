@@ -289,6 +289,7 @@ export default function Viewer() {
   const pdfState = useRef({});   // { path: { page, scrollTop } } PDF 읽기 위치 보존
   const [readability, setReadability] = useState(0);
   const zipRef = useRef(null);
+  const openZipsRef = useRef({}); // { zipId: { zip, fileName, tree, blobs, searchIndex } } — 여러 ZIP 동시 유지 (Recent 전환)
   const navSeq = useRef(0); // 문서 전환 경합 방지 — 최신 탐색만 적용
   const pendingJumpRef = useRef(null); // 마크다운 문제 점프 대기 (렌더 완료 후 실행)
 
@@ -318,18 +319,11 @@ export default function Viewer() {
             const blobs = await indexImages(zip);
             if (seq !== navSeq.current) return; // 최신 탐색으로 대체됨
             setImageBlobs(blobs);
-            buildSearchIndex(zip);
-            const tree = { name: 'root', children: {}, isDir: true };
-            for (const [path, f] of Object.entries(zip.files)) {
-              const parts = path.split('/'); let node = tree;
-              for (let i = 0; i < parts.length; i++) {
-                const p = parts[i]; if (!p) continue;
-                const last = i === parts.length - 1;
-                if (!node.children[p]) node.children[p] = { name: p, children: last ? null : {}, isDir: !last, file: last ? f : null, path };
-                node = node.children[p];
-              }
-            }
+            const searchIndex = await buildSearchIndex(zip);
+            const tree = buildZipTree(zip);
+            if (seq !== navSeq.current) return;
             setZipTree(tree);
+            openZipsRef.current[state.zipId] = { zip, fileName: state.fileName, tree, blobs, searchIndex };
             setSelectedPath(state.selectedPath);
             if (state.scrollPositions) scrollPositions.current = state.scrollPositions;
             const f = zip.files[state.selectedPath];
@@ -454,9 +448,14 @@ export default function Viewer() {
   useEffect(() => {
     const oldUrls = blobUrlsRef.current;
     const newUrls = new Set();
-    for (const url of Object.values(imageBlobs)) {
-      if (typeof url === 'string' && url.startsWith('blob:')) newUrls.add(url);
-    }
+    const collect = (blobs) => {
+      for (const url of Object.values(blobs)) {
+        if (typeof url === 'string' && url.startsWith('blob:')) newUrls.add(url);
+      }
+    };
+    // 현재 ZIP + 캐시에 남아있는 모든 ZIP의 이미지 URL은 유지 (Recent 전환 대비)
+    collect(imageBlobs);
+    for (const entry of Object.values(openZipsRef.current)) collect(entry.blobs);
     // Revoke URLs that are no longer in use
     for (const url of oldUrls) {
       if (!newUrls.has(url)) URL.revokeObjectURL(url);
@@ -497,6 +496,22 @@ export default function Viewer() {
       } catch { /* binary, skip */ }
     }
     searchIndex.current = idx;
+    return idx;
+  }, []);
+
+  // ZIP 파일 구조 → 트리 (Recent에서 ZIP 전환 시 재구축용)
+  const buildZipTree = useCallback((zip) => {
+    const tree = { name: 'root', children: {}, isDir: true };
+    for (const [path, f] of Object.entries(zip.files)) {
+      const parts = path.split('/'); let node = tree;
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i]; if (!p) continue;
+        const last = i === parts.length - 1;
+        if (!node.children[p]) node.children[p] = { name: p, children: last ? null : {}, isDir: !last, file: last ? f : null, path };
+        node = node.children[p];
+      }
+    }
+    return tree;
   }, []);
 
   // ── Search handler ─────────────────────────────────────────────────────
@@ -586,31 +601,31 @@ export default function Viewer() {
     setFileName(file.name);
     scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
     pdfState.current = {};         // 새 ZIP → PDF 위치 초기화
-    clearRecent();                // 새 ZIP → 히스토리 초기화
     try {
       const zip = await JSZip.loadAsync(file);
       if (seq !== navSeq.current) return;            // 더 새로운 업로드/탐색이 시작됨
       zipRef.current = zip;                          // 크로스 링크용 보관
       const blobs = await indexImages(zip);
       if (seq !== navSeq.current) return;
+      const searchIndex = await buildSearchIndex(zip); // 검색 인덱스 구축
+      const tree = buildZipTree(zip);
+      if (seq !== navSeq.current) return;
+
+      // IndexedDB에 저장 (원본 blob) → ID 보관 (실패해도 세션 내 사용 가능)
+      let id = '';
+      try {
+        const blob = file instanceof Blob ? file : new Blob([await file.arrayBuffer()]);
+        id = await saveZip(file.name, blob);
+        refreshStored();
+      } catch {}
+      if (!id) id = 'mem-' + Date.now();
+      if (seq !== navSeq.current) return;
+
+      setZipId(id);
       setImageBlobs(blobs);
-      buildSearchIndex(zip);                         // 검색 인덱스 구축
-
-      // IndexedDB에 저장 (원본 blob) → ID 보관
-      const blob = file instanceof Blob ? file : new Blob([await file.arrayBuffer()]);
-      saveZip(file.name, blob).then((id) => { setZipId(id); refreshStored(); }).catch(() => {});
-
-      const tree = { name: 'root', children: {}, isDir: true };
-      for (const [path, f] of Object.entries(zip.files)) {
-        const parts = path.split('/'); let node = tree;
-        for (let i = 0; i < parts.length; i++) {
-          const p = parts[i]; if (!p) continue;
-          const last = i === parts.length - 1;
-          if (!node.children[p]) node.children[p] = { name: p, children: last ? null : {}, isDir: !last, file: last ? f : null, path };
-          node = node.children[p];
-        }
-      }
+      searchIndex.current = searchIndex;
       setZipTree(tree);
+      openZipsRef.current[id] = { zip, fileName: file.name, tree, blobs, searchIndex };
       // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
       setSelectedPath('');
       setPdfUrl('');
@@ -620,7 +635,7 @@ export default function Viewer() {
     } catch (e) {
       if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
     }
-  }, [indexImages, refreshStored]);
+  }, [indexImages, buildSearchIndex, buildZipTree, refreshStored]);
 
   // IndexedDB에서 저장된 ZIP 불러오기
   const handleLoadStored = useCallback(async (entry) => {
@@ -632,26 +647,19 @@ export default function Viewer() {
     setZipId(entry.id);                             // 세션 복원용
     scrollPositions.current = {};
     pdfState.current = {};
-    clearRecent();
     try {
       const zip = await JSZip.loadAsync(stored.blob);
       if (seq !== navSeq.current) return;
       zipRef.current = zip;                          // 크로스 링크용 보관
       const blobs = await indexImages(zip);
       if (seq !== navSeq.current) return;
+      const searchIndex = await buildSearchIndex(zip); // 검색 인덱스 구축
+      const tree = buildZipTree(zip);
+      if (seq !== navSeq.current) return;
       setImageBlobs(blobs);
-      buildSearchIndex(zip);                         // 검색 인덱스 구축
-      const tree = { name: 'root', children: {}, isDir: true };
-      for (const [path, f] of Object.entries(zip.files)) {
-        const parts = path.split('/'); let node = tree;
-        for (let i = 0; i < parts.length; i++) {
-          const p = parts[i]; if (!p) continue;
-          const last = i === parts.length - 1;
-          if (!node.children[p]) node.children[p] = { name: p, children: last ? null : {}, isDir: !last, file: last ? f : null, path };
-          node = node.children[p];
-        }
-      }
+      searchIndex.current = searchIndex;
       setZipTree(tree);
+      openZipsRef.current[entry.id] = { zip, fileName: stored.name, tree, blobs, searchIndex };
       // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
       setSelectedPath('');
       setPdfUrl('');
@@ -661,7 +669,7 @@ export default function Viewer() {
     } catch (e) {
       if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
     }
-  }, [indexImages]);
+  }, [indexImages, buildSearchIndex, buildZipTree]);
 
   // ZIP 내 문서 간 크로스 링크 처리
   const navigateTo = useCallback(async (href) => {
@@ -956,17 +964,80 @@ export default function Viewer() {
   }, [imageBlobs, selectedPath, setContent]);
 
   // ── 최근 문서 히스토리 (전역 플로팅 🕘 버튼과 공유) ──
-  // 문서가 열릴 때마다 (트리/크로스링크/검색/문제점프/복원) 히스토리에 기록
+  // 문서가 열릴 때마다 (트리/크로스링크/검색/문제점프/복원) 히스토리에 기록.
+  // ZIP을 여러 개 열어도 목록이 유지되어 🕘에서 서로 전환할 수 있다.
   useEffect(() => {
-    if (selectedPath) pushRecent(selectedPath);
-  }, [selectedPath]);
+    if (selectedPath) pushRecent({ zipId, zipName: fileName, path: selectedPath });
+  }, [selectedPath, zipId, fileName]);
 
-  // 히스토리 항목 클릭 → 해당 문서를 트리 없이 다시 열기
-  const openRecent = useCallback((path) => {
+  // 히스토리에서 다른 ZIP의 문서로 전환 — 메모리 캐시 또는 IndexedDB에서 로드
+  const switchToZipDoc = useCallback(async (targetZipId, path) => {
+    const seq = ++navSeq.current;                    // 히스토리 이동 = 최신 탐색
+    setLoading(true);
+    try {
+      let entry = openZipsRef.current[targetZipId];
+      if (!entry) {
+        const stored = await loadZipFromDB(targetZipId);
+        if (!stored) { setLoading(false); return; }
+        const zip = await JSZip.loadAsync(stored.blob);
+        const blobs = await indexImages(zip);
+        const searchIndex = await buildSearchIndex(zip);
+        const tree = buildZipTree(zip);
+        entry = { zip, fileName: stored.name, tree, blobs, searchIndex };
+        openZipsRef.current[targetZipId] = entry;
+      }
+      if (seq !== navSeq.current) return;
+      zipRef.current = entry.zip;
+      setZipId(targetZipId);
+      setFileName(entry.fileName);
+      setImageBlobs(entry.blobs);
+      searchIndex.current = entry.searchIndex;
+      setZipTree(entry.tree);
+      scrollPositions.current = {};
+      pdfState.current = {};
+
+      const file = entry.zip.files[path];
+      if (!file || file.dir) { setLoading(false); return; }
+      setSelectedPath(path);
+      if (path.endsWith('.pdf')) {
+        const blob = await file.async('blob');
+        if (seq !== navSeq.current) return;
+        const url = URL.createObjectURL(blob);
+        pdfBlobUrlsRef.current.add(url);
+        setPdfUrl(url);
+        setRendered('');
+        setToc([]);
+        setPdfInitialPage(pdfState.current[path]?.page || null);
+        setLoading(false);
+        return;
+      }
+      const dir = path.substring(0, path.lastIndexOf('/') + 1);
+      const resolveImg = (src) => resolveImagePath(src, dir, entry.blobs);
+      const txt = await file.async('text');
+      if (seq !== navSeq.current) return;
+      setPdfUrl('');
+      setContent(processContent(txt, resolveImg));
+      setLoading(false);
+    } catch (e) {
+      if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
+    }
+  }, [indexImages, buildSearchIndex, buildZipTree, setContent]);
+
+  // 히스토리 항목 클릭 → 해당 문서를 트리 없이 다시 열기 (다른 ZIP이면 전환)
+  const openRecent = useCallback((item) => {
+    const { zipId: itemZipId, path } = item;
     const zip = zipRef.current;
     if (!zip) return;
     const file = zip.files[path];
     if (!file || file.dir) return;
+
+    if (itemZipId) {
+      if (itemZipId === zipId) { /* 같은 ZIP — 아래 공통 로직 */ }
+      else { switchToZipDoc(itemZipId, path); return; }
+    } else if (zipId) {
+      return; // 저장 실패로 ID가 없던 낡은 항목 — 현재 ZIP으로 잘못 열지 않도록 무시
+    }
+
     const seq = ++navSeq.current;                    // 히스토리 이동 = 최신 탐색
     if (selectedPath && previewRef.current) {
       scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
@@ -993,7 +1064,7 @@ export default function Viewer() {
       setContent(processContent(txt, resolveImg));
       setLoading(false);
     }).catch(() => { setLoading(false); });
-  }, [imageBlobs, selectedPath, setContent]);
+  }, [imageBlobs, selectedPath, setContent, zipId, switchToZipDoc]);
 
   // 전역 🕘 버튼이 문서를 열도록 내비게이션 핸들러 등록
   useEffect(() => registerRecentNavigate(openRecent), [openRecent]);

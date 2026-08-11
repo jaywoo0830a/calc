@@ -63,18 +63,21 @@ export default function RecentNav() {
           ) : (
             <ul className="recent-nav__list">
               {state.items.map((r) => (
-                <li key={r.path} className="recent-nav__row">
+                <li key={r.zipId + '|' + r.path} className="recent-nav__row">
                   <button
                     className="recent-nav__item"
-                    onClick={() => { setOpen(false); navigateRecent(r.path); }}
-                    title={r.path}
+                    onClick={() => { setOpen(false); navigateRecent(r); }}
+                    title={r.zipName ? `${r.zipName} / ${r.path}` : r.path}
                   >
                     <span className="recent-nav__icon">{r.path.endsWith('.pdf') ? '📕' : '📄'}</span>
-                    <span className="recent-nav__name">{r.name}</span>
+                    <span className="recent-nav__meta">
+                      <span className="recent-nav__name">{r.name}</span>
+                      {r.zipName && <span className="recent-nav__zip">{r.zipName}</span>}
+                    </span>
                   </button>
                   <button
                     className="recent-nav__delete"
-                    onClick={() => removeRecent(r.path)}
+                    onClick={() => removeRecent(r)}
                     title={`Remove ${r.name} from recent`}
                     aria-label={`Remove ${r.name} from recent`}
                   >🗑</button>

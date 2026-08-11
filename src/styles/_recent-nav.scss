@@ -155,7 +155,24 @@
     font-size: $fs-step-0;
   }
 
+  &__meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
   &__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__zip {
+    font-size: $fs-step--2;
+    line-height: 1;
+    color: $c-ink-faint;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
