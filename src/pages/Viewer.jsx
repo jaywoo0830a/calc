@@ -1120,16 +1120,19 @@ export default function Viewer() {
   const openRecent = useCallback((item) => {
     const { zipId: itemZipId, path } = item;
     const zip = zipRef.current;
+
+    // 다른 ZIP의 문서면 해당 ZIP으로 전환 후 열기.
+    // (현재 ZIP에 그 경로가 없어도 동작해야 하므로 파일 존재 확인보다 먼저 처리)
+    if (itemZipId && itemZipId !== zipId) {
+      switchToZipDoc(itemZipId, path);
+      return;
+    }
+    // 저장 실패로 ID가 없던 낡은 항목 — 현재 ZIP으로 잘못 열지 않도록 무시
+    if (!itemZipId && zipId) return;
+
     if (!zip) return;
     const file = zip.files[path];
     if (!file || file.dir) return;
-
-    if (itemZipId) {
-      if (itemZipId === zipId) { /* 같은 ZIP — 아래 공통 로직 */ }
-      else { switchToZipDoc(itemZipId, path); return; }
-    } else if (zipId) {
-      return; // 저장 실패로 ID가 없던 낡은 항목 — 현재 ZIP으로 잘못 열지 않도록 무시
-    }
 
     const seq = ++navSeq.current;                    // 히스토리 이동 = 최신 탐색
     if (selectedPath && previewRef.current) {
