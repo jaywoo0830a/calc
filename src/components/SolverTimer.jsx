@@ -93,12 +93,15 @@ export default function SolverTimer() {
           <span className="solver-timer__icon" aria-hidden>{icon}</span>
           <span className="solver-timer__time">{formatTime(remaining)}</span>
         </button>
-        <button
-          className="solver-timer__reset"
-          onClick={reset}
-          aria-label="Reset timer to 10:00"
-          title="Reset to 10:00"
-        >↺</button>
+        {/* 진행 중이거나 일부 경과했으면 ↺ 리셋 배지 (완료 시엔 탭 = 리셋+재시작) */}
+        {!finished && (running || remaining < TOTAL_MS) && (
+          <button
+            className="solver-timer__reset"
+            onClick={reset}
+            aria-label="Reset timer to 10:00"
+            title="Reset to 10:00"
+          >↺</button>
+        )}
       </div>
 
       {/* 시간 완료 → 화면 전체 오버레이 (소리와 함께 시각적으로 알림) */}

@@ -90,33 +90,6 @@
     &:hover { background: $c-accent-light; color: $c-accent; }
   }
 
-  &__tabs {
-    display: flex;
-    gap: $sp-1;
-    padding: $sp-2 $sp-3 0;
-  }
-
-  &__tab {
-    flex: 1;
-    border: none;
-    border-bottom: 2px solid transparent;
-    background: none;
-    padding: $sp-1 0 $sp-2;
-    font-family: $ff;
-    font-size: $fs-step--1;
-    color: $c-ink-faint;
-    cursor: pointer;
-    transition: all $transition-fast;
-
-    &:hover { color: $c-ink; }
-
-    &--active {
-      color: $c-accent;
-      border-bottom-color: $c-accent;
-      font-weight: $fw-semibold;
-    }
-  }
-
   &__body {
     display: flex;
     flex-direction: column;
@@ -201,42 +174,6 @@
       color: $c-accent;
       border-color: $c-accent;
     }
-
-    &--small {
-      flex-shrink: 0;
-      padding: $sp-1 $sp-3;
-      white-space: nowrap;
-    }
-  }
-
-  &__picked {
-    display: flex;
-    align-items: center;
-    gap: $sp-2;
-    padding: $sp-2;
-    border: $border-thin solid $c-rule-light;
-    border-radius: $radius-md;
-    background: $c-page-dark;
-  }
-
-  &__picked-text {
-    flex: 1;
-    min-width: 0;
-    font-family: $ff;
-    font-size: $fs-step--1;
-    color: $c-ink;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__empty {
-    padding: $sp-3;
-    text-align: center;
-    font-family: $ff;
-    font-size: $fs-step--1;
-    font-style: italic;
-    color: $c-ink-faint;
   }
 }
 
