@@ -685,6 +685,14 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           >
             🧹 Eraser
           </button>
+          {/* 현재 페이지 북마크 — 페이지 넘김 버튼 옆에 있으면 실수로 눌리므로 툴바로 이동 */}
+          <button
+            className={'pdf-annotator__tool' + (isBookmarked ? ' pdf-annotator__tool--active' : '')}
+            onClick={toggleBookmark}
+            title={isBookmarked ? 'Remove bookmark from this page' : 'Add bookmark to this page'}
+          >
+            {isBookmarked ? '🔖 Bookmarked' : '🏷️ Bookmark'}
+          </button>
           {toc && (
             <button
               className={'pdf-annotator__tool' + (tocOpen ? ' pdf-annotator__tool--active' : '')}
@@ -1075,13 +1083,6 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             />
             <span className="pdf-annotator__nav-info">/ {numPages}</span>
           </div>
-          <button
-            className={'pdf-annotator__nav-btn' + (isBookmarked ? ' pdf-annotator__nav-btn--active' : '')}
-            onClick={toggleBookmark}
-            title={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
-          >
-            {isBookmarked ? '🔖' : '🏷️'}
-          </button>
           <button
             className="pdf-annotator__nav-btn"
             onClick={() => goToPage(Math.min(numPages, currentPage + 1))}
