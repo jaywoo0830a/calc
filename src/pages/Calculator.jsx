@@ -88,9 +88,22 @@ export default function Calculator() {
             title="Toggle DEG / RAD"
           >{calc.degMode ? 'DEG' : 'RAD'}</button>
         )}
-        <button className="calculator__prec" onClick={() => setPrecOpen((p) => !p)} title="Display precision">
-          자릿수 {calc.displayDigits}
-        </button>
+        <div className="calculator__prec-wrap">
+          <button className="calculator__prec" onClick={() => setPrecOpen((p) => !p)} title="Display precision">
+            자릿수 {calc.displayDigits}
+          </button>
+          {precOpen && (
+            <div className="calculator__prec-menu">
+              {[6, 8, 10, 12, 16].map((n) => (
+                <button
+                  key={n}
+                  className={'calculator__prec-opt' + (calc.displayDigits === n ? ' calculator__prec-opt--active' : '')}
+                  onClick={() => { calc.setDisplayDigits(n); setPrecOpen(false); }}
+                >유효숫자 {n}자리</button>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           className={'calculator__hist-toggle' + (showHistory ? ' calculator__hist-toggle--active' : '')}
           onClick={() => setShowHistory((p) => !p)}
@@ -100,17 +113,6 @@ export default function Calculator() {
         </button>
       </div>
       {precOpen && <div className="calculator__prec-backdrop" onClick={() => setPrecOpen(false)} />}
-      {precOpen && (
-        <div className="calculator__prec-menu">
-          {[6, 8, 10, 12, 16].map((n) => (
-            <button
-              key={n}
-              className={'calculator__prec-opt' + (calc.displayDigits === n ? ' calculator__prec-opt--active' : '')}
-              onClick={() => { calc.setDisplayDigits(n); setPrecOpen(false); }}
-            >유효숫자 {n}자리</button>
-          ))}
-        </div>
-      )}
       <Keypad onAction={handleAction} sciMode={calc.sciMode} invMode={invMode} />
       {showHistory && (
         <div className="calculator__history">

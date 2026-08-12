@@ -417,7 +417,8 @@
 
   &__deg--rad { color: $c-accent; }
 
-  &__prec {
+  // 정밀도 버튼 + 드롭다운 메뉴의 위치 기준이 되는 래퍼
+  &__prec-wrap {
     position: relative;
   }
 
