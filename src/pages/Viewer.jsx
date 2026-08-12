@@ -136,6 +136,52 @@ function nodeAtOffset(container, target) {
  *  시점에 RangeSelect가 ref를 계산해 저장하므로 좌표 없는 문제는 없다.)
  * 반환: { range, el } 또는 null (null이면 점프 effect가 토스트로 알림)
  */
+/** 정규화된 전체 텍스트 + 각 정규화 문자의 원본 인덱스 매핑 */
+function normalizedMap(full) {
+  let norm = '';
+  const map = [];
+  let prevSpace = false;
+  for (let i = 0; i < full.length; i++) {
+    const c = full[i];
+    if (/\s/.test(c)) {
+      if (!prevSpace) { norm += ' '; map.push(i); prevSpace = true; }
+    } else {
+      norm += c; map.push(i); prevSpace = false;
+    }
+  }
+  return { norm, map };
+}
+
+/** 원본 오프셋 → 실제 Range (범위 텍스트가 textNorm과 일치해야 반환 — 엉뚱한 곳 점프 차단) */
+function buildRangeAtRaw(content, rawStart, rawLength, textNorm) {
+  const start = nodeAtOffset(content, rawStart);
+  if (!start) return null;
+  try {
+    const range = document.createRange();
+    range.setStart(start.node, start.offset);
+    if (start.offset + rawLength <= (start.node.textContent || '').length) {
+      range.setEnd(start.node, start.offset + rawLength);
+    } else {
+      // 여러 텍스트 노드에 걸친 선택 — 끝 노드로 확장
+      const end = nodeAtOffset(content, rawStart + rawLength);
+      if (end) range.setEnd(end.node, end.offset);
+      else range.setEnd(start.node, (start.node.textContent || '').length);
+    }
+    if ((range.toString() || '').replace(/\s+/g, ' ').trim() === textNorm) {
+      const el = blockOf(start.node);
+      return el ? { range, el } : null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+/**
+ * 문제 위치 탐색:
+ * ① 정확 오프셋(ref) — 검증 통과 시 즉시 반환 (빠르고 정확)
+ * ② 정규화 전체 검색 — 오프셋이 어긋나도 저장된 텍스트+앞/뒤 컨텍스트로
+ *    동일 문구의 정확한 발생 위치를 찾는다. (공백/줄바꿈/KaTeX 무관)
+ * 반환: { range, el } 또는 null (null이면 점프 effect가 토스트로 알림)
+ */
 function locateMarkdownProblem(p) {
   const content = document.querySelector('.viewer__content');
   if (!content) return null;
@@ -145,51 +191,55 @@ function locateMarkdownProblem(p) {
 
   let anchor = null;
   try { anchor = p.ref ? JSON.parse(p.ref) : null; } catch {}
-  if (!anchor || typeof anchor.start !== 'number' || typeof anchor.end !== 'number' || anchor.end < anchor.start) {
-    console.warn('[problem-jump] ref missing/invalid', p.doc_path, '→', p.text);
-    return null;
-  }
+  const beforeNorm = anchor ? norm(anchor.before) : '';
+  const afterNorm = anchor ? norm(anchor.after) : '';
   const full = content.textContent || '';
-  if (anchor.start < 0 || anchor.end > full.length) {
-    console.warn('[problem-jump] ref out of range', anchor, 'len', full.length);
-    return null;
-  }
-
-  // 주어진 오프셋에서 정확한 Range 생성 — 범위 텍스트가 textNorm과 일치해야만 반환.
-  // (이미지의 alt 등은 textContent에 없으므로 어긋날 수 없다. 어긋난다면
-  //  같은 경로의 다른 ZIP/문서 버전이 로드된 것 — 그런 경우 엉뚱한 곳으로
-  //  스크롤하지 않고 null을 반환해 토스트로 알린다.)
-  const buildRange = (from) => {
-    const loc = nodeAtOffset(content, from);
-    if (!loc) return null;
-    try {
-      const range = document.createRange();
-      range.setStart(loc.node, loc.offset);
-      range.setEnd(loc.node, Math.min(loc.offset + (anchor.end - anchor.start), (loc.node.textContent || '').length));
-      if (norm(range.toString()) === textNorm) {
-        const el = blockOf(loc.node);
-        return el ? { range, el } : null;
-      }
-    } catch { /* ignore */ }
-    return null;
-  };
+  const { norm: ntext, map } = normalizedMap(full);
 
   // ① 정확 오프셋
-  if (norm(full.slice(anchor.start, anchor.end)) === textNorm) {
-    const hit = buildRange(anchor.start);
+  if (anchor && typeof anchor.start === 'number' && typeof anchor.end === 'number'
+      && anchor.start >= 0 && anchor.end <= full.length && anchor.end >= anchor.start) {
+    const hit = buildRangeAtRaw(content, anchor.start, anchor.end - anchor.start, textNorm);
     if (hit) return hit;
   }
 
-  // ② 오프셋이 어긋난 경우 — 기준 위치 근처(±300자)에서 정확 텍스트 재탐색
-  const from = Math.max(0, anchor.start - 300);
-  const to = Math.min(full.length, anchor.end + 300);
-  const idx = full.slice(from, to).indexOf(textNorm);
-  if (idx !== -1) {
-    const hit = buildRange(from + idx);
-    if (hit) return hit;
+  // ② 정규화 전체 검색 + 컨텍스트로 정확한 발생 선택
+  const occurrences = [];
+  let pos = -1;
+  while ((pos = ntext.indexOf(textNorm, pos + 1)) !== -1) occurrences.push(pos);
+  if (occurrences.length) {
+    const ctxBefore = (pp) => ntext.slice(Math.max(0, pp - 30), pp);
+    const ctxAfter = (pp) => ntext.slice(pp + textNorm.length, pp + textNorm.length + 30);
+    const rawLenAt = (pp) => map[pp + textNorm.length - 1] + 1 - map[pp];
+    const tryHits = (list) => {
+      for (const pp of list) {
+        const hit = buildRangeAtRaw(content, map[pp], rawLenAt(pp), textNorm);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    // ②-1 앞+뒤 컨텍스트 모두 일치
+    if (beforeNorm || afterNorm) {
+      const both = occurrences.filter((pp) =>
+        (!beforeNorm || ctxBefore(pp).includes(beforeNorm)) &&
+        (!afterNorm || ctxAfter(pp).includes(afterNorm)));
+      const h = tryHits(both);
+      if (h) return h;
+    }
+    // ②-2 앞 컨텍스트만 일치
+    if (beforeNorm) {
+      const h = tryHits(occurrences.filter((pp) => ctxBefore(pp).includes(beforeNorm)));
+      if (h) return h;
+    }
+    // ②-3 원래 오프셋에 가장 가까운 발생
+    if (anchor && typeof anchor.start === 'number') {
+      const byProximity = [...occurrences].sort((a, b) => Math.abs(a - anchor.start) - Math.abs(b - anchor.start));
+      const h = tryHits(byProximity);
+      if (h) return h;
+    }
   }
 
-  console.warn('[problem-jump] ref mismatch', p.doc_path, '→', p.text, 'anchor', anchor);
+  console.warn('[problem-jump] not found', p.doc_path, '→', p.text, 'anchor', anchor);
   return null;
 }
 

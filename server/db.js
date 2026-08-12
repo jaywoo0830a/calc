@@ -36,9 +36,12 @@ function normalizeText(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
-/** 같은 선택(문제)은 항상 같은 id → 중복 없이 상태만 갱신 */
-export function problemId(docId, ref, text) {
-  return createHash('sha256').update(`${docId}|${ref}|${normalizeText(text)}`).digest('hex').slice(0, 32);
+/**
+ * 같은 선택(문제)은 항상 같은 id → docId + text 기준.
+ * (ref는 저장 시마다 최신으로 갱신 — ref가 달라져도 중복 행이 생기지 않는다)
+ */
+export function problemId(docId, text) {
+  return createHash('sha256').update(`${docId}|${normalizeText(text)}`).digest('hex').slice(0, 32);
 }
 
 export const problems = {
@@ -53,7 +56,7 @@ export const problems = {
 
   upsert({ docId, docPath = '', ref = '', text, status = 'wrong' }) {
     const normalizedText = normalizeText(text);
-    const id = problemId(docId, ref, normalizedText);
+    const id = problemId(docId, normalizedText);
     const now = new Date().toISOString();
     const existing = db.prepare('SELECT * FROM problems WHERE id = ?').get(id);
 
@@ -62,13 +65,19 @@ export const problems = {
       db.prepare(`
         UPDATE problems
         SET status      = @status,
+            doc_path    = @docPath,
+            ref         = @ref,      -- 최신 좌표로 항상 갱신
             wrong_count = wrong_count + @becameWrong,
             attempts    = attempts + 1,
             updated_at  = @now
         WHERE id = @id
-      `).run({ id, status, becameWrong: becameWrong ? 1 : 0, now });
+      `).run({ id, status, docPath, ref, becameWrong: becameWrong ? 1 : 0, now });
       return db.prepare('SELECT * FROM problems WHERE id = ?').get(id);
     }
+
+    // 예전 id 규칙(docId|ref|text)으로 생긴 중복 행 정리 — 같은 문서+텍스트면 하나만 유지
+    db.prepare('DELETE FROM problems WHERE doc_id = @docId AND text = @text AND id != @id')
+      .run({ docId, text: normalizedText, id });
 
     db.prepare(`
       INSERT INTO problems (id, doc_id, doc_path, ref, text, status, wrong_count, attempts, created_at, updated_at)
