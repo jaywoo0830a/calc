@@ -340,7 +340,9 @@
     padding: $sp-5 $sp-6;
     touch-action: manipulation;
     overscroll-behavior: contain;
-    scroll-behavior: smooth;
+    // scroll-behavior: smooth 제거 — 프로그램 스크롤(문제 점프/보정)이
+    // smooth 애니메이션에 묶여 반응이 늦거나 보정과 충돌하지 않도록.
+    // 사용자 휠/터치 스크롤은 네이티브라 영향 없음.
   }
 
   // ---- ZIP 로딩 오버레이 -----------------------------------

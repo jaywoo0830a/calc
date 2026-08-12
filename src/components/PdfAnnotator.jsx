@@ -341,15 +341,24 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   useEffect(() => { refreshProblems(); }, [refreshProblems]);
 
   const jumpToProblemPage = useCallback((p) => {
-    if (p.doc_path !== filePath) return;
+    if (p.doc_path !== filePath) {
+      console.warn('[problem-jump] pdf doc mismatch', p.doc_path, filePath);
+      setToast('다른 문서의 문제입니다');
+      setProblemsOpen(false);
+      return;
+    }
     const page = Number(p.ref);
     if (page > 0 && page <= numPages) {
+      console.log('[problem-jump] pdf → page', page);
       goToPage(page);
       setFlashPage(page);
       setTimeout(() => setFlashPage(null), 2200);
+    } else {
+      console.warn('[problem-jump] pdf invalid page', p.ref, numPages);
+      setToast('이동할 페이지를 찾지 못했습니다: ' + (p.ref || '?'));
     }
     setProblemsOpen(false);
-  }, [filePath, numPages, goToPage]);
+  }, [filePath, numPages, goToPage, setToast]);
 
   // 상태 지정(맞음/틀림) — 같은 상태 재클릭도 시도 횟수로 기록
   const setProblemStatus = useCallback((p, status) => {

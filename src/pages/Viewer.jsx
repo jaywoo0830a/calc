@@ -108,18 +108,74 @@ function decodeEntities(text) {
   return el.textContent;
 }
 
-/** 렌더링된 마크다운 DOM에서 문제 발췌문이 포함된 블록을 찾는다 (점프용) */
+/** 텍스트 노드 안에서 정규화된 key의 원본 [start,end) 오프셋을 찾는다 */
+function findNormOffsetsInNode(text, key) {
+  if (!text || !key) return null;
+  let norm = '';
+  const map = []; // 정규화 인덱스 → 원본 인덱스
+  let prevSpace = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (/\s/.test(c)) {
+      if (!prevSpace) { norm += ' '; map.push(i); prevSpace = true; }
+    } else {
+      norm += c; map.push(i); prevSpace = false;
+    }
+  }
+  const idx = norm.indexOf(key);
+  if (idx === -1) return null;
+  return { start: map[idx], end: map[idx + key.length - 1] + 1 };
+}
+
+/** 문제 발췌문이 포함된 블록(스크롤 타깃)을 찾는다 — 가장 구체적인(텍스트 짧은) 것 선택 */
+function findBlockInContent(key) {
+  const content = document.querySelector('.viewer__content');
+  if (!content || !key) return null;
+  const els = content.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, blockquote, td, th, div');
+  let best = null;
+  let bestLen = Infinity;
+  for (const el of els) {
+    const t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!t.includes(key)) continue;
+    if (t.length < bestLen) { best = el; bestLen = t.length; }
+  }
+  return best;
+}
+
+/** 텍스트 노드에서 가장 가까운 블록 요소로 올라간다 */
+function blockOf(node) {
+  let el = node && node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  while (el && el !== document.body && !/^(P|H[1-6]|LI|PRE|BLOCKQUOTE|TD|TH|DIV|TABLE|UL|OL|SECTION)$/i.test(el.tagName || '')) {
+    el = el.parentElement;
+  }
+  return el && el !== document.body ? el : null;
+}
+
+/** 렌더링된 마크다운 DOM에서 문제를 찾는다 — ① 정확한 텍스트 Range → ② 블록 */
 function findTextInContent(text) {
   const content = document.querySelector('.viewer__content');
   if (!content || !text) return null;
-  const key = text.replace(/\s+/g, ' ').trim().slice(0, 60);
+  const key = text.replace(/\s+/g, ' ').trim().slice(0, 120);
   if (!key) return null;
-  const els = content.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, blockquote');
-  for (const el of els) {
-    const t = (el.textContent || '').replace(/\s+/g, ' ').trim();
-    if (t.includes(key)) return el;
+
+  // ① 텍스트 노드 단위 정확 검색 → 정확한 하이라이트 Range (KaTeX/코드 내부 포함)
+  const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const hit = findNormOffsetsInNode(node.textContent || '', key);
+    if (!hit) continue;
+    try {
+      const range = document.createRange();
+      range.setStart(node, hit.start);
+      range.setEnd(node, hit.end);
+      const el = blockOf(node);
+      if (el) return { range, el };
+    } catch { /* fall through */ }
   }
-  return null;
+
+  // ② 블록 단위 검색 → 블록 플래시
+  const el = findBlockInContent(key);
+  return el ? { el } : null;
 }
 
 /** 오프셋 → 텍스트 노드 + 로컬 오프셋 (좌표 기반 점프용) */
@@ -150,42 +206,44 @@ function findBlockWithContext(content, text, before, after) {
 }
 
 /**
- * 문제 위치 탐색: ① 좌표(오프셋) → ② 컨텍스트(앞/뒤 글자) → ③ 텍스트 검색
- * 반환: { range } (정확한 범위) 또는 { el } (블록) 또는 null
+ * 문제 위치 탐색: ① 좌표(ref) → ② 정확한 텍스트 검색 → ③ 컨텍스트 → ④ 블록 검색
+ * 반환: { range, el } (정확한 범위 + 블록) 또는 { el } (블록) 또는 null
  */
 function locateMarkdownProblem(p) {
   const content = document.querySelector('.viewer__content');
   if (!content) return null;
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const textNorm = norm(p.text);
+  if (!textNorm) return null;
 
   // ① 좌표 기반 — 저장된 시작/끝 오프셋의 텍스트가 실제와 일치하면 정확한 범위
   let anchor = null;
   try { anchor = p.ref ? JSON.parse(p.ref) : null; } catch {}
   if (anchor && typeof anchor.start === 'number' && typeof anchor.end === 'number' && anchor.end >= anchor.start) {
     const full = content.textContent || '';
-    if (anchor.start >= 0 && anchor.end <= full.length) {
-      if (norm(full.slice(anchor.start, anchor.end)) === textNorm) {
-        const loc = nodeAtOffset(content, anchor.start);
-        if (loc) {
+    if (anchor.start >= 0 && anchor.end <= full.length && norm(full.slice(anchor.start, anchor.end)) === textNorm) {
+      const loc = nodeAtOffset(content, anchor.start);
+      if (loc) {
+        try {
           const range = document.createRange();
           range.setStart(loc.node, loc.offset);
-          range.setEnd(loc.node, Math.min(loc.offset + (anchor.end - anchor.start), loc.node.textContent.length));
-          return { range };
-        }
+          range.setEnd(loc.node, Math.min(loc.offset + (anchor.end - anchor.start), (loc.node.textContent || '').length));
+          const el = blockOf(loc.node);
+          if (el) return { range, el };
+        } catch { /* fall through */ }
       }
     }
   }
 
-  // ② 컨텍스트 기반 — 앞/뒤 글자로 동일 텍스트를 구분
+  // ② 정확한 텍스트 검색 / 블록 검색
+  const found = findTextInContent(textNorm);
+  if (found) return found;
+
+  // ③ 컨텍스트 기반 — 앞/뒤 글자로 동일 텍스트 구분 (같은 문구가 여러 곳일 때)
   if (anchor?.before || anchor?.after) {
     const el = findBlockWithContext(content, textNorm, norm(anchor.before), norm(anchor.after));
     if (el) return { el };
   }
-
-  // ③ 텍스트 검색 폴백
-  const el = findTextInContent(p.text);
-  if (el) return { el };
   return null;
 }
 
@@ -215,19 +273,46 @@ function waitForLayoutReady(container, timeout = 800) {
   return Promise.all(waits);
 }
 
-/** 마크다운 선택 위치를 좌표/컨텍스트 앵커로 저장 (문제 점프 정확도 향상) */
+/** textContent 기준으로 노드+오프셋 위치를 계산 (nodeAtOffset과 역연산 일치) */
+function textOffsetOf(root, node, offset) {
+  const textLen = (n) => (n.textContent || '').length;
+  if (node.nodeType === Node.TEXT_NODE) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let current = 0;
+    let n;
+    while ((n = walker.nextNode())) {
+      if (n === node) return current + Math.min(offset, textLen(n));
+      current += textLen(n);
+    }
+    return -1;
+  }
+  // 요소 노드 — offset 0이면 요소 앞 텍스트 길이, 그 외엔 요소 끝까지
+  const before = (() => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let current = 0;
+    let seen = false;
+    let n;
+    while ((n = walker.nextNode())) {
+      if (node.contains(n)) { seen = true; continue; }
+      if (seen) break;
+      current += textLen(n);
+    }
+    return current;
+  })();
+  return offset === 0 ? before : before + textLen(node);
+}
+
+/** 마크다운 선택 위치를 textContent 기준 좌표로 저장 (문제 점프 정확도 향상) */
 function computeMarkdownRef() {
   const content = document.querySelector('.viewer__content');
   const sel = window.getSelection();
   if (!content || !sel || sel.isCollapsed || !sel.rangeCount) return '';
   const range = sel.getRangeAt(0);
   if (!content.contains(range.commonAncestorContainer)) return '';
-  const pre = range.cloneRange();
-  pre.selectNodeContents(content);
-  pre.setEnd(range.startContainer, range.startOffset);
-  const start = pre.toString().length;
+  const start = textOffsetOf(content, range.startContainer, range.startOffset);
+  const end = textOffsetOf(content, range.endContainer, range.endOffset);
   const full = content.textContent || '';
-  const end = start + range.toString().length;
+  if (start < 0 || end < start || end > full.length) return '';
   const before = full.slice(Math.max(0, start - 30), start);
   const after = full.slice(end, end + 30);
   return JSON.stringify({ start, end, before, after });
@@ -918,7 +1003,8 @@ export default function Viewer() {
 
   // ── 푼/틀린 문제 패널 ──────────────────────────────────
   const jumpToProblem = useCallback((p) => {
-    const { doc_path } = p;
+    const { doc_path } = p || {};
+    console.log('[problem-jump] entry', doc_path, (p && p.text || '').slice(0, 40));
     const zip = zipRef.current;
     // 현재 ZIP에 없으면 다른 열린 ZIP에서 찾아 전환 후 점프
     if (!zip || !zip.files[doc_path] || zip.files[doc_path].dir) {
@@ -973,9 +1059,8 @@ export default function Viewer() {
   }, [imageBlobs, setContent, switchToZipDoc, selectedPath, rendered]);
 
   // ── 마크다운 문제 점프: 렌더링 완료 + 레이아웃 안정 후 위치 탐색 ──
-  // 고정 150ms 대기 대신 `rendered`가 실제로 갱신된 뒤, 웹폰트·이미지 로딩까지
-  // 기다렸다가 좌표→컨텍스트→텍스트로 찾는다. 스크롤 후 한 번 더 보정해
-  // 모바일/태블릿에서 늦게 뜨는 요소로 인한 어긋남까지 잡는다.
+  // ref(좌표) → 정확한 텍스트 검색 → 컨텍스트 → 블록 검색의 다중 폴백.
+  // 실패해도 절대 "조용히 아무것도 안 함"이 없도록 토스트로 알린다.
   useEffect(() => {
     if (!rendered || !pendingJumpRef.current) return;
     const { p, seq } = pendingJumpRef.current;
@@ -984,44 +1069,39 @@ export default function Viewer() {
     const container = previewRef.current;
     if (!container) return;
     let cancelled = false;
-    let settleTimer = null;
-    let retryTimer = null;
-
+    const timers = new Set();
+    const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.add(t); return t; };
     const locateRect = (located) => (located.range ? located.range.getBoundingClientRect() : located.el.getBoundingClientRect());
 
-    // 점프 실행 — 중심 정렬 스크롤 + 하이라이트/플래시
-    const jump = (behavior) => {
+    // 점프 실행 — 중심 정렬 스크롤 + 하이라이트/플래시. 성공 시 true.
+    const jump = () => {
       const located = locateMarkdownProblem(p);
-      if (!located) {
-        console.warn('[problem-jump] locate failed for', p.doc_path, '→', p.text);
-        return null;
-      }
+      if (!located) return false;
       const rect = locateRect(located);
       if (rect && rect.height) {
         const crect = container.getBoundingClientRect();
         container.scrollTo({
           top: Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2),
-          behavior,
+          behavior: 'auto',
         });
       }
       if (located.range) {
-        // ① 좌표 기반: 정확한 범위 하이라이트
         try {
           const sel = window.getSelection();
           sel.removeAllRanges();
           sel.addRange(located.range);
         } catch { /* ignore */ }
-        setTimeout(() => window.getSelection()?.removeAllRanges(), 2500);
-      } else {
-        // ②/③ 블록 플래시
+        later(() => window.getSelection()?.removeAllRanges(), 2500);
+      } else if (located.el) {
         located.el.classList.add('viewer__problem-flash');
-        setTimeout(() => located.el.classList.remove('viewer__problem-flash'), 2000);
+        later(() => located.el.classList.remove('viewer__problem-flash'), 2000);
       }
-      return located;
+      return true;
     };
 
-    // 2차 보정: 스크롤이 끝난 뒤 잔여 어긋남 교정 (늦게 뜨는 요소 대비)
+    // 2차 보정: 늦게 뜨는 요소(폰트/이미지)로 인한 잔여 어긋남 교정
     const correct = () => {
+      if (cancelled) return;
       const re = locateMarkdownProblem(p);
       if (!re) return;
       const rect = locateRect(re);
@@ -1035,40 +1115,39 @@ export default function Viewer() {
       }
     };
 
-    // 1차: 폰트·이미지 로딩 + 새 콘텐츠의 자연 레이아웃(1프레임)을 마친 뒤 정확한 좌표로 점프.
+    // 1차: 폰트·이미지 로딩 + 새 콘텐츠의 자연 레이아웃(1프레임)을 마친 뒤 좌표로 점프.
     // ⚠️ 렌더 커밋 직후 같은 프레임에 getBoundingClientRect()를 읽으면 큰 문서에서
-    //    "Forced reflow 40~50ms"가 매번 발생한다. 이중 rAF로 브라우저가 새 콘텐츠를
+    //    "Forced reflow 40~50ms"가 발생한다. 이중 rAF로 브라우저가 새 콘텐츠를
     //    한 번 레이아웃+페인트한 뒤에 읽어야 reflow가 강제되지 않는다.
-    // ⚠️ behavior는 'auto'(즉시)만 사용 — 'smooth' 애니메이션 중에 좌표를 읽으면
-    //    보정 단계(correct)에서도 매번 reflow가 강제된다.
     waitForLayoutReady(container).then(() => {
       if (cancelled) return;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (cancelled) return;
-          if (!jump('auto')) {
-            // 렌더 직후 DOM이 아직 준비되지 않았을 수 있으니 한 번 더 재시도
-            retryTimer = setTimeout(() => {
-              if (cancelled) return;
-              if (jump('auto')) {
-                settleTimer = setTimeout(() => { if (cancelled) return; correct(); }, 350);
-              } else {
-                console.warn('[problem-jump] locate retry failed for', p.doc_path, '→', p.text);
-              }
-            }, 120);
+          if (jump()) {
+            later(correct, 400);
             return;
           }
-          settleTimer = setTimeout(() => { if (cancelled) return; correct(); }, 350);
+          // 렌더 직후 DOM이 아직 준비되지 않았을 수 있으니 한 번 더 재시도
+          later(() => {
+            if (cancelled) return;
+            if (jump()) {
+              later(correct, 400);
+            } else {
+              console.warn('[problem-jump] locate failed for', p.doc_path, '→', p.text);
+              setMdToast('문제 위치를 찾지 못했습니다: ' + (p.text || '').slice(0, 40));
+            }
+          }, 250);
         });
       });
     });
 
     return () => {
       cancelled = true;
-      if (settleTimer) clearTimeout(settleTimer);
-      if (retryTimer) clearTimeout(retryTimer);
+      for (const t of timers) clearTimeout(t);
+      timers.clear();
     };
-  }, [rendered, selectedPath, jumpTick]);
+  }, [rendered, selectedPath, jumpTick, setMdToast]);
 
   // 상태 지정(맞음/틀림) — 같은 상태 재클릭도 "한 번 더 풀었다"로 attempts 기록
   const setProblemStatus = useCallback((p, status) => {
