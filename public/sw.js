@@ -1,6 +1,6 @@
 // ── Cache names (versioned for easy migration) ──────────────
-const CACHE_STATIC  = 'calc-static-v2';
-const CACHE_RUNTIME = 'calc-runtime-v2';
+const CACHE_STATIC  = 'calc-static-v3';
+const CACHE_RUNTIME = 'calc-runtime-v3';
 
 // ── Assets to pre-cache on install ──────────────────────────
 const PRECACHE_URLS = [
@@ -38,10 +38,14 @@ self.addEventListener('activate', (event) => {
 // ── Fetch: cache strategies by request type ─────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  const url = new URL(request.url);
 
   // Only handle GET requests
   if (request.method !== 'GET') return;
+
+  // http(s)만 처리 — blob:/data:/chrome-extension: 등은 Cache API에 저장할 수 없어
+  // "Request scheme 'blob' is unsupported" 예외를 내고 fetch까지 깨뜨린다.
+  const url = new URL(request.url);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
   // ── Strategy 1: Static assets → Cache-first (immutable hashed files)
   if (
@@ -79,8 +83,10 @@ async function cacheFirst(cacheName, request) {
   try {
     const response = await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, response.clone());
+      try {
+        const cache = await caches.open(cacheName);
+        await cache.put(request, response.clone());
+      } catch { /* 캐시 실패는 무시 — 네트워크 응답은 그대로 전달 */ }
     }
     return response;
   } catch {
@@ -98,8 +104,10 @@ async function networkFirst(cacheName, request) {
   try {
     const response = await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, response.clone());
+      try {
+        const cache = await caches.open(cacheName);
+        await cache.put(request, response.clone());
+      } catch { /* 캐시 실패는 무시 */ }
     }
     return response;
   } catch {
@@ -118,8 +126,12 @@ async function networkFirst(cacheName, request) {
 async function staleWhileRevalidate(cacheName, request) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
-  const fetchPromise = fetch(request).then((response) => {
-    if (response.ok) cache.put(request, response.clone());
+  const fetchPromise = fetch(request).then(async (response) => {
+    if (response.ok) {
+      try {
+        await cache.put(request, response.clone());
+      } catch { /* 캐시 실패는 무시 */ }
+    }
     return response;
   }).catch(() => cached);
   return cached || fetchPromise;
