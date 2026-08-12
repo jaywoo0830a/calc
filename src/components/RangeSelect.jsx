@@ -4,6 +4,7 @@ import { isCandidate } from './WordLookup.jsx';
 import { setRangeSelectState } from '../lib/rangeSelectState.js';
 import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 import { useFullscreenPortal } from '../lib/fullscreenPortal.js';
+import { markdownRefFromRange } from '../lib/markdownRef.js';
 
 // ═══════════════════════════════════════════════════════════════
 // RangeSelect — ✂️ Selecting: 범위 먼저 선택 → 그다음 액션 (전 기기 단일 흐름)
@@ -144,7 +145,11 @@ export default function RangeSelect() {
       if (!isCandidate(selection.text)) { flashNotice('Dictionary: select a single word or short phrase'); return; }
       window.dispatchEvent(new CustomEvent('wordlookup:open', { detail: { text: selection.text, rect: selection.rect } }));
     } else {
-      window.dispatchEvent(new CustomEvent('problems:mark', { detail: { text: selection.text, status: action, rect: selection.rect } }));
+      // ref는 선택이 살아있던 시점에 finishWithRange에서 미리 계산해 보관.
+      // ✓/✗ 버튼 클릭 순간 브라우저가 선택을 지우므로 여기서 다시 계산하면 안 됨.
+      window.dispatchEvent(new CustomEvent('problems:mark', {
+        detail: { text: selection.text, status: action, rect: selection.rect, ref: selection.ref },
+      }));
     }
     window.getSelection()?.removeAllRanges();
     exit();
@@ -154,6 +159,9 @@ export default function RangeSelect() {
   const finishWithRange = useCallback((range) => {
     const text = range.toString().replace(/\s+/g, ' ').trim();
     if (!text) { flashNotice('No text in that range — try again'); setStep(0); startRangeRef.current = null; return; }
+    // 선택이 살아있는 지금 ref(마크다운 좌표 앵커)를 미리 계산해 보관
+    // (버튼 클릭 시 브라우저가 선택을 지우기 때문 — 문제 점프 정확도에 필수)
+    const ref = markdownRefFromRange(range);
     const rect = range.getBoundingClientRect();
     // 실제 브라우저 선택을 적용해 사용자가 범위를 눈으로 확인 (안정감)
     try {
@@ -167,6 +175,7 @@ export default function RangeSelect() {
     startRangeRef.current = null;
     setSelection({
       text,
+      ref,
       rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
     });
     // 액션 바 위치 (선택 영역 위, 공간 부족 시 아래, 뷰포트 안으로 보정)

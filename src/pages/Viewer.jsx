@@ -108,40 +108,6 @@ function decodeEntities(text) {
   return el.textContent;
 }
 
-/** 텍스트 노드 안에서 정규화된 key의 원본 [start,end) 오프셋을 찾는다 */
-function findNormOffsetsInNode(text, key) {
-  if (!text || !key) return null;
-  let norm = '';
-  const map = []; // 정규화 인덱스 → 원본 인덱스
-  let prevSpace = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (/\s/.test(c)) {
-      if (!prevSpace) { norm += ' '; map.push(i); prevSpace = true; }
-    } else {
-      norm += c; map.push(i); prevSpace = false;
-    }
-  }
-  const idx = norm.indexOf(key);
-  if (idx === -1) return null;
-  return { start: map[idx], end: map[idx + key.length - 1] + 1 };
-}
-
-/** 문제 발췌문이 포함된 블록(스크롤 타깃)을 찾는다 — 가장 구체적인(텍스트 짧은) 것 선택 */
-function findBlockInContent(key) {
-  const content = document.querySelector('.viewer__content');
-  if (!content || !key) return null;
-  const els = content.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, blockquote, td, th, div');
-  let best = null;
-  let bestLen = Infinity;
-  for (const el of els) {
-    const t = (el.textContent || '').replace(/\s+/g, ' ').trim();
-    if (!t.includes(key)) continue;
-    if (t.length < bestLen) { best = el; bestLen = t.length; }
-  }
-  return best;
-}
-
 /** 텍스트 노드에서 가장 가까운 블록 요소로 올라간다 */
 function blockOf(node) {
   let el = node && node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
@@ -149,33 +115,6 @@ function blockOf(node) {
     el = el.parentElement;
   }
   return el && el !== document.body ? el : null;
-}
-
-/** 렌더링된 마크다운 DOM에서 문제를 찾는다 — ① 정확한 텍스트 Range → ② 블록 */
-function findTextInContent(text) {
-  const content = document.querySelector('.viewer__content');
-  if (!content || !text) return null;
-  const key = text.replace(/\s+/g, ' ').trim().slice(0, 120);
-  if (!key) return null;
-
-  // ① 텍스트 노드 단위 정확 검색 → 정확한 하이라이트 Range (KaTeX/코드 내부 포함)
-  const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
-  let node;
-  while ((node = walker.nextNode())) {
-    const hit = findNormOffsetsInNode(node.textContent || '', key);
-    if (!hit) continue;
-    try {
-      const range = document.createRange();
-      range.setStart(node, hit.start);
-      range.setEnd(node, hit.end);
-      const el = blockOf(node);
-      if (el) return { range, el };
-    } catch { /* fall through */ }
-  }
-
-  // ② 블록 단위 검색 → 블록 플래시
-  const el = findBlockInContent(key);
-  return el ? { el } : null;
 }
 
 /** 오프셋 → 텍스트 노드 + 로컬 오프셋 (좌표 기반 점프용) */
@@ -191,23 +130,11 @@ function nodeAtOffset(container, target) {
   return null;
 }
 
-/** 앞/뒤 컨텍스트까지 일치하는 블록을 찾는다 (동일 텍스트가 여러 곳일 때 구분) */
-function findBlockWithContext(content, text, before, after) {
-  const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
-  const els = content.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, blockquote');
-  let any = null;
-  for (const el of els) {
-    const full = norm(el.textContent);
-    if (!full.includes(text)) continue;
-    if (any === null) any = el;
-    if ((!before || full.includes(before)) && (!after || full.includes(after))) return el;
-  }
-  return any;
-}
-
 /**
- * 문제 위치 탐색: ① 좌표(ref) → ② 정확한 텍스트 검색 → ③ 컨텍스트 → ④ 블록 검색
- * 반환: { range, el } (정확한 범위 + 블록) 또는 { el } (블록) 또는 null
+ * 문제 위치 탐색 — 저장된 좌표(ref)로만 정확히 찾는다.
+ * (레거시 텍스트/컨텍스트/블록 검색 폴백은 제거 — 모든 문제는 선택 확정
+ *  시점에 RangeSelect가 ref를 계산해 저장하므로 좌표 없는 문제는 없다.)
+ * 반환: { range, el } 또는 null (null이면 점프 effect가 토스트로 알림)
  */
 function locateMarkdownProblem(p) {
   const content = document.querySelector('.viewer__content');
@@ -216,35 +143,26 @@ function locateMarkdownProblem(p) {
   const textNorm = norm(p.text);
   if (!textNorm) return null;
 
-  // ① 좌표 기반 — 저장된 시작/끝 오프셋의 텍스트가 실제와 일치하면 정확한 범위
   let anchor = null;
   try { anchor = p.ref ? JSON.parse(p.ref) : null; } catch {}
-  if (anchor && typeof anchor.start === 'number' && typeof anchor.end === 'number' && anchor.end >= anchor.start) {
-    const full = content.textContent || '';
-    if (anchor.start >= 0 && anchor.end <= full.length && norm(full.slice(anchor.start, anchor.end)) === textNorm) {
-      const loc = nodeAtOffset(content, anchor.start);
-      if (loc) {
-        try {
-          const range = document.createRange();
-          range.setStart(loc.node, loc.offset);
-          range.setEnd(loc.node, Math.min(loc.offset + (anchor.end - anchor.start), (loc.node.textContent || '').length));
-          const el = blockOf(loc.node);
-          if (el) return { range, el };
-        } catch { /* fall through */ }
-      }
-    }
+  if (!anchor || typeof anchor.start !== 'number' || typeof anchor.end !== 'number' || anchor.end < anchor.start) {
+    return null;
   }
-
-  // ② 정확한 텍스트 검색 / 블록 검색
-  const found = findTextInContent(textNorm);
-  if (found) return found;
-
-  // ③ 컨텍스트 기반 — 앞/뒤 글자로 동일 텍스트 구분 (같은 문구가 여러 곳일 때)
-  if (anchor?.before || anchor?.after) {
-    const el = findBlockWithContext(content, textNorm, norm(anchor.before), norm(anchor.after));
-    if (el) return { el };
+  const full = content.textContent || '';
+  if (anchor.start < 0 || anchor.end > full.length || norm(full.slice(anchor.start, anchor.end)) !== textNorm) {
+    return null;
   }
-  return null;
+  const loc = nodeAtOffset(content, anchor.start);
+  if (!loc) return null;
+  try {
+    const range = document.createRange();
+    range.setStart(loc.node, loc.offset);
+    range.setEnd(loc.node, Math.min(loc.offset + (anchor.end - anchor.start), (loc.node.textContent || '').length));
+    const el = blockOf(loc.node);
+    return el ? { range, el } : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -271,51 +189,6 @@ function waitForLayoutReady(container, timeout = 800) {
     waits.push(Promise.race([loaded, new Promise((r) => setTimeout(r, timeout))]));
   }
   return Promise.all(waits);
-}
-
-/** textContent 기준으로 노드+오프셋 위치를 계산 (nodeAtOffset과 역연산 일치) */
-function textOffsetOf(root, node, offset) {
-  const textLen = (n) => (n.textContent || '').length;
-  if (node.nodeType === Node.TEXT_NODE) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let current = 0;
-    let n;
-    while ((n = walker.nextNode())) {
-      if (n === node) return current + Math.min(offset, textLen(n));
-      current += textLen(n);
-    }
-    return -1;
-  }
-  // 요소 노드 — offset 0이면 요소 앞 텍스트 길이, 그 외엔 요소 끝까지
-  const before = (() => {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let current = 0;
-    let seen = false;
-    let n;
-    while ((n = walker.nextNode())) {
-      if (node.contains(n)) { seen = true; continue; }
-      if (seen) break;
-      current += textLen(n);
-    }
-    return current;
-  })();
-  return offset === 0 ? before : before + textLen(node);
-}
-
-/** 마크다운 선택 위치를 textContent 기준 좌표로 저장 (문제 점프 정확도 향상) */
-function computeMarkdownRef() {
-  const content = document.querySelector('.viewer__content');
-  const sel = window.getSelection();
-  if (!content || !sel || sel.isCollapsed || !sel.rangeCount) return '';
-  const range = sel.getRangeAt(0);
-  if (!content.contains(range.commonAncestorContainer)) return '';
-  const start = textOffsetOf(content, range.startContainer, range.startOffset);
-  const end = textOffsetOf(content, range.endContainer, range.endOffset);
-  const full = content.textContent || '';
-  if (start < 0 || end < start || end > full.length) return '';
-  const before = full.slice(Math.max(0, start - 30), start);
-  const after = full.slice(end, end + 30);
-  return JSON.stringify({ start, end, before, after });
 }
 
 /** 렌더링된 HTML에서 h1~h3 제목을 추출하여 TOC 배열과 ID 주입된 HTML 반환 */
@@ -925,12 +798,14 @@ export default function Viewer() {
   useEffect(() => {
     if (pdfUrl) return;
     const onMark = (e) => {
-      const { text, status } = e.detail || {};
+      const { text, status, ref } = e.detail || {};
       if (!text || !status || !selectedPath) return;
       api.saveProblem({
         docId: selectedPath,
         docPath: selectedPath,
-        ref: computeMarkdownRef(), // 좌표/컨텍스트 앵커 (정확한 점프용)
+        // ref는 RangeSelect가 선택 확정 시점에 계산해 전달한다.
+        // (버튼 클릭으로 선택이 지워진 뒤에는 계산 불가 — 여기서 다시 안 구함)
+        ref: ref || '',
         text: String(text).slice(0, 500),
         status,
       }).then(() => {
@@ -1071,31 +946,27 @@ export default function Viewer() {
     let cancelled = false;
     const timers = new Set();
     const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.add(t); return t; };
-    const locateRect = (located) => (located.range ? located.range.getBoundingClientRect() : located.el.getBoundingClientRect());
 
-    // 점프 실행 — 중심 정렬 스크롤 + 하이라이트/플래시. 성공 시 true.
+    // 점프 실행 — 네이티브 scrollIntoView로 중심 정렬 + 정확 범위 하이라이트. 성공 시 true.
+    // (수동 scrollTo 계산 대신 브라우저가 스크롤 컨테이너를 스스로 찾는다.
+    //  기하(rect) 읽기가 없어 Forced reflow도 유발하지 않는다.)
     const jump = () => {
       const located = locateMarkdownProblem(p);
       if (!located) return false;
-      const rect = locateRect(located);
-      if (rect && rect.height) {
-        const crect = container.getBoundingClientRect();
-        container.scrollTo({
-          top: Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2),
-          behavior: 'auto',
-        });
+      console.log('[problem-jump] located', (p.text || '').slice(0, 30));
+      if (located.el && located.el.scrollIntoView) {
+        located.el.scrollIntoView({ block: 'center', behavior: 'auto' });
       }
-      if (located.range) {
-        try {
-          const sel = window.getSelection();
-          sel.removeAllRanges();
-          sel.addRange(located.range);
-        } catch { /* ignore */ }
-        later(() => window.getSelection()?.removeAllRanges(), 2500);
-      } else if (located.el) {
-        located.el.classList.add('viewer__problem-flash');
-        later(() => located.el.classList.remove('viewer__problem-flash'), 2000);
+      try {
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(located.range);
+      } catch {
+        // 하이라이트 실패 시 블록 플래시로 대체
+        located.el?.classList.add('viewer__problem-flash');
+        later(() => located.el?.classList.remove('viewer__problem-flash'), 2000);
       }
+      later(() => window.getSelection()?.removeAllRanges(), 2500);
       return true;
     };
 
@@ -1103,15 +974,13 @@ export default function Viewer() {
     const correct = () => {
       if (cancelled) return;
       const re = locateMarkdownProblem(p);
-      if (!re) return;
-      const rect = locateRect(re);
-      if (!rect || !rect.height) return;
+      if (!re || !re.el || !re.el.scrollIntoView) return;
       const crect = container.getBoundingClientRect();
-      const target = Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2);
-      const drift = Math.abs(target - container.scrollTop);
+      const r = re.el.getBoundingClientRect();
+      const drift = Math.abs(r.top - crect.top - (container.clientHeight - r.height) / 2);
       // 사용자가 이미 스크롤을 움직였으면(크게 벗어났으면) 건드리지 않는다
       if (drift > 4 && drift < container.clientHeight * 0.9) {
-        container.scrollTo({ top: target, behavior: 'auto' });
+        re.el.scrollIntoView({ block: 'center', behavior: 'auto' });
       }
     };
 
