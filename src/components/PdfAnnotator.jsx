@@ -73,6 +73,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [pageRenderTick, setPageRenderTick] = useState(0); // bumps on each Page render → forces annotation recalculation
   const [bookmarks, setBookmarks] = useState([]);  // { id, filePath, pageNumber, title?, createdAt }
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const [openCommentId, setOpenCommentId] = useState(null); // READ 모드에서 내용을 연 코멘트 마커
   const [problems, setProblems] = useState([]);      // 현재 문서의 푼/틀린 문제 (서버)
   const [problemsOpen, setProblemsOpen] = useState(false);
   const [toast, setToast] = useState(null);        // 잠깐 표시되는 등록 피드백
@@ -904,6 +905,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         }}
         onTouchStart={handleSwipeStart}
         onTouchEnd={handleSwipeEnd}
+        onClick={() => setOpenCommentId(null)}
       >
         {loadError ? (
           <div className="pdf-annotator__error">
@@ -986,6 +988,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                     pageEl={pageRefs.current[pageNumber]}
                     onDelete={removeAnnotation}
                     eraseMode={tool === 'erase'}
+                    viewOpen={openCommentId === a.id}
+                    onViewComment={setOpenCommentId}
                   />
                 ))}
               </div>
@@ -1161,7 +1165,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
  *  위치를 다시 계산해야 하므로 부모 리렌더마다 갱신한다. 값 비교로 불필요한
  *  setState는 막아 루프 없이 안정적으로 동작한다)
  */
-function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
+function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, onViewComment }) {
   // Always find page element fresh from DOM — prop may be stale after page navigation
   const getPageEl = () => document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
   const [rect, setRect] = useState(null);
@@ -1183,17 +1187,23 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
   });
 
   const handleDelete = eraseMode ? (e) => { e.stopPropagation(); onDelete(annotation.id); } : undefined;
+  // READ 모드: 클릭하면 내용 툴팁 열기/닫기 (지우개 모드와 구분)
+  const handleCommentClick = eraseMode
+    ? handleDelete
+    : (e) => { e.stopPropagation(); onViewComment(viewOpen ? null : annotation.id); };
 
   if (annotation.type === 'comment') {
     return (
       <div
-        className={'pdf-annotator__comment-marker' + (eraseMode ? ' pdf-annotator__comment-marker--erasable' : '')}
+        className={'pdf-annotator__comment-marker' +
+          (eraseMode ? ' pdf-annotator__comment-marker--erasable' : ' pdf-annotator__comment-marker--viewable') +
+          (viewOpen ? ' pdf-annotator__comment-marker--open' : '')}
         style={{
           left: rect ? rect.left : `${annotation.rect.x * 100}%`,
           top: rect ? rect.top : `${annotation.rect.y * 100}%`,
         }}
-        title={annotation.text + (eraseMode ? ' — click to delete' : '')}
-        onClick={handleDelete}
+        title={annotation.text}
+        onClick={handleCommentClick}
       >
         <span className="pdf-annotator__comment-icon">💬</span>
         <span className="pdf-annotator__comment-tooltip">{annotation.text}</span>

@@ -443,6 +443,25 @@
     cursor: default;
     z-index: 20;
 
+    // READ 모드: 클릭해서 내용을 볼 수 있게 (마커를 탭/클릭)
+    &--viewable {
+      pointer-events: auto;
+      cursor: pointer;
+
+      .pdf-annotator__comment-icon {
+        transition: transform $transition-fast;
+      }
+
+      &:hover .pdf-annotator__comment-icon {
+        transform: scale(1.18);
+      }
+    }
+
+    // 클릭으로 연 툴팁 (READ 모드)
+    &--open .pdf-annotator__comment-tooltip {
+      display: block;
+    }
+
     &--erasable {
       pointer-events: auto;
       cursor: pointer;
