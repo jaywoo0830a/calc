@@ -8,6 +8,7 @@ import ZipTree from '../components/ZipTree.jsx';
 import PdfViewer from '../components/PdfViewer.jsx';
 import SolverTimer from '../components/SolverTimer.jsx';
 import RandomPicker from '../components/RandomPicker.jsx';
+import useProblemJump from '../hooks/useProblemJump.js';
 import { listZips, saveZip, loadZip as loadZipFromDB, deleteZip } from '../lib/storage.js';
 import { api } from '../lib/api.js';
 
@@ -108,178 +109,6 @@ function decodeEntities(text) {
   return el.textContent;
 }
 
-/**
- * 텍스트 노드에서 점프용 스크롤 타깃 요소를 찾는다.
- * ⚠️ `.viewer__content`(루트 컨테이너)는 절대 타깃이 아니다 — 스크롤해도
- *    아무것도 움직이지 않아 "점프가 안 되는" 것처럼 보인다.
- *    루트 아래에서 가장 깊은 블록 태그를, 블록 태그가 없으면 가장 깊은 요소를 반환.
- */
-function blockOf(node) {
-  const root = document.querySelector('.viewer__content');
-  let el = node && node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-  let deepest = null;
-  while (el && el !== document.body && el !== root) {
-    if (!deepest) deepest = el;
-    if (/^(P|H[1-6]|LI|PRE|BLOCKQUOTE|TD|TH|TABLE|UL|OL|SECTION|DIV)$/i.test(el.tagName || '')) {
-      return el;
-    }
-    el = el.parentElement;
-  }
-  return deepest; // 블록 태그가 없어도 루트보다 깊은 가장 가까운 요소
-}
-
-/** 오프셋 → 텍스트 노드 + 로컬 오프셋 (좌표 기반 점프용) */
-function nodeAtOffset(container, target) {
-  let current = 0;
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let node;
-  while ((node = walker.nextNode())) {
-    const len = node.textContent.length;
-    if (current + len >= target) return { node, offset: target - current };
-    current += len;
-  }
-  return null;
-}
-
-/**
- * 문제 위치 탐색 — 저장된 좌표(ref)로만 정확히 찾는다.
- * (레거시 텍스트/컨텍스트/블록 검색 폴백은 제거 — 모든 문제는 선택 확정
- *  시점에 RangeSelect가 ref를 계산해 저장하므로 좌표 없는 문제는 없다.)
- * 반환: { range, el } 또는 null (null이면 점프 effect가 토스트로 알림)
- */
-/** 정규화된 전체 텍스트 + 각 정규화 문자의 원본 인덱스 매핑 */
-function normalizedMap(full) {
-  let norm = '';
-  const map = [];
-  let prevSpace = false;
-  for (let i = 0; i < full.length; i++) {
-    const c = full[i];
-    if (/\s/.test(c)) {
-      if (!prevSpace) { norm += ' '; map.push(i); prevSpace = true; }
-    } else {
-      norm += c; map.push(i); prevSpace = false;
-    }
-  }
-  return { norm, map };
-}
-
-/** 원본 오프셋 → 실제 Range (범위 텍스트가 textNorm과 일치해야 반환 — 엉뚱한 곳 점프 차단) */
-function buildRangeAtRaw(content, rawStart, rawLength, textNorm) {
-  const start = nodeAtOffset(content, rawStart);
-  if (!start) return null;
-  try {
-    const range = document.createRange();
-    range.setStart(start.node, start.offset);
-    if (start.offset + rawLength <= (start.node.textContent || '').length) {
-      range.setEnd(start.node, start.offset + rawLength);
-    } else {
-      // 여러 텍스트 노드에 걸친 선택 — 끝 노드로 확장
-      const end = nodeAtOffset(content, rawStart + rawLength);
-      if (end) range.setEnd(end.node, end.offset);
-      else range.setEnd(start.node, (start.node.textContent || '').length);
-    }
-    if ((range.toString() || '').replace(/\s+/g, ' ').trim() === textNorm) {
-      const el = blockOf(start.node);
-      return el ? { range, el } : null;
-    }
-  } catch { /* ignore */ }
-  return null;
-}
-
-/**
- * 문제 위치 탐색:
- * ① 정확 오프셋(ref) — 검증 통과 시 즉시 반환 (빠르고 정확)
- * ② 정규화 전체 검색 — 오프셋이 어긋나도 저장된 텍스트+앞/뒤 컨텍스트로
- *    동일 문구의 정확한 발생 위치를 찾는다. (공백/줄바꿈/KaTeX 무관)
- * 반환: { range, el } 또는 null (null이면 점프 effect가 토스트로 알림)
- */
-function locateMarkdownProblem(p) {
-  const content = document.querySelector('.viewer__content');
-  if (!content) return null;
-  const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
-  const textNorm = norm(p.text);
-  if (!textNorm) return null;
-
-  let anchor = null;
-  try { anchor = p.ref ? JSON.parse(p.ref) : null; } catch {}
-  const beforeNorm = anchor ? norm(anchor.before) : '';
-  const afterNorm = anchor ? norm(anchor.after) : '';
-  const full = content.textContent || '';
-  const { norm: ntext, map } = normalizedMap(full);
-
-  // ① 정확 오프셋
-  if (anchor && typeof anchor.start === 'number' && typeof anchor.end === 'number'
-      && anchor.start >= 0 && anchor.end <= full.length && anchor.end >= anchor.start) {
-    const hit = buildRangeAtRaw(content, anchor.start, anchor.end - anchor.start, textNorm);
-    if (hit) return hit;
-  }
-
-  // ② 정규화 전체 검색 + 컨텍스트로 정확한 발생 선택
-  const occurrences = [];
-  let pos = -1;
-  while ((pos = ntext.indexOf(textNorm, pos + 1)) !== -1) occurrences.push(pos);
-  if (occurrences.length) {
-    const ctxBefore = (pp) => ntext.slice(Math.max(0, pp - 30), pp);
-    const ctxAfter = (pp) => ntext.slice(pp + textNorm.length, pp + textNorm.length + 30);
-    const rawLenAt = (pp) => map[pp + textNorm.length - 1] + 1 - map[pp];
-    const tryHits = (list) => {
-      for (const pp of list) {
-        const hit = buildRangeAtRaw(content, map[pp], rawLenAt(pp), textNorm);
-        if (hit) return hit;
-      }
-      return null;
-    };
-    // ②-1 앞+뒤 컨텍스트 모두 일치
-    if (beforeNorm || afterNorm) {
-      const both = occurrences.filter((pp) =>
-        (!beforeNorm || ctxBefore(pp).includes(beforeNorm)) &&
-        (!afterNorm || ctxAfter(pp).includes(afterNorm)));
-      const h = tryHits(both);
-      if (h) return h;
-    }
-    // ②-2 앞 컨텍스트만 일치
-    if (beforeNorm) {
-      const h = tryHits(occurrences.filter((pp) => ctxBefore(pp).includes(beforeNorm)));
-      if (h) return h;
-    }
-    // ②-3 원래 오프셋에 가장 가까운 발생
-    if (anchor && typeof anchor.start === 'number') {
-      const byProximity = [...occurrences].sort((a, b) => Math.abs(a - anchor.start) - Math.abs(b - anchor.start));
-      const h = tryHits(byProximity);
-      if (h) return h;
-    }
-  }
-
-  console.warn('[problem-jump] not found', p.doc_path, '→', p.text, 'anchor', anchor);
-  return null;
-}
-
-/**
- * 점프 전 레이아웃 안정 대기 — 웹폰트/이미지가 늦게 로드되면
- * 좌표(rect)가 흔들려 모바일/태블릿에서 이상한 곳으로 스크롤된다.
- * 폰트와 이미지 로딩이 끝날 때까지 기다렸다가 점프한다. (타임아웃 보장)
- */
-function waitForLayoutReady(container, timeout = 800) {
-  const waits = [];
-  if (document.fonts && document.fonts.ready) {
-    waits.push(Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, timeout))]));
-  }
-  const imgs = container ? Array.from(container.querySelectorAll('img')) : [];
-  // ⚠️ img.naturalWidth는 레이아웃 읽기 → 문서 이미지 수만큼 "Forced reflow" 발생.
-  // complete(로드 상태 플래그)만 확인하고, 대기 중인 이미지는 비동기 decode()로 기다린다.
-  for (const img of imgs) {
-    if (img.complete) continue;
-    const loaded = img.decode
-      ? img.decode().catch(() => {})
-      : new Promise((r) => {
-          img.addEventListener('load', r, { once: true });
-          img.addEventListener('error', r, { once: true });
-        });
-    waits.push(Promise.race([loaded, new Promise((r) => setTimeout(r, timeout))]));
-  }
-  return Promise.all(waits);
-}
-
 /** 렌더링된 HTML에서 h1~h3 제목을 추출하여 TOC 배열과 ID 주입된 HTML 반환 */
 function extractToc(html) {
   const toc = [];
@@ -341,12 +170,15 @@ export default function Viewer() {
   const zipRef = useRef(null);
   const openZipsRef = useRef({}); // { zipId: { zip, fileName, tree, blobs, searchIndex } } — 여러 ZIP 동시 유지 (Recent 전환)
   const navSeq = useRef(0); // 문서 전환 경합 방지 — 최신 탐색만 적용
-  const pendingJumpRef = useRef(null); // 마크다운 문제 점프 대기 (렌더 완료 후 실행)
-  const [jumpTick, setJumpTick] = useState(0); // 같은 문서 점프 시 effect 재실행 트리거
   const zipIdRef = useRef('');   // 이벤트/비동기 콜백에서 최신 zipId 참조
   const stateRef = useRef({ zipId: '', fileName: '', selectedPath: '', readability: 0 }); // 세션 저장용 최신 스냅샷
   const zipInfoRef = useRef({ zipId: '', zipName: '' }); // Recent 기록용 현재 ZIP 정보 (활성화 시 동기 갱신)
   const [zipStamp, setZipStamp] = useState(0);           // ZIP 활성화 신호 — Recent 재기록 트리거
+
+  // ── 문제 점프 (위치 탐색 + 스크롤) — useProblemJump 훅으로 분리 ──
+  const { queueJump, pendingJumpRef } = useProblemJump({
+    previewRef, navSeqRef: navSeq, rendered, selectedPath, onToast: setMdToast,
+  });
 
   // ZIP별 문서 키 — ZIP을 바꿔도 스크롤/PDF 위치가 유지되도록 zipId 포함
   const posKey = useCallback((path) => (zipIdRef.current || '') + '|' + (path || ''), []);
@@ -958,7 +790,7 @@ export default function Viewer() {
       setPdfUrl('');
       setPdfInitialPage(null);
       setContent(processContent(txt, resolveImg));
-      if (opts.jump) pendingJumpRef.current = { p: opts.jump, seq };
+      if (opts.jump) queueJump(opts.jump, seq);
       setLoading(false);
     } catch (e) {
       if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
@@ -1002,8 +834,7 @@ export default function Viewer() {
       // 같은 문서가 이미 렌더링되어 있으면 재렌더 없이 기존 DOM에서 바로 점프
       // (파일 재읽기/재렌더 체인이 실패 지점이 될 수 있어 우회 — 빠르고 안정적)
       if (doc_path === selectedPath && rendered) {
-        pendingJumpRef.current = { p, seq };
-        setJumpTick((t) => t + 1);
+        queueJump(p, seq);
         setProblemsOpen(false);
         return;
       }
@@ -1013,109 +844,14 @@ export default function Viewer() {
         if (seq !== navSeq.current) return;
         setContent(processContent(txt, resolveImg));
         setLoading(false);
-        // 렌더링 완료 후 위치 탐색 (고정 타임아웃 대신 — 터치에서도 안정적)
-        pendingJumpRef.current = { p, seq };
+        // 렌더링 완료 후 위치 탐색 (useProblemJump effect가 처리)
+        queueJump(p, seq);
       }).catch(() => {
         setMdToast('문서를 여는 데 실패했습니다');
       });
     }
     setProblemsOpen(false);
-  }, [imageBlobs, setContent, switchToZipDoc, selectedPath, rendered]);
-
-  // ── 마크다운 문제 점프: 렌더링 완료 + 레이아웃 안정 후 위치 탐색 ──
-  // ref(좌표) → 정확한 텍스트 검색 → 컨텍스트 → 블록 검색의 다중 폴백.
-  // 실패해도 절대 "조용히 아무것도 안 함"이 없도록 토스트로 알린다.
-  useEffect(() => {
-    if (!rendered || !pendingJumpRef.current) return;
-    const { p, seq } = pendingJumpRef.current;
-    pendingJumpRef.current = null;
-    if (seq !== navSeq.current) { console.warn('[problem-jump] stale seq', seq, navSeq.current); return; } // 더 새로운 탐색이 시작됨
-    const container = previewRef.current;
-    if (!container) return;
-    let cancelled = false;
-    const timers = new Set();
-    const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.add(t); return t; };
-
-    // 점프용 스크롤 타깃 — blockOf가 루트(.viewer__content)를 반환하면
-    // range 시작 요소로 대체한다. (루트는 스크롤해도 안 움직여 "점프 안 됨"처럼 보임)
-    const scrollTargetFor = (located) => {
-      let el = located && located.el;
-      if (!el || el.classList.contains('viewer__content')) {
-        const sc = located && located.range ? located.range.startContainer : null;
-        el = sc ? (sc.nodeType === Node.TEXT_NODE ? sc.parentElement : sc) : null;
-      }
-      return el;
-    };
-
-    // 점프 실행 — 네이티브 scrollIntoView로 중심 정렬 + 정확 범위 하이라이트. 성공 시 true.
-    // (수동 scrollTo 계산 대신 브라우저가 스크롤 컨테이너를 스스로 찾는다.
-    //  기하(rect) 읽기가 없어 Forced reflow도 유발하지 않는다.)
-    const jump = () => {
-      const located = locateMarkdownProblem(p);
-      if (!located) return false;
-      const el = scrollTargetFor(located);
-      const cls = el && el.className ? String(el.className).split(/\s+/)[0] : '';
-      console.log('[problem-jump] located', (p.text || '').slice(0, 30), '→',
-        el ? '<' + el.tagName.toLowerCase() + (cls ? '.' + cls : '') + '>' : '');
-      if (el && el.scrollIntoView) {
-        el.scrollIntoView({ block: 'center', behavior: 'auto' });
-      }
-      try {
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(located.range);
-      } catch {
-        // 하이라이트 실패 시 블록 플래시로 대체
-        el?.classList.add('viewer__problem-flash');
-        later(() => el?.classList.remove('viewer__problem-flash'), 2000);
-      }
-      later(() => window.getSelection()?.removeAllRanges(), 2500);
-      return true;
-    };
-
-    // 2차 보정: 늦게 뜨는 요소(이미지/폰트)로 인한 잔여 어긋남 교정.
-    // 기하(rect) 읽기 없이 scrollIntoView만 사용 — Forced reflow 미유발.
-    const correct = () => {
-      if (cancelled) return;
-      const re = locateMarkdownProblem(p);
-      const el = re && scrollTargetFor(re);
-      if (!el || !el.scrollIntoView) return;
-      el.scrollIntoView({ block: 'center', behavior: 'auto' });
-    };
-
-    // 1차: 폰트·이미지 로딩 + 새 콘텐츠의 자연 레이아웃(1프레임)을 마친 뒤 좌표로 점프.
-    // ⚠️ 렌더 커밋 직후 같은 프레임에 getBoundingClientRect()를 읽으면 큰 문서에서
-    //    "Forced reflow 40~50ms"가 발생한다. 이중 rAF로 브라우저가 새 콘텐츠를
-    //    한 번 레이아웃+페인트한 뒤에 읽어야 reflow가 강제되지 않는다.
-    waitForLayoutReady(container).then(() => {
-      if (cancelled) return;
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (cancelled) return;
-          if (jump()) {
-            later(correct, 400);
-            return;
-          }
-          // 렌더 직후 DOM이 아직 준비되지 않았을 수 있으니 한 번 더 재시도
-          later(() => {
-            if (cancelled) return;
-            if (jump()) {
-              later(correct, 400);
-            } else {
-              console.warn('[problem-jump] locate failed for', p.doc_path, '→', p.text);
-              setMdToast('문제 위치를 찾지 못했습니다: ' + (p.text || '').slice(0, 40));
-            }
-          }, 250);
-        });
-      });
-    });
-
-    return () => {
-      cancelled = true;
-      for (const t of timers) clearTimeout(t);
-      timers.clear();
-    };
-  }, [rendered, selectedPath, jumpTick, setMdToast]);
+  }, [imageBlobs, setContent, switchToZipDoc, selectedPath, rendered, queueJump]);
 
   // 상태 지정(맞음/틀림) — 같은 상태 재클릭도 "한 번 더 풀었다"로 attempts 기록
   const setProblemStatus = useCallback((p, status) => {
