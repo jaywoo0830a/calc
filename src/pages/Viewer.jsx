@@ -108,13 +108,24 @@ function decodeEntities(text) {
   return el.textContent;
 }
 
-/** 텍스트 노드에서 가장 가까운 블록 요소로 올라간다 */
+/**
+ * 텍스트 노드에서 점프용 스크롤 타깃 요소를 찾는다.
+ * ⚠️ `.viewer__content`(루트 컨테이너)는 절대 타깃이 아니다 — 스크롤해도
+ *    아무것도 움직이지 않아 "점프가 안 되는" 것처럼 보인다.
+ *    루트 아래에서 가장 깊은 블록 태그를, 블록 태그가 없으면 가장 깊은 요소를 반환.
+ */
 function blockOf(node) {
+  const root = document.querySelector('.viewer__content');
   let el = node && node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-  while (el && el !== document.body && !/^(P|H[1-6]|LI|PRE|BLOCKQUOTE|TD|TH|DIV|TABLE|UL|OL|SECTION)$/i.test(el.tagName || '')) {
+  let deepest = null;
+  while (el && el !== document.body && el !== root) {
+    if (!deepest) deepest = el;
+    if (/^(P|H[1-6]|LI|PRE|BLOCKQUOTE|TD|TH|TABLE|UL|OL|SECTION|DIV)$/i.test(el.tagName || '')) {
+      return el;
+    }
     el = el.parentElement;
   }
-  return el && el !== document.body ? el : null;
+  return deepest; // 블록 태그가 없어도 루트보다 깊은 가장 가까운 요소
 }
 
 /** 오프셋 → 텍스트 노드 + 로컬 오프셋 (좌표 기반 점프용) */
@@ -1025,17 +1036,29 @@ export default function Viewer() {
     const timers = new Set();
     const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.add(t); return t; };
 
+    // 점프용 스크롤 타깃 — blockOf가 루트(.viewer__content)를 반환하면
+    // range 시작 요소로 대체한다. (루트는 스크롤해도 안 움직여 "점프 안 됨"처럼 보임)
+    const scrollTargetFor = (located) => {
+      let el = located && located.el;
+      if (!el || el.classList.contains('viewer__content')) {
+        const sc = located && located.range ? located.range.startContainer : null;
+        el = sc ? (sc.nodeType === Node.TEXT_NODE ? sc.parentElement : sc) : null;
+      }
+      return el;
+    };
+
     // 점프 실행 — 네이티브 scrollIntoView로 중심 정렬 + 정확 범위 하이라이트. 성공 시 true.
     // (수동 scrollTo 계산 대신 브라우저가 스크롤 컨테이너를 스스로 찾는다.
     //  기하(rect) 읽기가 없어 Forced reflow도 유발하지 않는다.)
     const jump = () => {
       const located = locateMarkdownProblem(p);
       if (!located) return false;
-      const cls = located.el && located.el.className ? String(located.el.className).split(/\s+/)[0] : '';
+      const el = scrollTargetFor(located);
+      const cls = el && el.className ? String(el.className).split(/\s+/)[0] : '';
       console.log('[problem-jump] located', (p.text || '').slice(0, 30), '→',
-        located.el ? '<' + located.el.tagName.toLowerCase() + (cls ? '.' + cls : '') + '>' : '');
-      if (located.el && located.el.scrollIntoView) {
-        located.el.scrollIntoView({ block: 'center', behavior: 'auto' });
+        el ? '<' + el.tagName.toLowerCase() + (cls ? '.' + cls : '') + '>' : '');
+      if (el && el.scrollIntoView) {
+        el.scrollIntoView({ block: 'center', behavior: 'auto' });
       }
       try {
         const sel = window.getSelection();
@@ -1043,25 +1066,21 @@ export default function Viewer() {
         sel.addRange(located.range);
       } catch {
         // 하이라이트 실패 시 블록 플래시로 대체
-        located.el?.classList.add('viewer__problem-flash');
-        later(() => located.el?.classList.remove('viewer__problem-flash'), 2000);
+        el?.classList.add('viewer__problem-flash');
+        later(() => el?.classList.remove('viewer__problem-flash'), 2000);
       }
       later(() => window.getSelection()?.removeAllRanges(), 2500);
       return true;
     };
 
-    // 2차 보정: 늦게 뜨는 요소(폰트/이미지)로 인한 잔여 어긋남 교정
+    // 2차 보정: 늦게 뜨는 요소(이미지/폰트)로 인한 잔여 어긋남 교정.
+    // 기하(rect) 읽기 없이 scrollIntoView만 사용 — Forced reflow 미유발.
     const correct = () => {
       if (cancelled) return;
       const re = locateMarkdownProblem(p);
-      if (!re || !re.el || !re.el.scrollIntoView) return;
-      const crect = container.getBoundingClientRect();
-      const r = re.el.getBoundingClientRect();
-      const drift = Math.abs(r.top - crect.top - (container.clientHeight - r.height) / 2);
-      // 사용자가 이미 스크롤을 움직였으면(크게 벗어났으면) 건드리지 않는다
-      if (drift > 4 && drift < container.clientHeight * 0.9) {
-        re.el.scrollIntoView({ block: 'center', behavior: 'auto' });
-      }
+      const el = re && scrollTargetFor(re);
+      if (!el || !el.scrollIntoView) return;
+      el.scrollIntoView({ block: 'center', behavior: 'auto' });
     };
 
     // 1차: 폰트·이미지 로딩 + 새 콘텐츠의 자연 레이아웃(1프레임)을 마친 뒤 좌표로 점프.
