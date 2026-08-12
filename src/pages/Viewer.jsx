@@ -1035,24 +1035,31 @@ export default function Viewer() {
       }
     };
 
-    // 1차: 폰트·이미지 로딩이 끝난 뒤 정확한 좌표로 점프
+    // 1차: 폰트·이미지 로딩 + 새 콘텐츠의 자연 레이아웃(1프레임)을 마친 뒤 정확한 좌표로 점프.
+    // ⚠️ 렌더 커밋 직후 같은 프레임에 getBoundingClientRect()를 읽으면 큰 문서에서
+    //    "Forced reflow 40~50ms"가 매번 발생한다. 이중 rAF로 브라우저가 새 콘텐츠를
+    //    한 번 레이아웃+페인트한 뒤에 읽어야 reflow가 강제되지 않는다.
+    // ⚠️ behavior는 'auto'(즉시)만 사용 — 'smooth' 애니메이션 중에 좌표를 읽으면
+    //    보정 단계(correct)에서도 매번 reflow가 강제된다.
     waitForLayoutReady(container).then(() => {
       if (cancelled) return;
       requestAnimationFrame(() => {
-        if (cancelled) return;
-        if (!jump('smooth')) {
-          // 렌더 직후 DOM이 아직 준비되지 않았을 수 있으니 한 번 더 재시도
-          retryTimer = setTimeout(() => {
-            if (cancelled) return;
-            if (jump('smooth')) {
-              settleTimer = setTimeout(() => { if (cancelled) return; correct(); }, 350);
-            } else {
-              console.warn('[problem-jump] locate retry failed for', p.doc_path, '→', p.text);
-            }
-          }, 120);
-          return;
-        }
-        settleTimer = setTimeout(() => { if (cancelled) return; correct(); }, 350);
+        requestAnimationFrame(() => {
+          if (cancelled) return;
+          if (!jump('auto')) {
+            // 렌더 직후 DOM이 아직 준비되지 않았을 수 있으니 한 번 더 재시도
+            retryTimer = setTimeout(() => {
+              if (cancelled) return;
+              if (jump('auto')) {
+                settleTimer = setTimeout(() => { if (cancelled) return; correct(); }, 350);
+              } else {
+                console.warn('[problem-jump] locate retry failed for', p.doc_path, '→', p.text);
+              }
+            }, 120);
+            return;
+          }
+          settleTimer = setTimeout(() => { if (cancelled) return; correct(); }, 350);
+        });
       });
     });
 
