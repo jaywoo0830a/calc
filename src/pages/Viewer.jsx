@@ -318,11 +318,12 @@ export default function Viewer() {
     stateRef.current = { zipId, fileName, selectedPath, readability };
   }, [zipId, fileName, selectedPath, readability]);
 
-  // ZIP 메모리 캐시 등록 + 크기 제한 (최대 4개 — 현재 ZIP은 항상 유지)
+  // ZIP 메모리 캐시 등록 + 크기 제한 (최대 3개 — 현재 ZIP은 항상 유지)
+  // (JSZip + 이미지 blob URL + 검색 인덱스를 보관하므로 너무 많이 쌓지 않는다)
   const cacheZip = useCallback((id, entry) => {
     openZipsRef.current[id] = entry;
     const ids = Object.keys(openZipsRef.current);
-    if (ids.length > 4) {
+    if (ids.length > 3) {
       for (const oldId of ids) {
         if (oldId !== zipIdRef.current) { delete openZipsRef.current[oldId]; break; }
       }
@@ -515,13 +516,14 @@ export default function Viewer() {
     pdfBlobUrlsRef.current = keep;
   }, [pdfUrl]);
 
-  // 언마운트 시 남은 blob URL 전체 해제 (메모리 누수 방지)
+  // 언마운트 시 남은 blob URL 전체 해제 + 검색 디바운스 정리 (메모리 누수 방지)
   useEffect(() => {
     return () => {
       for (const url of blobUrlsRef.current) URL.revokeObjectURL(url);
       for (const url of pdfBlobUrlsRef.current) URL.revokeObjectURL(url);
       blobUrlsRef.current.clear();
       pdfBlobUrlsRef.current.clear();
+      if (searchDebounce.current) clearTimeout(searchDebounce.current);
     };
   }, []);
 
@@ -1067,6 +1069,14 @@ export default function Viewer() {
   const handleDeleteStored = useCallback(async (id, e) => {
     e.stopPropagation();
     await deleteZip(id);
+    // 메모리 캐시에서도 제거 — 다시 불러올 수 없으므로 이미지 blob URL 즉시 해제 (현재 ZIP이 아니어야 안전)
+    const cached = openZipsRef.current[id];
+    if (cached && id !== zipIdRef.current) {
+      delete openZipsRef.current[id];
+      for (const url of Object.values(cached.blobs || {})) {
+        if (typeof url === 'string' && url.startsWith('blob:')) URL.revokeObjectURL(url);
+      }
+    }
     await refreshStored();
   }, [refreshStored]);
 

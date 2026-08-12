@@ -162,6 +162,9 @@ export default function WordLookup() {
   // 언마운트 시 오디오 정리
   useEffect(() => () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } }, []);
 
+  // 언마운트 시 진행 중인 fetch 타이머 정리 (누수 방지)
+  useEffect(() => () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current); }, []);
+
   const playAudio = useCallback((url) => {
     try {
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
