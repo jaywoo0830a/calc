@@ -31,6 +31,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_problems_status ON problems(status);
 `);
 
+// ── 레거시 정리 (호환성 불필요) ──────────────────────────────────────────
+// 문제는 반드시 ref(마크다운 JSON 좌표 또는 PDF 페이지 번호)를 가져야 점프 가능.
+// 옛 방식(좌표 미저장, ref='')으로 생긴 문제는 어차피 점프할 수 없으므로
+// 서버 시작 시 제거한다 — 새 흐름(RangeSelect가 선택 시점에 ref 저장)에서는
+// ref 없는 문제가 생성되지 않는다. (PDF 문제는 ref=페이지 번호라 영향 없음)
+db.exec(`DELETE FROM problems WHERE ref = '' OR ref IS NULL`);
+
 /** 텍스트 정규화 — 공백/줄바꿈 차이로 인한 중복 레코드 방지 */
 function normalizeText(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
