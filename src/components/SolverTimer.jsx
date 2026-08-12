@@ -56,6 +56,17 @@ export default function SolverTimer() {
     setRemaining(TOTAL_MS);
   }, [unlock]);
 
+  // 완료 오버레이 닫기 (시간 완료 알림 확인)
+  const dismiss = useCallback(() => { setFinished(false); }, []);
+
+  // 완료 오버레이에서 Esc로도 닫기
+  useEffect(() => {
+    if (!finished) return;
+    const onKey = (e) => { if (e.key === 'Escape') setFinished(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [finished]);
+
   const icon = finished ? '⏰' : running ? '⏸' : '▶';
   const label = finished
     ? 'Time is up — tap to restart'
@@ -70,24 +81,44 @@ export default function SolverTimer() {
   if (!portalTarget) return null;
 
   const timer = (
-    <div
-      className={
-        'solver-timer' +
-        (running ? ' solver-timer--running' : '') +
-        (finished ? ' solver-timer--done' : '')
-      }
-    >
-      <button className="solver-timer__main" onClick={toggle} aria-label={label} title={label}>
-        <span className="solver-timer__icon" aria-hidden>{icon}</span>
-        <span className="solver-timer__time">{formatTime(remaining)}</span>
-      </button>
-      <button
-        className="solver-timer__reset"
-        onClick={reset}
-        aria-label="Reset timer to 10:00"
-        title="Reset to 10:00"
-      >↺</button>
-    </div>
+    <>
+      <div
+        className={
+          'solver-timer' +
+          (running ? ' solver-timer--running' : '') +
+          (finished ? ' solver-timer--done' : '')
+        }
+      >
+        <button className="solver-timer__main" onClick={toggle} aria-label={label} title={label}>
+          <span className="solver-timer__icon" aria-hidden>{icon}</span>
+          <span className="solver-timer__time">{formatTime(remaining)}</span>
+        </button>
+        <button
+          className="solver-timer__reset"
+          onClick={reset}
+          aria-label="Reset timer to 10:00"
+          title="Reset to 10:00"
+        >↺</button>
+      </div>
+
+      {/* 시간 완료 → 화면 전체 오버레이 (소리와 함께 시각적으로 알림) */}
+      {finished && (
+        <div
+          className="solver-timer__overlay"
+          onClick={dismiss}
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="Timer finished"
+        >
+          <div className="solver-timer__overlay-card" onClick={(e) => e.stopPropagation()}>
+            <div className="solver-timer__overlay-icon" aria-hidden>⏰</div>
+            <div className="solver-timer__overlay-title">10분이 지났어요</div>
+            <div className="solver-timer__overlay-sub">더 고민할지, 답지를 확인할지 선택하세요</div>
+            <button className="solver-timer__overlay-btn" onClick={dismiss} autoFocus>확인</button>
+          </div>
+        </div>
+      )}
+    </>
   );
 
   return createPortal(timer, portalTarget);
