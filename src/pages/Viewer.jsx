@@ -200,8 +200,10 @@ function waitForLayoutReady(container, timeout = 800) {
     waits.push(Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, timeout))]));
   }
   const imgs = container ? Array.from(container.querySelectorAll('img')) : [];
+  // ⚠️ img.naturalWidth는 레이아웃 읽기 → 문서 이미지 수만큼 "Forced reflow" 발생.
+  // complete(로드 상태 플래그)만 확인하고, 대기 중인 이미지는 비동기 decode()로 기다린다.
   for (const img of imgs) {
-    if (img.complete && img.naturalWidth > 0) continue;
+    if (img.complete) continue;
     const loaded = img.decode
       ? img.decode().catch(() => {})
       : new Promise((r) => {
