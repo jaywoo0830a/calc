@@ -293,6 +293,7 @@ export default function Viewer() {
   const openZipsRef = useRef({}); // { zipId: { zip, fileName, tree, blobs, searchIndex } } — 여러 ZIP 동시 유지 (Recent 전환)
   const navSeq = useRef(0); // 문서 전환 경합 방지 — 최신 탐색만 적용
   const pendingJumpRef = useRef(null); // 마크다운 문제 점프 대기 (렌더 완료 후 실행)
+  const [jumpTick, setJumpTick] = useState(0); // 같은 문서 점프 시 effect 재실행 트리거
   const zipIdRef = useRef('');   // 이벤트/비동기 콜백에서 최신 zipId 참조
   const stateRef = useRef({ zipId: '', fileName: '', selectedPath: '', readability: 0 }); // 세션 저장용 최신 스냅샷
   const zipInfoRef = useRef({ zipId: '', zipName: '' }); // Recent 기록용 현재 ZIP 정보 (활성화 시 동기 갱신)
@@ -923,7 +924,11 @@ export default function Viewer() {
         const f = entry.zip.files[doc_path];
         if (f && !f.dir) { switchToZipDoc(id, doc_path, { jump: p }); return; }
       }
-      return; // 어느 ZIP에도 없는 문서 — 무시
+      // 어느 ZIP에도 없는 문서 — 패널 닫고 안내
+      console.warn('[problem-jump] document not found in any open zip:', doc_path);
+      setMdToast('문제가 속한 문서를 찾을 수 없습니다');
+      setProblemsOpen(false);
+      return;
     }
     const file = zip.files[doc_path];
     const seq = ++navSeq.current;                    // 문제 점프 = 최신 탐색
@@ -942,6 +947,14 @@ export default function Viewer() {
     } else {
       setPdfInitialPage(null);
       setPdfUrl('');
+      // 같은 문서가 이미 렌더링되어 있으면 재렌더 없이 기존 DOM에서 바로 점프
+      // (파일 재읽기/재렌더 체인이 실패 지점이 될 수 있어 우회 — 빠르고 안정적)
+      if (doc_path === selectedPath && rendered) {
+        pendingJumpRef.current = { p, seq };
+        setJumpTick((t) => t + 1);
+        setProblemsOpen(false);
+        return;
+      }
       const dir = doc_path.substring(0, doc_path.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
       file.async('text').then((txt) => {
@@ -950,10 +963,12 @@ export default function Viewer() {
         setLoading(false);
         // 렌더링 완료 후 위치 탐색 (고정 타임아웃 대신 — 터치에서도 안정적)
         pendingJumpRef.current = { p, seq };
-      }).catch(() => {});
+      }).catch(() => {
+        setMdToast('문서를 여는 데 실패했습니다');
+      });
     }
     setProblemsOpen(false);
-  }, [imageBlobs, setContent, switchToZipDoc]);
+  }, [imageBlobs, setContent, switchToZipDoc, selectedPath, rendered]);
 
   // ── 마크다운 문제 점프: 렌더링 완료 + 레이아웃 안정 후 위치 탐색 ──
   // 고정 150ms 대기 대신 `rendered`가 실제로 갱신된 뒤, 웹폰트·이미지 로딩까지
@@ -963,18 +978,22 @@ export default function Viewer() {
     if (!rendered || !pendingJumpRef.current) return;
     const { p, seq } = pendingJumpRef.current;
     pendingJumpRef.current = null;
-    if (seq !== navSeq.current) return; // 더 새로운 탐색이 시작됨
+    if (seq !== navSeq.current) { console.warn('[problem-jump] stale seq', seq, navSeq.current); return; } // 더 새로운 탐색이 시작됨
     const container = previewRef.current;
     if (!container) return;
     let cancelled = false;
     let settleTimer = null;
+    let retryTimer = null;
 
     const locateRect = (located) => (located.range ? located.range.getBoundingClientRect() : located.el.getBoundingClientRect());
 
     // 점프 실행 — 중심 정렬 스크롤 + 하이라이트/플래시
     const jump = (behavior) => {
       const located = locateMarkdownProblem(p);
-      if (!located) return null;
+      if (!located) {
+        console.warn('[problem-jump] locate failed for', p.doc_path, '→', p.text);
+        return null;
+      }
       const rect = locateRect(located);
       if (rect && rect.height) {
         const crect = container.getBoundingClientRect();
@@ -999,32 +1018,48 @@ export default function Viewer() {
       return located;
     };
 
+    // 2차 보정: 스크롤이 끝난 뒤 잔여 어긋남 교정 (늦게 뜨는 요소 대비)
+    const correct = () => {
+      const re = locateMarkdownProblem(p);
+      if (!re) return;
+      const rect = locateRect(re);
+      if (!rect || !rect.height) return;
+      const crect = container.getBoundingClientRect();
+      const target = Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2);
+      const drift = Math.abs(target - container.scrollTop);
+      // 사용자가 이미 스크롤을 움직였으면(크게 벗어났으면) 건드리지 않는다
+      if (drift > 4 && drift < container.clientHeight * 0.9) {
+        container.scrollTo({ top: target, behavior: 'auto' });
+      }
+    };
+
     // 1차: 폰트·이미지 로딩이 끝난 뒤 정확한 좌표로 점프
     waitForLayoutReady(container).then(() => {
       if (cancelled) return;
       requestAnimationFrame(() => {
         if (cancelled) return;
-        jump('smooth');
-        // 2차: 스크롤이 끝난 뒤 한 번 더 보정 (늦게 뜨는 요소로 인한 잔여 어긋남)
-        settleTimer = setTimeout(() => {
-          if (cancelled) return;
-          const re = locateMarkdownProblem(p);
-          if (!re) return;
-          const rect = locateRect(re);
-          if (!rect || !rect.height) return;
-          const crect = container.getBoundingClientRect();
-          const target = Math.max(0, container.scrollTop + rect.top - crect.top - (container.clientHeight - rect.height) / 2);
-          const drift = Math.abs(target - container.scrollTop);
-          // 사용자가 이미 스크롤을 움직였으면(크게 벗어났으면) 건드리지 않는다
-          if (drift > 4 && drift < container.clientHeight * 0.9) {
-            container.scrollTo({ top: target, behavior: 'auto' });
-          }
-        }, 350);
+        if (!jump('smooth')) {
+          // 렌더 직후 DOM이 아직 준비되지 않았을 수 있으니 한 번 더 재시도
+          retryTimer = setTimeout(() => {
+            if (cancelled) return;
+            if (jump('smooth')) {
+              settleTimer = setTimeout(() => { if (cancelled) return; correct(); }, 350);
+            } else {
+              console.warn('[problem-jump] locate retry failed for', p.doc_path, '→', p.text);
+            }
+          }, 120);
+          return;
+        }
+        settleTimer = setTimeout(() => { if (cancelled) return; correct(); }, 350);
       });
     });
 
-    return () => { cancelled = true; if (settleTimer) clearTimeout(settleTimer); };
-  }, [rendered, selectedPath]);
+    return () => {
+      cancelled = true;
+      if (settleTimer) clearTimeout(settleTimer);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [rendered, selectedPath, jumpTick]);
 
   // 상태 지정(맞음/틀림) — 같은 상태 재클릭도 "한 번 더 풀었다"로 attempts 기록
   const setProblemStatus = useCallback((p, status) => {
