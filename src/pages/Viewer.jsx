@@ -294,6 +294,8 @@ export default function Viewer() {
   const pendingJumpRef = useRef(null); // 마크다운 문제 점프 대기 (렌더 완료 후 실행)
   const zipIdRef = useRef('');   // 이벤트/비동기 콜백에서 최신 zipId 참조
   const stateRef = useRef({ zipId: '', fileName: '', selectedPath: '', readability: 0 }); // 세션 저장용 최신 스냅샷
+  const zipInfoRef = useRef({ zipId: '', zipName: '' }); // Recent 기록용 현재 ZIP 정보 (활성화 시 동기 갱신)
+  const [zipStamp, setZipStamp] = useState(0);           // ZIP 활성화 신호 — Recent 재기록 트리거
 
   // ZIP별 문서 키 — ZIP을 바꿔도 스크롤/PDF 위치가 유지되도록 zipId 포함
   const posKey = useCallback((path) => (zipIdRef.current || '') + '|' + (path || ''), []);
@@ -359,6 +361,8 @@ export default function Viewer() {
             setZipTree(tree);
             cacheZip(state.zipId, { zip, fileName: state.fileName, tree, blobs, searchIndex });
             zipIdRef.current = state.zipId;
+            zipInfoRef.current = { zipId: state.zipId, zipName: state.fileName };
+            setZipStamp((s) => s + 1);
             setSelectedPath(state.selectedPath);
             if (state.scrollPositions) scrollPositions.current = state.scrollPositions;
             if (state.pdfState) pdfState.current = state.pdfState;
@@ -665,6 +669,8 @@ export default function Viewer() {
 
       setZipId(id);
       zipIdRef.current = id;
+      zipInfoRef.current = { zipId: id, zipName: file.name };
+      setZipStamp((s) => s + 1);
       setImageBlobs(blobs);
       searchIndex.current = searchIndex;
       setZipTree(tree);
@@ -691,6 +697,8 @@ export default function Viewer() {
       if (seq !== navSeq.current) return;
       zipRef.current = cached.zip;
       zipIdRef.current = entry.id;
+      zipInfoRef.current = { zipId: entry.id, zipName: cached.fileName };
+      setZipStamp((s) => s + 1);
       setZipId(entry.id);
       setFileName(cached.fileName);
       setImageBlobs(cached.blobs);
@@ -721,6 +729,8 @@ export default function Viewer() {
       searchIndex.current = searchIndex;
       setZipTree(tree);
       cacheZip(entry.id, { zip, fileName: stored.name, tree, blobs, searchIndex });
+      zipInfoRef.current = { zipId: entry.id, zipName: stored.name };
+      setZipStamp((s) => s + 1);
       // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
       setSelectedPath('');
       setPdfUrl('');
@@ -863,6 +873,8 @@ export default function Viewer() {
       if (seq !== navSeq.current) return;
       zipRef.current = entry.zip;
       zipIdRef.current = targetZipId;
+      zipInfoRef.current = { zipId: targetZipId, zipName: entry.fileName };
+      setZipStamp((s) => s + 1);
       setZipId(targetZipId);
       setFileName(entry.fileName);
       setImageBlobs(entry.blobs);
@@ -1096,8 +1108,13 @@ export default function Viewer() {
   // 문서가 열릴 때마다 (트리/크로스링크/검색/문제점프/복원) 히스토리에 기록.
   // ZIP을 여러 개 열어도 목록이 유지되어 🕘에서 서로 전환할 수 있다.
   useEffect(() => {
-    if (selectedPath) pushRecent({ zipId, zipName: fileName, path: selectedPath });
-  }, [selectedPath, zipId, fileName]);
+    // zipId/fileName state는 ZIP 로딩 타이밍에 따라 낡을 수 있어(예: 업로드 시작 시
+    // fileName이 먼저 바뀌고 zipId는 나중에 커밋), ZIP을 실제로 활성화한 순간
+    // 동기 갱신하는 zipInfoRef에서 읽어 안전하게 기록한다.
+    if (!selectedPath) return;
+    const { zipId: z, zipName } = zipInfoRef.current;
+    pushRecent({ zipId: z, zipName, path: selectedPath });
+  }, [selectedPath, zipStamp]);
 
   // 히스토리 항목 클릭 → 해당 문서를 트리 없이 다시 열기 (다른 ZIP이면 전환)
   const openRecent = useCallback((item) => {
