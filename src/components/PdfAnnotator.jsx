@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { getRangeSelectState, subscribeRangeSelect } from '../lib/rangeSelectState.js';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -601,10 +601,12 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     if (tool === 'comment') {
       const pageEl = pageRefs.current[pageNumber];
       if (!pageEl) return;
-      const pageRect = pageEl.getBoundingClientRect();
+      // 하이라이트/밑줄과 동일하게 캔버스 기준으로 정규화 (렌더 경로와 일치)
+      const pageRect = getPageCanvasRect(pageEl) || pageEl.getBoundingClientRect();
       const x = (e.clientX - pageRect.left) / pageRect.width;
       const y = (e.clientY - pageRect.top) / pageRect.height;
-      setActiveComment({ pageNumber, x, y });
+      // px/py: 입력창을 클릭한 뷰포트 좌표에 고정 배치
+      setActiveComment({ pageNumber, x, y, px: e.clientX, py: e.clientY });
       setCommentText('');
     }
   }, [tool]);
@@ -856,13 +858,14 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       </div>
       <div className="pdf-annotator__toc-overlay" onClick={() => setProblemsOpen(false)} />
 
-      {/* Comment input overlay */}
+      {/* Comment input overlay — 클릭한 위치(뷰포트 좌표)에 고정 배치 */}
       {activeComment && (
         <div
           className="pdf-annotator__comment-input"
           style={{
-            left: `${activeComment.x * 100}%`,
-            top: `${activeComment.y * 100}%`,
+            position: 'fixed',
+            left: activeComment.px,
+            top: activeComment.py,
           }}
         >
           <textarea
@@ -1151,8 +1154,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   return isFakeFullscreen ? createPortal(content, document.body) : content;
 }
 
-/** Renders a single annotation overlay — memoized to avoid re-renders on parent updates */
-const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
+/**
+ * Renders a single annotation overlay.
+ * (memo 미사용 — 줌/캔버스 재렌더/레이아웃 변경마다 useLayoutEffect가
+ *  위치를 다시 계산해야 하므로 부모 리렌더마다 갱신한다. 값 비교로 불필요한
+ *  setState는 막아 루프 없이 안정적으로 동작한다)
+ */
+function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode }) {
   // Always find page element fresh from DOM — prop may be stale after page navigation
   const getPageEl = () => document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
   const [rect, setRect] = useState(null);
@@ -1226,4 +1234,4 @@ const AnnotationOverlay = memo(function AnnotationOverlay({ annotation, pageEl, 
       </button>
     </div>
   );
-});
+}
