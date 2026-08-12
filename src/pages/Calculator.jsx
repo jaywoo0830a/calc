@@ -11,6 +11,8 @@ export default function Calculator() {
   const sound = useSound();
   const [muted, setMuted] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [invMode, setInvMode] = useState(false);   // 공학용 2nd(INV)
+  const [precOpen, setPrecOpen] = useState(false); // 정밀도 메뉴
 
   const handleAction = useCallback((action, value) => {
     sound.unlock();
@@ -28,6 +30,14 @@ export default function Calculator() {
       case 'unary':     sound.play('func');   calc.applyUnary(value, UNARY_NAMES[value] || value); break;
       case 'const':     sound.play('digit');  calc.insertConstant(value); break;
       case 'sciToggle': sound.play('func');   calc.toggleSciMode(); break;
+      case 'degToggle': sound.play('func');   calc.toggleDegMode(); break;
+      case 'toggleInv': sound.play('func');   setInvMode((p) => !p); break;
+      case 'mem':
+        sound.play('func');
+        if (value === 'clear') calc.memClear();
+        else if (value === 'recall') calc.memRecall();
+        else if (value === 'add') calc.memAdd();
+        break;
     }
   }, [sound, calc]);
 
@@ -61,12 +71,25 @@ export default function Calculator() {
       </nav>
       <Display expression={calc.expression} result={calc.result} />
       <div className="calculator__toolbar">
-        <button
-          className={'calculator__sci-toggle' + (calc.sciMode ? ' calculator__sci-toggle--active' : '')}
-          onClick={() => handleAction('sciToggle')}
-          aria-label="Toggle scientific mode"
-        >
-          {calc.sciMode ? '🔬 Sci ON' : '🔬 Sci'}
+        <div className="calculator__mode-switch" role="group" aria-label="Calculator mode">
+          <button
+            className={'calculator__mode-btn' + (!calc.sciMode ? ' calculator__mode-btn--active' : '')}
+            onClick={() => { if (calc.sciMode) handleAction('sciToggle'); }}
+          >일반</button>
+          <button
+            className={'calculator__mode-btn' + (calc.sciMode ? ' calculator__mode-btn--active' : '')}
+            onClick={() => { if (!calc.sciMode) handleAction('sciToggle'); }}
+          >공학용</button>
+        </div>
+        {calc.sciMode && (
+          <button
+            className={'calculator__deg' + (calc.degMode ? '' : ' calculator__deg--rad')}
+            onClick={() => handleAction('degToggle')}
+            title="Toggle DEG / RAD"
+          >{calc.degMode ? 'DEG' : 'RAD'}</button>
+        )}
+        <button className="calculator__prec" onClick={() => setPrecOpen((p) => !p)} title="Display precision">
+          자릿수 {calc.displayDigits}
         </button>
         <button
           className={'calculator__hist-toggle' + (showHistory ? ' calculator__hist-toggle--active' : '')}
@@ -76,7 +99,19 @@ export default function Calculator() {
           📋 Hist{calc.history.length > 0 ? ` (${calc.history.length})` : ''}
         </button>
       </div>
-      <Keypad onAction={handleAction} sciMode={calc.sciMode} />
+      {precOpen && <div className="calculator__prec-backdrop" onClick={() => setPrecOpen(false)} />}
+      {precOpen && (
+        <div className="calculator__prec-menu">
+          {[6, 8, 10, 12, 16].map((n) => (
+            <button
+              key={n}
+              className={'calculator__prec-opt' + (calc.displayDigits === n ? ' calculator__prec-opt--active' : '')}
+              onClick={() => { calc.setDisplayDigits(n); setPrecOpen(false); }}
+            >유효숫자 {n}자리</button>
+          ))}
+        </div>
+      )}
+      <Keypad onAction={handleAction} sciMode={calc.sciMode} invMode={invMode} />
       {showHistory && (
         <div className="calculator__history">
           <div className="calculator__history-header">
