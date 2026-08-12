@@ -292,6 +292,40 @@ export default function Viewer() {
   const openZipsRef = useRef({}); // { zipId: { zip, fileName, tree, blobs, searchIndex } } — 여러 ZIP 동시 유지 (Recent 전환)
   const navSeq = useRef(0); // 문서 전환 경합 방지 — 최신 탐색만 적용
   const pendingJumpRef = useRef(null); // 마크다운 문제 점프 대기 (렌더 완료 후 실행)
+  const zipIdRef = useRef('');   // 이벤트/비동기 콜백에서 최신 zipId 참조
+  const stateRef = useRef({ zipId: '', fileName: '', selectedPath: '', readability: 0 }); // 세션 저장용 최신 스냅샷
+
+  // ZIP별 문서 키 — ZIP을 바꿔도 스크롤/PDF 위치가 유지되도록 zipId 포함
+  const posKey = useCallback((path) => (zipIdRef.current || '') + '|' + (path || ''), []);
+
+  // 세션 상태 저장 (문서 전환 + PDF 페이지 변경 시 호출)
+  const persistState = useCallback(() => {
+    const s = stateRef.current;
+    if (!s.zipId || !s.selectedPath) return;
+    try {
+      sessionStorage.setItem('viewer_state', JSON.stringify({
+        zipId: s.zipId, fileName: s.fileName, selectedPath: s.selectedPath,
+        scrollPositions: scrollPositions.current, pdfState: pdfState.current, readability: s.readability,
+      }));
+    } catch {}
+  }, []);
+
+  // zipId/상태를 ref에 동기화 (posKey/persistState가 항상 최신 값 사용)
+  useEffect(() => {
+    zipIdRef.current = zipId;
+    stateRef.current = { zipId, fileName, selectedPath, readability };
+  }, [zipId, fileName, selectedPath, readability]);
+
+  // ZIP 메모리 캐시 등록 + 크기 제한 (최대 4개 — 현재 ZIP은 항상 유지)
+  const cacheZip = useCallback((id, entry) => {
+    openZipsRef.current[id] = entry;
+    const ids = Object.keys(openZipsRef.current);
+    if (ids.length > 4) {
+      for (const oldId of ids) {
+        if (oldId !== zipIdRef.current) { delete openZipsRef.current[oldId]; break; }
+      }
+    }
+  }, []);
 
   // ── Search state ────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -323,9 +357,11 @@ export default function Viewer() {
             const tree = buildZipTree(zip);
             if (seq !== navSeq.current) return;
             setZipTree(tree);
-            openZipsRef.current[state.zipId] = { zip, fileName: state.fileName, tree, blobs, searchIndex };
+            cacheZip(state.zipId, { zip, fileName: state.fileName, tree, blobs, searchIndex });
+            zipIdRef.current = state.zipId;
             setSelectedPath(state.selectedPath);
             if (state.scrollPositions) scrollPositions.current = state.scrollPositions;
+            if (state.pdfState) pdfState.current = state.pdfState;
             const f = zip.files[state.selectedPath];
             if (f && !f.dir) {
               if (state.selectedPath.endsWith('.pdf')) {
@@ -350,14 +386,10 @@ export default function Viewer() {
     } catch {}
   }, []);
 
-  // ── 상태 변경 시 sessionStorage에 저장 ──
+  // ── 상태 변경 시 sessionStorage에 저장 (PDF 위치 포함) ──
   useEffect(() => {
-    if (!zipId || !selectedPath) return;
-    sessionStorage.setItem('viewer_state', JSON.stringify({
-      zipId, fileName, selectedPath,
-      scrollPositions: scrollPositions.current, readability,
-    }));
-  }, [zipId, fileName, selectedPath, readability]);  // 0~5 가독성 단계
+    persistState();
+  }, [zipId, fileName, selectedPath, readability, persistState]);  // 0~5 가독성 단계
 
   // 가독성 스케일: [font, line-height, letter-spacing, paragraph-gap] 승수
   const READABILITY_SCALES = [
@@ -398,31 +430,38 @@ export default function Viewer() {
     setToc(headings);
   }, []);
 
-  // 문서 전환 시 이전 스크롤 위치 저장 + 새 문서 스크롤 복원
+  // 문서 전환 시 이전 스크롤 위치 저장 + 새 문서 스크롤 복원 (ZIP별 키)
   // (유효한 문제 점프가 대기 중이면 건너뜀 — 점프 effect가 중심 정렬 스크롤 담당)
   useEffect(() => {
     const el = previewRef.current;
-    if (!el) return;
+    if (!el || pdfUrl) return; // PDF는 PdfAnnotator가 자체 복원
     const pending = pendingJumpRef.current;
     if (pending && pending.seq === navSeq.current) return;
-    const saved = scrollPositions.current[selectedPath];
+    const saved = scrollPositions.current[posKey(selectedPath)];
     if (saved != null) {
       // requestAnimationFrame 으로 DOM 렌더 후 복원
       requestAnimationFrame(() => { el.scrollTop = saved; });
     } else {
       el.scrollTop = 0;
     }
-  }, [rendered, selectedPath]);
+  }, [rendered, selectedPath, pdfUrl, posKey]);
 
-  // PDF 페이지/스크롤 위치 보고 수신 (경로별 보존)
+  // PDF 페이지/스크롤 위치 보고 수신 (ZIP별 보존 + 세션 저장 — 스크롤마다 저장하지 않도록 디바운스)
   useEffect(() => {
+    let saveTimer = null;
     const onPage = (e) => {
       const { path, page, scrollTop } = e.detail || {};
-      if (path && page) pdfState.current[path] = { page, scrollTop: scrollTop || 0 };
+      if (!path || !page) return;
+      pdfState.current[posKey(path)] = { page, scrollTop: scrollTop || 0 };
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => persistState(), 400);
     };
     window.addEventListener('viewer:pdf-page', onPage);
-    return () => window.removeEventListener('viewer:pdf-page', onPage);
-  }, []);
+    return () => {
+      window.removeEventListener('viewer:pdf-page', onPage);
+      if (saveTimer) clearTimeout(saveTimer);
+    };
+  }, [posKey, persistState]);
   useEffect(() => {
     if (!fullscreen) return;
     const onKey = (e) => { if (e.key === 'Escape') setFullscreen(false); };
@@ -562,6 +601,9 @@ export default function Viewer() {
     const seq = ++navSeq.current;                    // 검색 결과 이동 = 최신 탐색
     setSearchOpen(false);
     setSearchQuery('');
+    if (selectedPath && previewRef.current) {
+      scrollPositions.current[posKey(selectedPath)] = previewRef.current.scrollTop;
+    }
     if (result.path.endsWith('.pdf')) {
       const zip = zipRef.current;
       if (!zip) return;
@@ -575,7 +617,7 @@ export default function Viewer() {
         setSelectedPath(result.path);
         setRendered('');
         setToc([]);
-        setPdfInitialPage(pdfState.current[result.path]?.page || null);
+        setPdfInitialPage(pdfState.current[posKey(result.path)]?.page || null);
         setLoading(false);
       });
     } else {
@@ -585,6 +627,8 @@ export default function Viewer() {
       const file = zip.files[result.path];
       if (!file) return;
       setSelectedPath(result.path);
+      setPdfUrl('');            // PDF → 마크다운 전환 시 PDF 뷰어 해제 (누락 버그 수정)
+      setPdfInitialPage(null);
       const dir = result.path.substring(0, result.path.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
       file.async('text').then((txt) => {
@@ -593,14 +637,12 @@ export default function Viewer() {
         setLoading(false);
       });
     }
-  }, [imageBlobs, setContent]);
+  }, [imageBlobs, setContent, selectedPath, posKey]);
 
   const loadZip = useCallback(async (file) => {
     const seq = ++navSeq.current;                    // 새 업로드 = 최신 탐색
     setLoading(true);
     setFileName(file.name);
-    scrollPositions.current = {};  // 새 ZIP → 스크롤 위치 초기화
-    pdfState.current = {};         // 새 ZIP → PDF 위치 초기화
     try {
       const zip = await JSZip.loadAsync(file);
       if (seq !== navSeq.current) return;            // 더 새로운 업로드/탐색이 시작됨
@@ -622,10 +664,11 @@ export default function Viewer() {
       if (seq !== navSeq.current) return;
 
       setZipId(id);
+      zipIdRef.current = id;
       setImageBlobs(blobs);
       searchIndex.current = searchIndex;
       setZipTree(tree);
-      openZipsRef.current[id] = { zip, fileName: file.name, tree, blobs, searchIndex };
+      cacheZip(id, { zip, fileName: file.name, tree, blobs, searchIndex });
       // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
       setSelectedPath('');
       setPdfUrl('');
@@ -635,18 +678,36 @@ export default function Viewer() {
     } catch (e) {
       if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
     }
-  }, [indexImages, buildSearchIndex, buildZipTree, refreshStored]);
+  }, [indexImages, buildSearchIndex, buildZipTree, refreshStored, cacheZip]);
 
-  // IndexedDB에서 저장된 ZIP 불러오기
+  // IndexedDB에서 저장된 ZIP 불러오기 (이미 열려 있던 ZIP은 캐시 재사용)
   const handleLoadStored = useCallback(async (entry) => {
     const seq = ++navSeq.current;                    // 새로 불러온 ZIP = 최신 탐색
     setLoading(true);
+
+    // 이미 열려 있던 ZIP → 캐시에서 즉시 전환 (빈 상태로 시작)
+    const cached = openZipsRef.current[entry.id];
+    if (cached) {
+      if (seq !== navSeq.current) return;
+      zipRef.current = cached.zip;
+      zipIdRef.current = entry.id;
+      setZipId(entry.id);
+      setFileName(cached.fileName);
+      setImageBlobs(cached.blobs);
+      searchIndex.current = cached.searchIndex;
+      setZipTree(cached.tree);
+      setSelectedPath('');
+      setPdfUrl('');
+      setRendered('');
+      setToc([]);
+      setLoading(false);
+      return;
+    }
+
     const stored = await loadZipFromDB(entry.id);
-    if (!stored) return;
+    if (!stored) { setLoading(false); return; }
     setFileName(stored.name);
     setZipId(entry.id);                             // 세션 복원용
-    scrollPositions.current = {};
-    pdfState.current = {};
     try {
       const zip = await JSZip.loadAsync(stored.blob);
       if (seq !== navSeq.current) return;
@@ -659,7 +720,7 @@ export default function Viewer() {
       setImageBlobs(blobs);
       searchIndex.current = searchIndex;
       setZipTree(tree);
-      openZipsRef.current[entry.id] = { zip, fileName: stored.name, tree, blobs, searchIndex };
+      cacheZip(entry.id, { zip, fileName: stored.name, tree, blobs, searchIndex });
       // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
       setSelectedPath('');
       setPdfUrl('');
@@ -669,7 +730,7 @@ export default function Viewer() {
     } catch (e) {
       if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
     }
-  }, [indexImages, buildSearchIndex, buildZipTree]);
+  }, [indexImages, buildSearchIndex, buildZipTree, cacheZip]);
 
   // ZIP 내 문서 간 크로스 링크 처리
   const navigateTo = useCallback(async (href) => {
@@ -696,7 +757,7 @@ export default function Viewer() {
     const seq = ++navSeq.current;                    // 이 링크 이동이 최신 탐색
 
     if (previewRef.current) {
-      scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
+      scrollPositions.current[posKey(selectedPath)] = previewRef.current.scrollTop;
     }
     setSelectedPath(fullPath);
 
@@ -708,11 +769,12 @@ export default function Viewer() {
       setPdfUrl(url);
       setRendered('');
       setToc([]);
-      setPdfInitialPage(pdfState.current[fullPath]?.page || null);
+      setPdfInitialPage(pdfState.current[posKey(fullPath)]?.page || null);
       setLoading(false);
       return;
     }
     setPdfUrl('');
+    setPdfInitialPage(null);
     try {
       const dir2 = fullPath.substring(0, fullPath.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir2, imageBlobs);
@@ -727,7 +789,7 @@ export default function Viewer() {
         }, 100);
       }
     } catch (e) { setContent('<p style="color:red">Read error: ' + e.message + '</p>'); }
-  }, [selectedPath, imageBlobs, setContent]);
+  }, [selectedPath, imageBlobs, setContent, posKey]);
 
   const handleContentClick = useCallback((e) => {
     const a = e.target.closest('a');
@@ -781,15 +843,77 @@ export default function Viewer() {
     return () => window.removeEventListener('problems:mark', onMark);
   }, [pdfUrl, selectedPath, refreshProblems]);
 
+  // 다른 ZIP의 문서로 전환 — 메모리 캐시 또는 IndexedDB에서 로드 후 문서 오픈
+  // opts.jump: 문제 점프용 (점프 대기 등록 / PDF 시작 페이지)
+  const switchToZipDoc = useCallback(async (targetZipId, path, opts = {}) => {
+    const seq = ++navSeq.current;                    // ZIP 전환 = 최신 탐색
+    setLoading(true);
+    try {
+      let entry = openZipsRef.current[targetZipId];
+      if (!entry) {
+        const stored = await loadZipFromDB(targetZipId);
+        if (!stored) { setLoading(false); return; }
+        const zip = await JSZip.loadAsync(stored.blob);
+        const blobs = await indexImages(zip);
+        const searchIndex = await buildSearchIndex(zip);
+        const tree = buildZipTree(zip);
+        entry = { zip, fileName: stored.name, tree, blobs, searchIndex };
+        cacheZip(targetZipId, entry);
+      }
+      if (seq !== navSeq.current) return;
+      zipRef.current = entry.zip;
+      zipIdRef.current = targetZipId;
+      setZipId(targetZipId);
+      setFileName(entry.fileName);
+      setImageBlobs(entry.blobs);
+      searchIndex.current = entry.searchIndex;
+      setZipTree(entry.tree);
+
+      const file = entry.zip.files[path];
+      if (!file || file.dir) { setLoading(false); return; }
+      setSelectedPath(path);
+      if (path.endsWith('.pdf')) {
+        const blob = await file.async('blob');
+        if (seq !== navSeq.current) return;
+        const url = URL.createObjectURL(blob);
+        pdfBlobUrlsRef.current.add(url);
+        setPdfUrl(url);
+        setRendered('');
+        setToc([]);
+        setPdfInitialPage(opts.jump?.ref ? Number(opts.jump.ref) || null : (pdfState.current[posKey(path)]?.page || null));
+        setLoading(false);
+        return;
+      }
+      const dir = path.substring(0, path.lastIndexOf('/') + 1);
+      const resolveImg = (src) => resolveImagePath(src, dir, entry.blobs);
+      const txt = await file.async('text');
+      if (seq !== navSeq.current) return;
+      setPdfUrl('');
+      setPdfInitialPage(null);
+      setContent(processContent(txt, resolveImg));
+      if (opts.jump) pendingJumpRef.current = { p: opts.jump, seq };
+      setLoading(false);
+    } catch (e) {
+      if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
+    }
+  }, [indexImages, buildSearchIndex, buildZipTree, cacheZip, posKey, setContent]);
+
   // ── 푼/틀린 문제 패널 ──────────────────────────────────
   const jumpToProblem = useCallback((p) => {
+    const { doc_path } = p;
     const zip = zipRef.current;
-    if (!zip) return;
-    const file = zip.files[p.doc_path];
-    if (!file || file.dir) return;
+    // 현재 ZIP에 없으면 다른 열린 ZIP에서 찾아 전환 후 점프
+    if (!zip || !zip.files[doc_path] || zip.files[doc_path].dir) {
+      for (const [id, entry] of Object.entries(openZipsRef.current)) {
+        const f = entry.zip.files[doc_path];
+        if (f && !f.dir) { switchToZipDoc(id, doc_path, { jump: p }); return; }
+      }
+      return; // 어느 ZIP에도 없는 문서 — 무시
+    }
+    const file = zip.files[doc_path];
     const seq = ++navSeq.current;                    // 문제 점프 = 최신 탐색
-    setSelectedPath(p.doc_path);
-    if (p.doc_path.endsWith('.pdf')) {
+    setSelectedPath(doc_path);
+    if (doc_path.endsWith('.pdf')) {
       setPdfInitialPage(p.ref ? Number(p.ref) || null : null);
       file.async('blob').then((blob) => {
         if (seq !== navSeq.current) return;
@@ -803,7 +927,7 @@ export default function Viewer() {
     } else {
       setPdfInitialPage(null);
       setPdfUrl('');
-      const dir = p.doc_path.substring(0, p.doc_path.lastIndexOf('/') + 1);
+      const dir = doc_path.substring(0, doc_path.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
       file.async('text').then((txt) => {
         if (seq !== navSeq.current) return;
@@ -814,7 +938,7 @@ export default function Viewer() {
       }).catch(() => {});
     }
     setProblemsOpen(false);
-  }, [imageBlobs, setContent]);
+  }, [imageBlobs, setContent, switchToZipDoc]);
 
   // ── 마크다운 문제 점프: 렌더링 완료 + 레이아웃 안정 후 위치 탐색 ──
   // 고정 150ms 대기 대신 `rendered`가 실제로 갱신된 뒤, 웹폰트·이미지 로딩까지
@@ -896,10 +1020,14 @@ export default function Viewer() {
     api.deleteProblem(p.id).then(refreshProblems).catch(() => {});
   }, [refreshProblems]);
 
-  // 현재 로드된 ZIP 안에 해당 문서가 있는지 (재업로드 후 고아 문제 표시용)
+  // 문제 문서가 열려 있는 ZIP들 중 어딘가에 존재하는지 (점프 가능 여부)
   const isDocInCurrentZip = useCallback((docPath) => {
-    const zip = zipRef.current;
-    return !!(zip && zip.files && zip.files[docPath] && !zip.files[docPath].dir);
+    if (zipRef.current && zipRef.current.files && zipRef.current.files[docPath] && !zipRef.current.files[docPath].dir) return true;
+    for (const entry of Object.values(openZipsRef.current)) {
+      const f = entry.zip.files && entry.zip.files[docPath];
+      if (f && !f.dir) return true;
+    }
+    return false;
   }, []);
 
   // 현재 문서 기준 필터: 'current'면 열린 문서만, 'all'이면 전체 (문서별 그룹)
@@ -935,7 +1063,7 @@ export default function Viewer() {
     const seq = ++navSeq.current;                    // 트리 클릭 = 최신 탐색
     // 현재 문서의 스크롤 위치 저장
     if (selectedPath && previewRef.current) {
-      scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
+      scrollPositions.current[posKey(selectedPath)] = previewRef.current.scrollTop;
     }
     setSelectedPath(node.path);
     // PDF 파일 처리
@@ -947,11 +1075,12 @@ export default function Viewer() {
       setPdfUrl(url);
       setRendered('');
       setToc([]);
-      setPdfInitialPage(pdfState.current[node.path]?.page || null);
+      setPdfInitialPage(pdfState.current[posKey(node.path)]?.page || null);
       setLoading(false);
       return;
     }
     setPdfUrl('');
+    setPdfInitialPage(null);
     try {
       const dir = node.path.substring(0, node.path.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
@@ -961,7 +1090,7 @@ export default function Viewer() {
       setLoading(false);
     }
     catch (e) { setContent('<p style="color:red">Read error: ' + e.message + '</p>'); }
-  }, [imageBlobs, selectedPath, setContent]);
+  }, [imageBlobs, selectedPath, setContent, posKey]);
 
   // ── 최근 문서 히스토리 (전역 플로팅 🕘 버튼과 공유) ──
   // 문서가 열릴 때마다 (트리/크로스링크/검색/문제점프/복원) 히스토리에 기록.
@@ -969,59 +1098,6 @@ export default function Viewer() {
   useEffect(() => {
     if (selectedPath) pushRecent({ zipId, zipName: fileName, path: selectedPath });
   }, [selectedPath, zipId, fileName]);
-
-  // 히스토리에서 다른 ZIP의 문서로 전환 — 메모리 캐시 또는 IndexedDB에서 로드
-  const switchToZipDoc = useCallback(async (targetZipId, path) => {
-    const seq = ++navSeq.current;                    // 히스토리 이동 = 최신 탐색
-    setLoading(true);
-    try {
-      let entry = openZipsRef.current[targetZipId];
-      if (!entry) {
-        const stored = await loadZipFromDB(targetZipId);
-        if (!stored) { setLoading(false); return; }
-        const zip = await JSZip.loadAsync(stored.blob);
-        const blobs = await indexImages(zip);
-        const searchIndex = await buildSearchIndex(zip);
-        const tree = buildZipTree(zip);
-        entry = { zip, fileName: stored.name, tree, blobs, searchIndex };
-        openZipsRef.current[targetZipId] = entry;
-      }
-      if (seq !== navSeq.current) return;
-      zipRef.current = entry.zip;
-      setZipId(targetZipId);
-      setFileName(entry.fileName);
-      setImageBlobs(entry.blobs);
-      searchIndex.current = entry.searchIndex;
-      setZipTree(entry.tree);
-      scrollPositions.current = {};
-      pdfState.current = {};
-
-      const file = entry.zip.files[path];
-      if (!file || file.dir) { setLoading(false); return; }
-      setSelectedPath(path);
-      if (path.endsWith('.pdf')) {
-        const blob = await file.async('blob');
-        if (seq !== navSeq.current) return;
-        const url = URL.createObjectURL(blob);
-        pdfBlobUrlsRef.current.add(url);
-        setPdfUrl(url);
-        setRendered('');
-        setToc([]);
-        setPdfInitialPage(pdfState.current[path]?.page || null);
-        setLoading(false);
-        return;
-      }
-      const dir = path.substring(0, path.lastIndexOf('/') + 1);
-      const resolveImg = (src) => resolveImagePath(src, dir, entry.blobs);
-      const txt = await file.async('text');
-      if (seq !== navSeq.current) return;
-      setPdfUrl('');
-      setContent(processContent(txt, resolveImg));
-      setLoading(false);
-    } catch (e) {
-      if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
-    }
-  }, [indexImages, buildSearchIndex, buildZipTree, setContent]);
 
   // 히스토리 항목 클릭 → 해당 문서를 트리 없이 다시 열기 (다른 ZIP이면 전환)
   const openRecent = useCallback((item) => {
@@ -1040,7 +1116,7 @@ export default function Viewer() {
 
     const seq = ++navSeq.current;                    // 히스토리 이동 = 최신 탐색
     if (selectedPath && previewRef.current) {
-      scrollPositions.current[selectedPath] = previewRef.current.scrollTop;
+      scrollPositions.current[posKey(selectedPath)] = previewRef.current.scrollTop;
     }
     setSelectedPath(path);
     if (path.endsWith('.pdf')) {
@@ -1051,12 +1127,13 @@ export default function Viewer() {
         setPdfUrl(url);
         setRendered('');
         setToc([]);
-        setPdfInitialPage(pdfState.current[path]?.page || null);
+        setPdfInitialPage(pdfState.current[posKey(path)]?.page || null);
         setLoading(false);
       });
       return;
     }
     setPdfUrl('');
+    setPdfInitialPage(null);
     const dir = path.substring(0, path.lastIndexOf('/') + 1);
     const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
     file.async('text').then((txt) => {
@@ -1064,7 +1141,7 @@ export default function Viewer() {
       setContent(processContent(txt, resolveImg));
       setLoading(false);
     }).catch(() => { setLoading(false); });
-  }, [imageBlobs, selectedPath, setContent, zipId, switchToZipDoc]);
+  }, [imageBlobs, selectedPath, setContent, zipId, switchToZipDoc, posKey]);
 
   // 전역 🕘 버튼이 문서를 열도록 내비게이션 핸들러 등록
   useEffect(() => registerRecentNavigate(openRecent), [openRecent]);
@@ -1183,7 +1260,7 @@ export default function Viewer() {
         )}
         <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
           {pdfUrl ? (
-            <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} initialScrollTop={pdfState.current[selectedPath]?.scrollTop} />
+            <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} initialScrollTop={pdfState.current[posKey(selectedPath)]?.scrollTop} />
           ) : rendered ? (
             <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
           ) : !loading ? (
