@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import * as THREE from 'three';
 import { OrbitControls } from '../lib/OrbitControls.js';
 import { create, all } from 'mathjs';
@@ -88,11 +89,11 @@ export default function Playground() {
   return (
     <main className="playground">
       <nav className="calculator__nav">
-        <a href="/" className="calculator__nav-tab">Calc</a>
-        <a href="/viewer" className="calculator__nav-tab">Viewer</a>
+        <Link to="/" className="calculator__nav-tab">Calc</Link>
+        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Three.js</span>
-        <a href="/math" className="calculator__nav-tab">Math Space</a>
-        <a href="/vocab" className="calculator__nav-tab">Vocab</a>
+        <Link to="/math" className="calculator__nav-tab">Math Space</Link>
+        <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
       <div className="playground__toggle-bar">
         <button className={'playground__toggle-btn' + (collapsed === 'editor' ? ' playground__toggle-btn--active' : '')} onClick={() => setCollapsed(collapsed === 'editor' ? null : 'editor')}>

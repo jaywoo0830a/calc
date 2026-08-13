@@ -17,7 +17,8 @@ import { api } from '../lib/api.js';
 export { isCandidate };
 
 // ── 조회 결과 캐시 (메모리 + localStorage) ─────────────────────
-const CACHE_STORE_KEY = 'wordlookup:cache';
+// v2: 빈 정의를 담던 옛 Wiktionary 응답 캐시 폐기
+const CACHE_STORE_KEY = 'wordlookup:cache:v2';
 const CACHE_MAX = 300;
 const cache = new Map();
 

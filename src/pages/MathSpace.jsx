@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import Plotly from 'plotly.js-dist-min';
 import { create, all } from 'mathjs';
 import { EditorState } from '@codemirror/state';
@@ -166,11 +167,11 @@ Plotly.newPlot(container, [
   return (
     <main className="mathspace">
       <nav className="calculator__nav">
-        <a href="/" className="calculator__nav-tab">Calc</a>
-        <a href="/viewer" className="calculator__nav-tab">Viewer</a>
-        <a href="/playground" className="calculator__nav-tab">Three.js</a>
+        <Link to="/" className="calculator__nav-tab">Calc</Link>
+        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
+        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Math Space</span>
-        <a href="/vocab" className="calculator__nav-tab">Vocab</a>
+        <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
       <div className="mathspace__examples">
         <button className={'mathspace__chip' + (plotType === 'surface' ? ' mathspace__chip--active' : '')} onClick={() => examples('surface')}>🔮 Surface</button>

@@ -52,11 +52,14 @@ export async function lookupDefinition(word) {
 
     const meanings = senses.slice(0, 8).map((s) => ({
       partOfSpeech: s.partOfSpeech || '',
-      definitions: (s.definitions || []).slice(0, 3).map((d) => ({
-        definition: cleanWikitext(d.definition),
-        example: cleanWikitext((d.examples && d.examples[0] && d.examples[0].text) || ''),
-      })),
-    })).filter((m) => m.definitions.some((d) => d.definition));
+      definitions: (s.definitions || [])
+        .map((d) => ({
+          definition: cleanWikitext(d.definition),
+          example: cleanWikitext((d.examples && d.examples[0] && d.examples[0].text) || ''),
+        }))
+        .filter((d) => d.definition) // 빈 정의(usage label만 있는 sense) 제거
+        .slice(0, 3),
+    })).filter((m) => m.definitions.length > 0);
 
     if (!meanings.length) return { notFound: true };
     return {

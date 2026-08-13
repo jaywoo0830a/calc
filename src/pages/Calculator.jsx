@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import Display from '../components/Display.jsx';
 import Keypad from '../components/Keypad.jsx';
 import { useCalculator } from '../hooks/useCalculator.js';
@@ -65,10 +66,10 @@ export default function Calculator() {
     <main className={'calculator' + (calc.sciMode ? ' calculator--sci' : '') + (showHistory ? ' calculator--hist' : '')} onKeyDown={handleKeyDown} tabIndex={-1}>
       <nav className="calculator__nav">
         <span className="calculator__nav-tab calculator__nav-tab--active">Calc</span>
-        <a href="/viewer" className="calculator__nav-tab">Viewer</a>
-        <a href="/playground" className="calculator__nav-tab">Three.js</a>
-        <a href="/math" className="calculator__nav-tab">Math Space</a>
-        <a href="/vocab" className="calculator__nav-tab">Vocab</a>
+        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
+        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
+        <Link to="/math" className="calculator__nav-tab">Math Space</Link>
+        <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
       <Display expression={calc.expression} result={calc.result} />
       <div className="calculator__toolbar">

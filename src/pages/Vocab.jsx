@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { lookupDefinition } from '../lib/dictionary.js';
 
@@ -58,10 +59,10 @@ export default function Vocab() {
   return (
     <main className="vocab">
       <nav className="calculator__nav">
-        <a href="/" className="calculator__nav-tab">Calc</a>
-        <a href="/viewer" className="calculator__nav-tab">Viewer</a>
-        <a href="/playground" className="calculator__nav-tab">Three.js</a>
-        <a href="/math" className="calculator__nav-tab">Math Space</a>
+        <Link to="/" className="calculator__nav-tab">Calc</Link>
+        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
+        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
+        <Link to="/math" className="calculator__nav-tab">Math Space</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Vocab</span>
       </nav>
 

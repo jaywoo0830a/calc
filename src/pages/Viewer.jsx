@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { marked } from 'marked';
 import { pushRecent, clearRecent, registerRecentNavigate } from '../lib/recentHistory.js';
 import katex from 'katex';
@@ -9,6 +10,7 @@ import PdfViewer from '../components/PdfViewer.jsx';
 import SolverTimer from '../components/SolverTimer.jsx';
 import RandomPicker from '../components/RandomPicker.jsx';
 import useProblemJump from '../hooks/useProblemJump.js';
+import { getZipEntry, setZipEntry, deleteZipEntry, zipEntries } from '../lib/zipCache.js';
 import { listZips, saveZip, loadZip as loadZipFromDB, deleteZip } from '../lib/storage.js';
 import { api } from '../lib/api.js';
 
@@ -168,7 +170,6 @@ export default function Viewer() {
   const pdfState = useRef({});   // { path: { page, scrollTop } } PDF 읽기 위치 보존
   const [readability, setReadability] = useState(0);
   const zipRef = useRef(null);
-  const openZipsRef = useRef({}); // { zipId: { zip, fileName, tree, blobs, searchIndex } } — 여러 ZIP 동시 유지 (Recent 전환)
   const navSeq = useRef(0); // 문서 전환 경합 방지 — 최신 탐색만 적용
   const zipIdRef = useRef('');   // 이벤트/비동기 콜백에서 최신 zipId 참조
   const stateRef = useRef({ zipId: '', fileName: '', selectedPath: '', readability: 0 }); // 세션 저장용 최신 스냅샷
@@ -202,15 +203,9 @@ export default function Viewer() {
   }, [zipId, fileName, selectedPath, readability]);
 
   // ZIP 메모리 캐시 등록 + 크기 제한 (최대 3개 — 현재 ZIP은 항상 유지)
-  // (JSZip + 이미지 blob URL + 검색 인덱스를 보관하므로 너무 많이 쌓지 않는다)
+  // (모듈 레벨 캐시 — 탭 전환으로 컴포넌트가 언마운트돼도 유지돼 재파싱을 피한다)
   const cacheZip = useCallback((id, entry) => {
-    openZipsRef.current[id] = entry;
-    const ids = Object.keys(openZipsRef.current);
-    if (ids.length > 3) {
-      for (const oldId of ids) {
-        if (oldId !== zipIdRef.current) { delete openZipsRef.current[oldId]; break; }
-      }
-    }
+    setZipEntry(id, entry, zipIdRef.current);
   }, []);
 
   // ── Search state ────────────────────────────────────────────────────────
@@ -221,6 +216,7 @@ export default function Viewer() {
   const searchDebounce = useRef(null);
 
   // ── 세션 복원: Calc ↔ Viewer 전환 시 상태 유지 ──
+  // 메모리 캐시(모듈 레벨)에 있으면 다운로드/파싱 없이 즉시 복원한다.
   useEffect(() => {
     const saved = sessionStorage.getItem('viewer_state');
     if (!saved) return;
@@ -228,49 +224,68 @@ export default function Viewer() {
     setLoading(true);
     try {
       const state = JSON.parse(saved);
-      if (state.zipId && state.selectedPath) {
+      if (!state.zipId || !state.selectedPath) { setLoading(false); return; }
+
+      const applyEntry = (entry, zip, blobs, idx, tree) => {
+        zipRef.current = zip;
+        searchIndex.current = idx;
+        zipIdRef.current = state.zipId;
+        zipInfoRef.current = { zipId: state.zipId, zipName: entry.fileName || state.fileName || '' };
         setZipId(state.zipId);
-        setFileName(state.fileName || '');
+        setFileName(entry.fileName || state.fileName || '');
         setReadability(state.readability || 0);
-        loadZipFromDB(state.zipId).then((stored) => {
-          if (!stored) return;
-          JSZip.loadAsync(stored.blob).then(async (zip) => {
-            zipRef.current = zip;
-            const blobs = await indexImages(zip);
-            if (seq !== navSeq.current) return; // 최신 탐색으로 대체됨
-            setImageBlobs(blobs);
-            const searchIndex = await buildSearchIndex(zip);
-            const tree = buildZipTree(zip);
-            if (seq !== navSeq.current) return;
-            setZipTree(tree);
-            cacheZip(state.zipId, { zip, fileName: state.fileName, tree, blobs, searchIndex });
-            zipIdRef.current = state.zipId;
-            zipInfoRef.current = { zipId: state.zipId, zipName: state.fileName };
-            setZipStamp((s) => s + 1);
-            setSelectedPath(state.selectedPath);
-            if (state.scrollPositions) scrollPositions.current = state.scrollPositions;
-            if (state.pdfState) pdfState.current = state.pdfState;
-            const f = zip.files[state.selectedPath];
-            if (f && !f.dir) {
-              if (state.selectedPath.endsWith('.pdf')) {
-                const blob = await f.async('blob');
-                if (seq !== navSeq.current) return;
-                const url = URL.createObjectURL(blob);
-                pdfBlobUrlsRef.current.add(url);
-                setToc([]);
-                setPdfUrl(url);
-              } else {
-                const dir = state.selectedPath.substring(0, state.selectedPath.lastIndexOf('/') + 1);
-                const resolveImg = (src) => resolveImagePath(src, dir, blobs);
-                const html = processContent(await f.async('text'), resolveImg);
-                if (seq !== navSeq.current) return;
-                setContent(html);
-              }
-            }
-            setLoading(false);
-          }).catch(() => { if (seq === navSeq.current) setLoading(false); });
-        }).catch(() => { if (seq === navSeq.current) setLoading(false); });
+        setImageBlobs(blobs);
+        setZipTree(tree);
+        setZipStamp((s) => s + 1);
+        setSelectedPath(state.selectedPath);
+        if (state.scrollPositions) scrollPositions.current = state.scrollPositions;
+        if (state.pdfState) pdfState.current = state.pdfState;
+      };
+
+      const renderDoc = async (zip, blobs) => {
+        const f = zip.files[state.selectedPath];
+        if (!f || f.dir) { setLoading(false); return; }
+        if (state.selectedPath.endsWith('.pdf')) {
+          const blob = await f.async('blob');
+          if (seq !== navSeq.current) return;
+          const url = URL.createObjectURL(blob);
+          pdfBlobUrlsRef.current.add(url);
+          setToc([]);
+          setPdfUrl(url);
+          setLoading(false);
+        } else {
+          const dir = state.selectedPath.substring(0, state.selectedPath.lastIndexOf('/') + 1);
+          const resolveImg = (src) => resolveImagePath(src, dir, blobs);
+          const html = processContent(await f.async('text'), resolveImg);
+          if (seq !== navSeq.current) return;
+          setContent(html);
+          setLoading(false);
+        }
+      };
+
+      // ① 메모리 캐시 히트 — 탭 전환 후 돌아온 경우: 파싱 없이 즉시 복원
+      const cached = getZipEntry(state.zipId);
+      if (cached) {
+        applyEntry(cached, cached.zip, cached.blobs, cached.searchIndex, cached.tree);
+        renderDoc(cached.zip, cached.blobs);
+        return;
       }
+
+      // ② 캐시 없음(새로고침 등) — IndexedDB/서버에서 다시 로드 + 파싱
+      loadZipFromDB(state.zipId).then((stored) => {
+        if (!stored) { setLoading(false); return; }
+        JSZip.loadAsync(stored.blob).then(async (zip) => {
+          const blobs = await indexImages(zip);
+          if (seq !== navSeq.current) return; // 최신 탐색으로 대체됨
+          const idx = await buildSearchIndex(zip);
+          const tree = buildZipTree(zip);
+          if (seq !== navSeq.current) return;
+          const entry = { zip, fileName: stored.name || state.fileName || '', tree, blobs, searchIndex: idx };
+          cacheZip(state.zipId, entry);
+          applyEntry(entry, zip, blobs, idx, tree);
+          renderDoc(zip, blobs);
+        }).catch(() => { if (seq === navSeq.current) setLoading(false); });
+      }).catch(() => { if (seq === navSeq.current) setLoading(false); });
     } catch {}
   }, []);
 
@@ -382,7 +397,7 @@ export default function Viewer() {
     };
     // 현재 ZIP + 캐시에 남아있는 모든 ZIP의 이미지 URL은 유지 (Recent 전환 대비)
     collect(imageBlobs);
-    for (const entry of Object.values(openZipsRef.current)) collect(entry.blobs);
+    for (const [, entry] of zipEntries()) collect(entry.blobs);
     // Revoke URLs that are no longer in use
     for (const url of oldUrls) {
       if (!newUrls.has(url)) URL.revokeObjectURL(url);
@@ -585,7 +600,7 @@ export default function Viewer() {
     setLoading(true);
 
     // 이미 열려 있던 ZIP → 캐시에서 즉시 전환 (빈 상태로 시작)
-    const cached = openZipsRef.current[entry.id];
+    const cached = getZipEntry(entry.id);
     if (cached) {
       if (seq !== navSeq.current) return;
       zipRef.current = cached.zip;
@@ -758,7 +773,7 @@ export default function Viewer() {
     const seq = ++navSeq.current;                    // ZIP 전환 = 최신 탐색
     setLoading(true);
     try {
-      let entry = openZipsRef.current[targetZipId];
+      let entry = getZipEntry(targetZipId);
       if (!entry) {
         const stored = await loadZipFromDB(targetZipId);
         if (!stored) { setLoading(false); return; }
@@ -816,7 +831,7 @@ export default function Viewer() {
     const zip = zipRef.current;
     // 현재 ZIP에 없으면 다른 열린 ZIP에서 찾아 전환 후 점프
     if (!zip || !zip.files[doc_path] || zip.files[doc_path].dir) {
-      for (const [id, entry] of Object.entries(openZipsRef.current)) {
+      for (const [id, entry] of zipEntries()) {
         const f = entry.zip.files[doc_path];
         if (f && !f.dir) { switchToZipDoc(id, doc_path, { jump: p }); return; }
       }
@@ -877,7 +892,7 @@ export default function Viewer() {
   // 문제 문서가 열려 있는 ZIP들 중 어딘가에 존재하는지 (점프 가능 여부)
   const isDocInCurrentZip = useCallback((docPath) => {
     if (zipRef.current && zipRef.current.files && zipRef.current.files[docPath] && !zipRef.current.files[docPath].dir) return true;
-    for (const entry of Object.values(openZipsRef.current)) {
+    for (const [, entry] of zipEntries()) {
       const f = entry.zip.files && entry.zip.files[docPath];
       if (f && !f.dir) return true;
     }
@@ -910,9 +925,9 @@ export default function Viewer() {
     e.stopPropagation();
     await deleteZip(id);
     // 메모리 캐시에서도 제거 — 다시 불러올 수 없으므로 이미지 blob URL 즉시 해제 (현재 ZIP이 아니어야 안전)
-    const cached = openZipsRef.current[id];
+    const cached = getZipEntry(id);
     if (cached && id !== zipIdRef.current) {
-      delete openZipsRef.current[id];
+      deleteZipEntry(id);
       for (const url of Object.values(cached.blobs || {})) {
         if (typeof url === 'string' && url.startsWith('blob:')) URL.revokeObjectURL(url);
       }
@@ -1023,11 +1038,11 @@ export default function Viewer() {
     <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')} style={readabilityVars}>
       {!fullscreen && (
         <nav className="calculator__nav">
-          <a href="/" className="calculator__nav-tab">Calc</a>
+          <Link to="/" className="calculator__nav-tab">Calc</Link>
           <span className="calculator__nav-tab calculator__nav-tab--active">Viewer</span>
-          <a href="/playground" className="calculator__nav-tab">Three.js</a>
-          <a href="/math" className="calculator__nav-tab">Math Space</a>
-          <a href="/vocab" className="calculator__nav-tab">Vocab</a>
+          <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
+          <Link to="/math" className="calculator__nav-tab">Math Space</Link>
+          <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
         </nav>
       )}
       {!fullscreen && zipTree && (
