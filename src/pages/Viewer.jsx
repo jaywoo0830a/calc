@@ -9,6 +9,7 @@ import ZipTree from '../components/ZipTree.jsx';
 import PdfViewer from '../components/PdfViewer.jsx';
 import SolverTimer from '../components/SolverTimer.jsx';
 import RandomPicker from '../components/RandomPicker.jsx';
+import ViewerProblemsFab from '../components/ViewerProblemsFab.jsx';
 import useProblemJump from '../hooks/useProblemJump.js';
 import { getZipEntry, setZipEntry, deleteZipEntry, zipEntries } from '../lib/zipCache.js';
 import { listZips, saveZip, loadZip as loadZipFromDB, deleteZip } from '../lib/storage.js';
@@ -1197,11 +1198,12 @@ export default function Viewer() {
           )}
         </div>
       </div>
-      {/* 좌하단 플로팅 문제 버튼 — 항상 표시 (PDF에서도 빈자리 없게).
+      {/* 좌하단 플로팅 문제 버튼 — 항상 표시 (PDF 풀스크린 포함, 포털로 렌더링).
           PDF에서는 PdfAnnotator의 Problems 사이드바를 토글한다. */}
-      <button
-        className={'viewer__problems-fab' + ((problemsOpen && !pdfUrl) ? ' viewer__problems-fab--open' : '')}
-        onClick={() => {
+      <ViewerProblemsFab
+        active={problemsOpen && !pdfUrl}
+        pdfMode={!!pdfUrl}
+        onToggle={() => {
           if (pdfUrl) {
             window.dispatchEvent(new CustomEvent('pdf:toggle-problems'));
             return;
@@ -1209,9 +1211,7 @@ export default function Viewer() {
           setProblemsOpen(!problemsOpen);
           if (!problemsOpen) refreshProblems();
         }}
-        title={pdfUrl ? 'Problems (PDF)' : 'Problems'}
-        aria-label="Problems"
-      >📋</button>
+      />
       {/* 좌하단 플로팅 10분 문제 풀이 타이머 (마크다운/PDF 공통) */}
       <SolverTimer />
       {/* 좌하단 플로팅 🎲 랜덤 숫자 뽑기 */}
