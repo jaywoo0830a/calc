@@ -1150,15 +1150,21 @@ export default function Viewer() {
           )}
         </div>
       </div>
-      {/* 좌하단 플로팅 문제 버튼 — PDF는 자체 툴바에 Problems가 있으므로 마크다운일 때만 */}
-      {!pdfUrl && (
-        <button
-          className={'viewer__problems-fab' + (problemsOpen ? ' viewer__problems-fab--open' : '')}
-          onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
-          title="Problems"
-          aria-label="Problems"
-        >📋</button>
-      )}
+      {/* 좌하단 플로팅 문제 버튼 — 항상 표시 (PDF에서도 빈자리 없게).
+          PDF에서는 PdfAnnotator의 Problems 사이드바를 토글한다. */}
+      <button
+        className={'viewer__problems-fab' + ((problemsOpen && !pdfUrl) ? ' viewer__problems-fab--open' : '')}
+        onClick={() => {
+          if (pdfUrl) {
+            window.dispatchEvent(new CustomEvent('pdf:toggle-problems'));
+            return;
+          }
+          setProblemsOpen(!problemsOpen);
+          if (!problemsOpen) refreshProblems();
+        }}
+        title={pdfUrl ? 'Problems (PDF)' : 'Problems'}
+        aria-label="Problems"
+      >📋</button>
       {/* 좌하단 플로팅 10분 문제 풀이 타이머 (마크다운/PDF 공통) */}
       <SolverTimer />
       {/* 좌하단 플로팅 🎲 랜덤 숫자 뽑기 */}

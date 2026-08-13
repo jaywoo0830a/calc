@@ -340,6 +340,16 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   }, [filePath]);
   useEffect(() => { refreshProblems(); }, [refreshProblems]);
 
+  // Viewer 좌하단 📋 버튼 — PDF에서도 같은 위치에서 Problems 사이드바를 토글
+  useEffect(() => {
+    const onToggle = () => {
+      setProblemsOpen((open) => !open);
+      refreshProblems();
+    };
+    window.addEventListener('pdf:toggle-problems', onToggle);
+    return () => window.removeEventListener('pdf:toggle-problems', onToggle);
+  }, [refreshProblems]);
+
   const jumpToProblemPage = useCallback((p) => {
     if (p.doc_path !== filePath) {
       console.warn('[problem-jump] pdf doc mismatch', p.doc_path, filePath);
