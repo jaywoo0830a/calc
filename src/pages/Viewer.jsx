@@ -165,6 +165,7 @@ export default function Viewer() {
   const [pdfInitialPage, setPdfInitialPage] = useState(null);  // 문제 점프용 시작 페이지
   const [loading, setLoading] = useState(false);               // ZIP 로딩 표시
   const [mdToast, setMdToast] = useState(null);                // 등록 피드백 (PDF와 통일)
+  const [dlProgress, setDlProgress] = useState(null);          // 서버 ZIP 다운로드 진행률 { loaded, total }
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const pdfState = useRef({});   // { path: { page, scrollTop } } PDF 읽기 위치 보존
@@ -206,6 +207,16 @@ export default function Viewer() {
   // (모듈 레벨 캐시 — 탭 전환으로 컴포넌트가 언마운트돼도 유지돼 재파싱을 피한다)
   const cacheZip = useCallback((id, entry) => {
     setZipEntry(id, entry, zipIdRef.current);
+  }, []);
+
+  // 서버에서 ZIP 다운로드 시 진행률 표시 (로컬 캐시 히트면 콜백이 안 불려 바로 완료)
+  const loadZipWithProgress = useCallback(async (id) => {
+    setDlProgress(null);
+    try {
+      return await loadZipFromDB(id, (loaded, total) => setDlProgress({ loaded, total }));
+    } finally {
+      setDlProgress(null);
+    }
   }, []);
 
   // ── Search state ────────────────────────────────────────────────────────
@@ -272,7 +283,7 @@ export default function Viewer() {
       }
 
       // ② 캐시 없음(새로고침 등) — IndexedDB/서버에서 다시 로드 + 파싱
-      loadZipFromDB(state.zipId).then((stored) => {
+      loadZipWithProgress(state.zipId).then((stored) => {
         if (!stored) { setLoading(false); return; }
         JSZip.loadAsync(stored.blob).then(async (zip) => {
           const blobs = await indexImages(zip);
@@ -620,7 +631,7 @@ export default function Viewer() {
       return;
     }
 
-    const stored = await loadZipFromDB(entry.id).catch(() => {
+    const stored = await loadZipWithProgress(entry.id).catch(() => {
       setLoading(false);
       setMdToast("Couldn't load the ZIP from the server");
       return null;
@@ -775,7 +786,7 @@ export default function Viewer() {
     try {
       let entry = getZipEntry(targetZipId);
       if (!entry) {
-        const stored = await loadZipFromDB(targetZipId);
+        const stored = await loadZipWithProgress(targetZipId);
         if (!stored) { setLoading(false); return; }
         const zip = await JSZip.loadAsync(stored.blob);
         const blobs = await indexImages(zip);
@@ -1160,7 +1171,28 @@ export default function Viewer() {
           {loading && (
             <div className="viewer__loading-overlay">
               <div className="viewer__spinner" />
-              <span>Loading…</span>
+              {dlProgress ? (
+                <>
+                  <span>
+                    Downloading…{' '}
+                    {dlProgress.total > 0
+                      ? Math.min(100, Math.round((dlProgress.loaded / dlProgress.total) * 100)) + '%'
+                      : (dlProgress.loaded / 1048576).toFixed(0) + ' MB'}
+                  </span>
+                  <div className="viewer__progress">
+                    <div
+                      className="viewer__progress-bar"
+                      style={{
+                        width: (dlProgress.total > 0
+                          ? Math.min(100, (dlProgress.loaded / dlProgress.total) * 100)
+                          : 10) + '%',
+                      }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <span>Loading…</span>
+              )}
             </div>
           )}
         </div>

@@ -379,6 +379,22 @@
     animation: viewerSpin 0.8s linear infinite;
   }
 
+  // 서버에서 ZIP 다운로드 중 진행률 바
+  &__progress {
+    width: min(22rem, 70%);
+    height: 0.5rem;
+    border-radius: 999px;
+    background: $c-page-darker;
+    overflow: hidden;
+  }
+
+  &__progress-bar {
+    height: 100%;
+    border-radius: 999px;
+    background: $c-accent;
+    transition: width 0.15s ease;
+  }
+
   &__content {
     font-size: $fs-step-0;
     line-height: $lh-body;

@@ -134,16 +134,36 @@ export async function saveZip(name, blob) {
   return data.id;
 }
 
-/** ZIP 불러오기 — 로컬 캐시 먼저, 없으면 서버 다운로드 후 캐시 (없으면 null) */
-export async function loadZip(id) {
+/** ZIP 불러오기 — 로컬 캐시 먼저, 없으면 서버 다운로드 후 캐시 (없으면 null).
+ *  onProgress(loadedBytes, totalBytes) — 스트리밍 다운로드 진행률
+ *  (total은 Content-Length, 알 수 없으면 0 — 이 경우 로드량으로만 표시) */
+export async function loadZip(id, onProgress) {
   let local = null;
   try { local = await localZipGet(id); } catch {}
   if (local) return { id, name: local.name, blob: local.blob };
   const res = await fetch('/api/archives/' + encodeURIComponent(id));
   if (res.status === 404) return null;
   if (!res.ok) throw new Error('API ' + res.status);
-  const blob = await res.blob();
   const name = decodeURIComponent(res.headers.get('X-Archive-Name') || '');
+  const total = Number(res.headers.get('Content-Length')) || 0;
+
+  let blob;
+  if (res.body && typeof onProgress === 'function') {
+    const reader = res.body.getReader();
+    const chunks = [];
+    let loaded = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      loaded += value.length;
+      onProgress(loaded, total);
+    }
+    blob = new Blob(chunks, { type: res.headers.get('Content-Type') || '' });
+  } else {
+    blob = await res.blob();
+    if (typeof onProgress === 'function') onProgress(blob.size, total);
+  }
   try { await localZipPut({ id, name, blob, savedAt: new Date().toISOString() }); } catch {}
   return { id, name, blob };
 }
