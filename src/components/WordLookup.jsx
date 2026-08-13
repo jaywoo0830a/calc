@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useFullscreenPortal } from '../lib/fullscreenPortal.js';
+import { isCandidate, lookupDefinition, PROVIDER_LABEL } from '../lib/dictionary.js';
 
 // ═══════════════════════════════════════════════════════════════
-// WordLookup — 영영사전(dictionaryapi.dev) 표시 전용 컴포넌트
+// WordLookup — 영영사전(Wiktionary) 표시 전용 컴포넌트
 // ─────────────────────────────────────────────────────────────
 // 자체 트리거가 없다. 오직 RangeSelect(✂️ Selecting)의 액션 바에서
 // 발생하는 'wordlookup:open' 이벤트를 받아 정의 카드를 띄운다.
@@ -11,17 +12,8 @@ import { useFullscreenPortal } from '../lib/fullscreenPortal.js';
 // PWA 오프라인 대응: 조회 결과를 localStorage에 캐시한다.
 // ═══════════════════════════════════════════════════════════════
 
-// 단일 영어 단어 또는 짧은 영어 구문 (아포스트로피/하이픈/공백 허용)
-const WORD_RE = /^[A-Za-z][A-Za-z' -]{0,49}$/;
-
-// 사전 조회 대상인지 판별 (단어/짧은 구문만 — 그 외엔 절대 트리거 안 됨)
-export function isCandidate(text) {
-  if (!text) return false;
-  const t = String(text).replace(/\s+/g, ' ').trim();
-  return t.length > 0 && t.length <= 50 && WORD_RE.test(t);
-}
-
-const API_URL = (word) => `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
+// RangeSelect가 여기서 import함 — 재수출로 호환 유지
+export { isCandidate };
 
 // ── 조회 결과 캐시 (메모리 + localStorage) ─────────────────────
 const CACHE_STORE_KEY = 'wordlookup:cache';
@@ -53,43 +45,9 @@ function persist(word, data) {
 async function fetchDefinition(word) {
   const cached = cache.get(word);
   if (cached) return cached;
-  try {
-    const res = await fetch(API_URL(word));
-    if (res.status === 404) {
-      const data = { notFound: true };
-      persist(word, data);
-      return data;
-    }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const entries = await res.json();
-    const entry = entries && entries[0];
-    if (!entry) {
-      const data = { notFound: true };
-      persist(word, data);
-      return data;
-    }
-    const data = {
-      word: entry.word || word,
-      phonetic: entry.phonetic || '',
-      audio: '',
-      meanings: (entry.meanings || []).map((m) => ({
-        partOfSpeech: m.partOfSpeech || '',
-        definitions: (m.definitions || []).slice(0, 3).map((d) => ({
-          definition: d.definition || '',
-          example: d.example || '',
-        })),
-      })),
-      origin: entry.origin || '',
-    };
-    for (const p of entry.phonetics || []) {
-      if (!data.phonetic && p.text) data.phonetic = p.text;
-      if (!data.audio && p.audio) data.audio = p.audio;
-    }
-    persist(word, data);
-    return data;
-  } catch (e) {
-    return { error: e.message || 'Network error' };
-  }
+  const data = await lookupDefinition(word);
+  persist(word, data);
+  return data;
 }
 
 export default function WordLookup() {
@@ -234,7 +192,7 @@ export default function WordLookup() {
         {hasEntry && data.origin && <div className="word-lookup__origin">Origin: {data.origin}</div>}
       </div>
 
-      <div className="word-lookup__foot">English–English · dictionaryapi.dev</div>
+      <div className="word-lookup__foot">English–English · {PROVIDER_LABEL}</div>
     </div>,
     portalTarget
   );
