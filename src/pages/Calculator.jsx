@@ -75,11 +75,11 @@ export default function Calculator() {
           <button
             className={'calculator__mode-btn' + (!calc.sciMode ? ' calculator__mode-btn--active' : '')}
             onClick={() => { if (calc.sciMode) handleAction('sciToggle'); }}
-          >일반</button>
+          >Basic</button>
           <button
             className={'calculator__mode-btn' + (calc.sciMode ? ' calculator__mode-btn--active' : '')}
             onClick={() => { if (!calc.sciMode) handleAction('sciToggle'); }}
-          >공학용</button>
+          >Scientific</button>
         </div>
         {calc.sciMode && (
           <button
@@ -90,7 +90,7 @@ export default function Calculator() {
         )}
         <div className="calculator__prec-wrap">
           <button className="calculator__prec" onClick={() => setPrecOpen((p) => !p)} title="Display precision">
-            자릿수 {calc.displayDigits}
+            Digits {calc.displayDigits}
           </button>
           {precOpen && (
             <div className="calculator__prec-menu">
@@ -99,7 +99,7 @@ export default function Calculator() {
                   key={n}
                   className={'calculator__prec-opt' + (calc.displayDigits === n ? ' calculator__prec-opt--active' : '')}
                   onClick={() => { calc.setDisplayDigits(n); setPrecOpen(false); }}
-                >유효숫자 {n}자리</button>
+                >{n} digits</button>
               ))}
             </div>
           )}

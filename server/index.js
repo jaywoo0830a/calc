@@ -2,13 +2,27 @@ import express from 'express';
 import multer from 'multer';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { rm, mkdir, writeFile } from 'node:fs/promises';
+import { rm, mkdir, writeFile, rename } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { problems } from './db.js';
+import { problems, archives, archivesDir } from './db.js';
 const app = express();
 app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
+
+// ZIP 아카이브 업로드 — 디스크 스토리지 (메모리 부담 없이 100MB까지)
+const uploadZip = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, archivesDir),
+    filename: (req, file, cb) => cb(null, randomUUID() + '.upload'),
+  }),
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  fileFilter: (req, file, cb) => {
+    if (/\.zip$/i.test(file.originalname || '')) cb(null, true);
+    else cb(new Error('ZIP 파일만 업로드할 수 있습니다'));
+  },
+});
 
 // ── XML entity decode ──────────────────────────────────────────────────────────
 const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
@@ -368,8 +382,54 @@ app.delete('/problems/:id', (req, res) => {
   }
 });
 
+// ── ZIP 아카이브 (서버 저장 — 어떤 기기에서든 같은 라이브러리) ────────────────
+app.get('/archives', (req, res) => {
+  try {
+    res.json(archives.list());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/archives', uploadZip.single('file'), async (req, res) => {
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: 'no file' });
+  const id = randomUUID();
+  try {
+    await rename(file.path, join(archivesDir, id + '.zip'));
+    archives.create({ id, name: file.originalname, size: file.size });
+    res.json({ id, name: file.originalname, size: file.size, savedAt: new Date().toISOString() });
+  } catch (e) {
+    try { await rm(file.path, { force: true }); } catch {}
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/archives/:id', (req, res) => {
+  const { id } = req.params;
+  if (!/^[\w-]{1,64}$/.test(id)) return res.status(400).json({ error: 'bad id' });
+  const meta = archives.get(id);
+  const filePath = join(archivesDir, id + '.zip');
+  if (!meta || !existsSync(filePath)) return res.status(404).json({ error: 'not found' });
+  res.setHeader('X-Archive-Name', encodeURIComponent(meta.name));
+  res.download(filePath, meta.name);
+});
+
+app.delete('/archives/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!/^[\w-]{1,64}$/.test(id)) return res.status(400).json({ error: 'bad id' });
+  archives.remove(id);
+  try { await rm(join(archivesDir, id + '.zip'), { force: true }); } catch {}
+  res.json({ ok: true });
+});
+
 // health check
 app.get('/health', (_, res) => res.json({ ok: true }));
+
+// 업로드/요청 에러 → JSON 응답 (multer fileFilter/size 초과 포함)
+app.use((err, req, res, next) => {
+  res.status(400).json({ error: err.message || 'request error' });
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`calc-api running on :${PORT}`));

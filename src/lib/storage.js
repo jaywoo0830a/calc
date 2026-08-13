@@ -1,4 +1,6 @@
-// 간단한 IndexedDB wrapper — ZIP 파일 blob + annotations 영구 저장
+// 간단한 IndexedDB wrapper — PDF 어노테이션/북마크 저장
+// ⚠️ ZIP 아카이브는 서버 저장으로 이동 — listZips/saveZip/loadZip/deleteZip는
+//    아래에서 /api/archives를 호출한다. (모든 기기에서 같은 라이브러리)
 const DB_NAME = 'calc-viewer';
 const DB_VERSION = 3;
 const STORE_ZIPS = 'zips';
@@ -27,50 +29,124 @@ function openDB() {
   });
 }
 
-/** 저장된 ZIP 목록 조회 */
-export async function listZips() {
-  const db = await openDB();
+// ── ZIP 아카이브 — 로컬(IndexedDB) + 클라우드(서버) 하이브리드 ──────────────
+// 업로드: 클라우드 먼저, 실패(오프라인)하면 로컬에 저장 → id는 'local_*'
+// 목록:   서버 목록 + 로컬 전용 항목 병합 (source: 'server' | 'local' | 'cached')
+// 열기:   로컬 캐시 먼저 → 없으면 서버 다운로드 후 로컬 캐시 저장 (오프라인 대비)
+// 삭제:   로컬 캐시 + 서버 양쪽에서 삭제
+
+async function archiveRequest(path, options) {
+  const res = await fetch('/api/archives' + path, options);
+  if (!res.ok) {
+    let msg = 'API ' + res.status;
+    try { msg = (await res.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+  return res;
+}
+
+// ── 로컬(IndexedDB) ZIP 저장소 — 클라우드 캐시 + 오프라인 업로드용 ──
+function zipStore(mode) {
+  return openDB().then((db) => db.transaction(STORE_ZIPS, mode).objectStore(STORE_ZIPS));
+}
+async function localZipList() {
+  const store = await zipStore('readonly');
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_ZIPS, 'readonly');
-    const req = tx.objectStore(STORE_ZIPS).getAll();
+    const req = store.getAll();
     req.onsuccess = () => resolve(req.result || []);
     req.onerror = () => reject(req.error);
   });
 }
-
-/** ZIP blob 저장 (id 자동생성: filename_timestamp) */
-export async function saveZip(name, blob) {
-  const db = await openDB();
-  const id = `${name}_${Date.now()}`;
+async function localZipGet(id) {
+  const store = await zipStore('readonly');
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_ZIPS, 'readwrite');
-    const store = tx.objectStore(STORE_ZIPS);
-    const req = store.add({ id, name, blob, savedAt: new Date().toISOString() });
-    req.onsuccess = () => resolve(id);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/** 저장된 ZIP 하나 불러오기 */
-export async function loadZip(id) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_ZIPS, 'readonly');
-    const req = tx.objectStore(STORE_ZIPS).get(id);
+    const req = store.get(id);
     req.onsuccess = () => resolve(req.result || null);
     req.onerror = () => reject(req.error);
   });
 }
-
-/** 저장된 ZIP 삭제 */
-export async function deleteZip(id) {
-  const db = await openDB();
+async function localZipPut(record) {
+  const store = await zipStore('readwrite');
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_ZIPS, 'readwrite');
-    const req = tx.objectStore(STORE_ZIPS).delete(id);
+    const req = store.put(record);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
+}
+async function localZipDelete(id) {
+  const store = await zipStore('readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * 저장된 ZIP 목록 — 서버(클라우드) + 로컬 병합.
+ * - source 'server': 클라우드에 있음
+ * - source 'local' : 이 기기에만 있음 (오프라인 업로드/예전 로컬 데이터)
+ * - source 'cached': 클라우드 ZIP의 로컬 캐시 (오프라인일 때만 목록에 표시)
+ */
+export async function listZips() {
+  let local = [];
+  try { local = await localZipList(); } catch { /* 로컬 저장소 접근 실패는 무시 */ }
+  let server = [];
+  try { server = await (await archiveRequest('')).json(); } catch { /* 오프라인 — 로컬만 */ }
+  const serverIds = new Set(server.map((s) => s.id));
+  const merged = [
+    ...server.map((s) => ({ ...s, source: 'server' })),
+    ...local
+      .filter((z) => !serverIds.has(z.id)) // 클라우드에 있는 항목은 서버 목록이 대표
+      .map((z) => ({
+        id: z.id,
+        name: z.name,
+        savedAt: z.savedAt,
+        size: (z.blob && z.blob.size) || 0,
+        source: String(z.id).startsWith('local_') ? 'local' : 'cached',
+      })),
+  ].sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')));
+  return merged;
+}
+
+/** ZIP 업로드 — 클라우드 먼저, 실패하면 로컬 (반환: id) */
+export async function saveZip(name, blob) {
+  try {
+    const fd = new FormData();
+    fd.append('file', blob, name);
+    const res = await archiveRequest('', { method: 'POST', body: fd });
+    const data = await res.json();
+    // 클라우드 성공 — 이 기기에서 바로 열 수 있게 로컬 캐시에도 저장 (best-effort)
+    try { await localZipPut({ id: data.id, name, blob, savedAt: data.savedAt }); } catch {}
+    return data.id;
+  } catch {
+    // 오프라인/서버 장애 → 로컬에만 저장
+    const id = 'local_' + Date.now();
+    try { await localZipPut({ id, name, blob, savedAt: new Date().toISOString() }); } catch {}
+    return id;
+  }
+}
+
+/** ZIP 불러오기 — 로컬 캐시 먼저, 없으면 서버 다운로드 후 캐시 (없으면 null) */
+export async function loadZip(id) {
+  let local = null;
+  try { local = await localZipGet(id); } catch {}
+  if (local) return { id, name: local.name, blob: local.blob };
+  const res = await fetch('/api/archives/' + encodeURIComponent(id));
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('API ' + res.status);
+  const blob = await res.blob();
+  const name = decodeURIComponent(res.headers.get('X-Archive-Name') || '');
+  try { await localZipPut({ id, name, blob, savedAt: new Date().toISOString() }); } catch {}
+  return { id, name, blob };
+}
+
+/** ZIP 삭제 — 로컬 캐시 + 서버 양쪽 (로컬 전용 id는 로컬만) */
+export async function deleteZip(id) {
+  try { await localZipDelete(id); } catch {}
+  if (!String(id).startsWith('local_')) {
+    try { await archiveRequest('/' + encodeURIComponent(id), { method: 'DELETE' }); } catch { /* 서버 삭제 실패는 무시 */ }
+  }
 }
 
 // ============================================================

@@ -343,7 +343,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const jumpToProblemPage = useCallback((p) => {
     if (p.doc_path !== filePath) {
       console.warn('[problem-jump] pdf doc mismatch', p.doc_path, filePath);
-      setToast('다른 문서의 문제입니다');
+      setToast('That problem belongs to another document');
       setProblemsOpen(false);
       return;
     }
@@ -355,7 +355,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       setTimeout(() => setFlashPage(null), 2200);
     } else {
       console.warn('[problem-jump] pdf invalid page', p.ref, numPages);
-      setToast('이동할 페이지를 찾지 못했습니다: ' + (p.ref || '?'));
+      setToast("Couldn't find the page: " + (p.ref || '?'));
     }
     setProblemsOpen(false);
   }, [filePath, numPages, goToPage, setToast]);

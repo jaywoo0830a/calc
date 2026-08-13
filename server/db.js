@@ -11,6 +11,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || join(__dirname, 'data');
 mkdirSync(dataDir, { recursive: true });
 
+// ZIP 아카이브 파일 저장 위치 (서버 저장 — 모든 기기에서 같은 라이브러리)
+export const archivesDir = join(dataDir, 'archives');
+mkdirSync(archivesDir, { recursive: true });
+
 const db = new Database(join(dataDir, 'problems.db'));
 db.pragma('journal_mode = WAL');
 
@@ -29,6 +33,13 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_problems_doc    ON problems(doc_id);
   CREATE INDEX IF NOT EXISTS idx_problems_status ON problems(status);
+
+  CREATE TABLE IF NOT EXISTS archives (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    size       INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );
 `);
 
 // ── 레거시 정리 (호환성 불필요) ──────────────────────────────────────────
@@ -129,5 +140,22 @@ export const problems = {
   /** 특정 문서의 모든 문제 삭제 (재업로드/패치 후 정리용) */
   removeByDoc(docId) {
     db.prepare('DELETE FROM problems WHERE doc_id = ?').run(docId);
+  },
+};
+
+/** ZIP 아카이브 메타데이터 — 실제 파일은 archivesDir/<id>.zip */
+export const archives = {
+  list() {
+    return db.prepare('SELECT id, name, size, created_at AS savedAt FROM archives ORDER BY created_at DESC').all();
+  },
+  get(id) {
+    return db.prepare('SELECT id, name FROM archives WHERE id = ?').get(id) || null;
+  },
+  create({ id, name, size }) {
+    db.prepare('INSERT INTO archives (id, name, size, created_at) VALUES (?, ?, ?, ?)')
+      .run(id, name, size, new Date().toISOString());
+  },
+  remove(id) {
+    db.prepare('DELETE FROM archives WHERE id = ?').run(id);
   },
 };

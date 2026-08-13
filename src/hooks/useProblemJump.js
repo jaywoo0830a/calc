@@ -241,7 +241,7 @@ export default function useProblemJump({ previewRef, navSeqRef, rendered, select
               later(correct, 400);
             } else {
               console.warn('[problem-jump] locate failed for', p.doc_path, '→', p.text);
-              onToast('문제 위치를 찾지 못했습니다: ' + (p.text || '').slice(0, 40));
+              onToast("Couldn't find the problem: " + (p.text || '').slice(0, 40));
             }
           }, 250);
         });

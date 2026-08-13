@@ -75,13 +75,13 @@ export default function RandomPicker({ toc = [], onJumpHeading }) {
       {open && (
         <div className="random-picker__panel">
           <div className="random-picker__header">
-            <span>🎲 숫자 뽑기</span>
+            <span>🎲 Draw a number</span>
             <button className="random-picker__close" onClick={() => setOpen(false)}>×</button>
           </div>
 
           <div className="random-picker__body">
             <div className="random-picker__range">
-              <label>범위</label>
+              <label>Range</label>
               <span>1 –</span>
               <input
                 type="number"
@@ -95,11 +95,11 @@ export default function RandomPicker({ toc = [], onJumpHeading }) {
               {rolling ? '🎲' : (result ?? '–')}
             </div>
             <button className="random-picker__roll" onClick={rollNumber} disabled={rolling}>
-              {rolling ? '…' : '🎲 뽑기'}
+              {rolling ? '…' : '🎲 Draw'}
             </button>
             {result != null && toc[result - 1] && (
               <button className="random-picker__action" onClick={jumpToNumber}>
-                {result}번으로 이동 — {toc[result - 1].text}
+                Go to #{result} — {toc[result - 1].text}
               </button>
             )}
           </div>

@@ -542,11 +542,12 @@ export default function Viewer() {
       const tree = buildZipTree(zip);
       if (seq !== navSeq.current) return;
 
-      // IndexedDB에 저장 (원본 blob) → ID 보관 (실패해도 세션 내 사용 가능)
+      // 클라우드(서버) 업로드 — 실패하면 로컬(IndexedDB)에 저장 (둘 다 지원)
       let id = '';
       try {
         const blob = file instanceof Blob ? file : new Blob([await file.arrayBuffer()]);
         id = await saveZip(file.name, blob);
+        if (id.startsWith('local_')) setMdToast('Offline — saved on this device');
         refreshStored();
       } catch {}
       if (!id) id = 'mem-' + Date.now();
@@ -597,7 +598,11 @@ export default function Viewer() {
       return;
     }
 
-    const stored = await loadZipFromDB(entry.id);
+    const stored = await loadZipFromDB(entry.id).catch(() => {
+      setLoading(false);
+      setMdToast("Couldn't load the ZIP from the server");
+      return null;
+    });
     if (!stored) { setLoading(false); return; }
     setFileName(stored.name);
     setZipId(entry.id);                             // 세션 복원용
@@ -810,7 +815,7 @@ export default function Viewer() {
       }
       // 어느 ZIP에도 없는 문서 — 패널 닫고 안내
       console.warn('[problem-jump] document not found in any open zip:', doc_path);
-      setMdToast('문제가 속한 문서를 찾을 수 없습니다');
+      setMdToast("Couldn't find the document for this problem");
       setProblemsOpen(false);
       return;
     }
@@ -847,7 +852,7 @@ export default function Viewer() {
         // 렌더링 완료 후 위치 탐색 (useProblemJump effect가 처리)
         queueJump(p, seq);
       }).catch(() => {
-        setMdToast('문서를 여는 데 실패했습니다');
+        setMdToast('Failed to open the document');
       });
     }
     setProblemsOpen(false);
@@ -1071,7 +1076,12 @@ export default function Viewer() {
           <span className="viewer__stored-title">📦 Saved archives</span>
           {storedZips.map((entry) => (
             <div key={entry.id} className="viewer__stored-item" onClick={() => handleLoadStored(entry)}>
-              <span className="viewer__stored-name">{entry.name}</span>
+              <span className="viewer__stored-name">
+                {entry.name}
+                {entry.source === 'local' && (
+                  <em className="viewer__stored-badge" title="Saved on this device only">💾 Local</em>
+                )}
+              </span>
               <button
                 className="viewer__stored-delete"
                 onClick={(e) => handleDeleteStored(entry.id, e)}

@@ -115,9 +115,9 @@ export default function SolverTimer() {
         >
           <div className="solver-timer__overlay-card" onClick={(e) => e.stopPropagation()}>
             <div className="solver-timer__overlay-icon" aria-hidden>⏰</div>
-            <div className="solver-timer__overlay-title">10분이 지났어요</div>
-            <div className="solver-timer__overlay-sub">더 고민할지, 답지를 확인할지 선택하세요</div>
-            <button className="solver-timer__overlay-btn" onClick={dismiss} autoFocus>확인</button>
+            <div className="solver-timer__overlay-title">Time's up!</div>
+            <div className="solver-timer__overlay-sub">Keep thinking, or check the solutions</div>
+            <button className="solver-timer__overlay-btn" onClick={dismiss} autoFocus>OK</button>
           </div>
         </div>
       )}

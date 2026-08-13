@@ -47,6 +47,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
+  // ── 서버 API(/api)는 캐시하지 않음 — ZIP 삭제 후에도 옛 캐시가 남지 않게 ──
+  if (url.pathname.startsWith('/api/')) return;
+
   // ── Strategy 1: Static assets → Cache-first (immutable hashed files)
   if (
     url.pathname.match(/\.(js|css|woff2?|png|svg|ico|webp|avif)$/) ||
