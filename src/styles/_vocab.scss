@@ -1,0 +1,160 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: vocab — 찾아본 단어장 페이지
+// ============================================================
+
+.vocab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: $sp-3;
+  gap: $sp-3;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+  }
+
+  &__title {
+    font-size: $fs-step-1;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+    margin: 0;
+  }
+
+  &__count {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+  }
+
+  &__clear {
+    margin-left: auto;
+    font-size: $fs-step--1;
+    color: $c-error;
+    padding: $sp-1 $sp-2;
+    border-radius: $radius-sm;
+    transition: background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-error-light;
+      }
+    }
+  }
+
+  &__empty {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+    padding: $sp-3 0;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+    max-width: 45rem;
+  }
+
+  &__item {
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    width: 100%;
+    padding: $sp-2 $sp-3;
+    cursor: pointer;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+  }
+
+  &__word {
+    font-size: $fs-step-0;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+  }
+
+  &__meta {
+    margin-left: auto;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    white-space: nowrap;
+  }
+
+  &__delete {
+    font-size: $fs-step--1;
+    padding: $sp-1;
+    border-radius: $radius-sm;
+    opacity: $opacity-dim;
+    transition: opacity $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        opacity: $opacity-full;
+        background: $c-error-light;
+      }
+    }
+  }
+
+  &__defs {
+    padding: 0 $sp-3 $sp-3 $sp-3;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+  }
+
+  &__loading {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+  }
+
+  &__meaning {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+  }
+
+  &__pos {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-accent;
+    text-transform: uppercase;
+    letter-spacing: $ls-wide;
+  }
+
+  &__def-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+  }
+
+  &__def {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+  }
+
+  &__example {
+    display: block;
+    color: $c-ink-faint;
+    font-style: italic;
+    margin-top: 0.125rem;
+  }
+}

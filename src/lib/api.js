@@ -46,4 +46,18 @@ export const api = {
   deleteProblemsByDoc(doc) {
     return request('/problems?doc=' + encodeURIComponent(doc), { method: 'DELETE' });
   },
+
+  /** 찾아본 단어장 (vocab) */
+  listVocab() {
+    return request('/vocab');
+  },
+  recordVocab(word) {
+    return request('/vocab', { method: 'POST', body: JSON.stringify({ word }) });
+  },
+  deleteVocab(word) {
+    return request('/vocab/' + encodeURIComponent(word), { method: 'DELETE' });
+  },
+  clearVocab() {
+    return request('/vocab', { method: 'DELETE' });
+  },
 };

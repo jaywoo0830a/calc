@@ -170,6 +170,7 @@ Plotly.newPlot(container, [
         <a href="/viewer" className="calculator__nav-tab">Viewer</a>
         <a href="/playground" className="calculator__nav-tab">Three.js</a>
         <span className="calculator__nav-tab calculator__nav-tab--active">Math Space</span>
+        <a href="/vocab" className="calculator__nav-tab">Vocab</a>
       </nav>
       <div className="mathspace__examples">
         <button className={'mathspace__chip' + (plotType === 'surface' ? ' mathspace__chip--active' : '')} onClick={() => examples('surface')}>🔮 Surface</button>

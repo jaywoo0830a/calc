@@ -92,6 +92,7 @@ export default function Playground() {
         <a href="/viewer" className="calculator__nav-tab">Viewer</a>
         <span className="calculator__nav-tab calculator__nav-tab--active">Three.js</span>
         <a href="/math" className="calculator__nav-tab">Math Space</a>
+        <a href="/vocab" className="calculator__nav-tab">Vocab</a>
       </nav>
       <div className="playground__toggle-bar">
         <button className={'playground__toggle-btn' + (collapsed === 'editor' ? ' playground__toggle-btn--active' : '')} onClick={() => setCollapsed(collapsed === 'editor' ? null : 'editor')}>

@@ -109,22 +109,29 @@ export async function listZips() {
   return merged;
 }
 
-/** ZIP 업로드 — 클라우드 먼저, 실패하면 로컬 (반환: id) */
+/** ZIP 업로드 — 클라우드 먼저. 네트워크 장애(오프라인)만 로컬 폴백,
+ *  서버가 거부(용량 초과 등)하면 에러를 던져 알린다. (반환: id) */
 export async function saveZip(name, blob) {
+  const fd = new FormData();
+  fd.append('file', blob, name);
+  let res;
   try {
-    const fd = new FormData();
-    fd.append('file', blob, name);
-    const res = await archiveRequest('', { method: 'POST', body: fd });
-    const data = await res.json();
-    // 클라우드 성공 — 이 기기에서 바로 열 수 있게 로컬 캐시에도 저장 (best-effort)
-    try { await localZipPut({ id: data.id, name, blob, savedAt: data.savedAt }); } catch {}
-    return data.id;
+    res = await fetch('/api/archives', { method: 'POST', body: fd });
   } catch {
-    // 오프라인/서버 장애 → 로컬에만 저장
+    // 오프라인/네트워크 장애 → 로컬에만 저장
     const id = 'local_' + Date.now();
     try { await localZipPut({ id, name, blob, savedAt: new Date().toISOString() }); } catch {}
     return id;
   }
+  if (!res.ok) {
+    let msg = 'HTTP ' + res.status;
+    try { msg = (await res.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  // 클라우드 성공 — 이 기기에서 바로 열 수 있게 로컬 캐시에도 저장 (best-effort)
+  try { await localZipPut({ id: data.id, name, blob, savedAt: data.savedAt }); } catch {}
+  return data.id;
 }
 
 /** ZIP 불러오기 — 로컬 캐시 먼저, 없으면 서버 다운로드 후 캐시 (없으면 null) */

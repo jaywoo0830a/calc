@@ -529,6 +529,10 @@ export default function Viewer() {
   }, [imageBlobs, setContent, selectedPath, posKey]);
 
   const loadZip = useCallback(async (file) => {
+    if (file.size > 1024 * 1024 * 1024) {          // 클라이언트 사전 차단 — JSZip 파싱 전
+      setMdToast('ZIP too large — max 1 GB');
+      return;
+    }
     const seq = ++navSeq.current;                    // 새 업로드 = 최신 탐색
     setLoading(true);
     setFileName(file.name);
@@ -542,14 +546,17 @@ export default function Viewer() {
       const tree = buildZipTree(zip);
       if (seq !== navSeq.current) return;
 
-      // 클라우드(서버) 업로드 — 실패하면 로컬(IndexedDB)에 저장 (둘 다 지원)
+      // 클라우드(서버) 업로드 — 네트워크 장애면 로컬에 저장 (둘 다 지원).
+      // 서버가 거부(용량 초과 등)하면 로컬 폴백 없이 에러 토스트.
       let id = '';
       try {
         const blob = file instanceof Blob ? file : new Blob([await file.arrayBuffer()]);
         id = await saveZip(file.name, blob);
         if (id.startsWith('local_')) setMdToast('Offline — saved on this device');
         refreshStored();
-      } catch {}
+      } catch (e) {
+        setMdToast('Upload failed — ' + (e && e.message ? e.message : 'check the server'));
+      }
       if (!id) id = 'mem-' + Date.now();
       if (seq !== navSeq.current) return;
 
@@ -1020,6 +1027,7 @@ export default function Viewer() {
           <span className="calculator__nav-tab calculator__nav-tab--active">Viewer</span>
           <a href="/playground" className="calculator__nav-tab">Three.js</a>
           <a href="/math" className="calculator__nav-tab">Math Space</a>
+          <a href="/vocab" className="calculator__nav-tab">Vocab</a>
         </nav>
       )}
       {!fullscreen && zipTree && (

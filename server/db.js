@@ -40,6 +40,13 @@ db.exec(`
     size       INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS vocab (
+    word       TEXT PRIMARY KEY,
+    count      INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    last_at    TEXT NOT NULL
+  );
 `);
 
 // ── 레거시 정리 (호환성 불필요) ──────────────────────────────────────────
@@ -157,5 +164,27 @@ export const archives = {
   },
   remove(id) {
     db.prepare('DELETE FROM archives WHERE id = ?').run(id);
+  },
+};
+
+/** 찾아본 단어장 — 단어별 조회 횟수/시각 기록 (기기 간 공유) */
+export const vocab = {
+  list() {
+    return db.prepare('SELECT word, count, created_at, last_at FROM vocab ORDER BY last_at DESC, word ASC').all();
+  },
+  record(word) {
+    const now = new Date().toISOString();
+    const existing = db.prepare('SELECT word FROM vocab WHERE word = ?').get(word);
+    if (existing) {
+      db.prepare('UPDATE vocab SET count = count + 1, last_at = ? WHERE word = ?').run(now, word);
+    } else {
+      db.prepare('INSERT INTO vocab (word, count, created_at, last_at) VALUES (?, 1, ?, ?)').run(word, now, now);
+    }
+  },
+  remove(word) {
+    db.prepare('DELETE FROM vocab WHERE word = ?').run(word);
+  },
+  removeAll() {
+    db.prepare('DELETE FROM vocab').run();
   },
 };

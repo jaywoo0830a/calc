@@ -6,7 +6,7 @@ import { rm, mkdir, writeFile, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { problems, archives, archivesDir } from './db.js';
+import { problems, archives, archivesDir, vocab } from './db.js';
 const app = express();
 app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
@@ -17,10 +17,10 @@ const uploadZip = multer({
     destination: (req, file, cb) => cb(null, archivesDir),
     filename: (req, file, cb) => cb(null, randomUUID() + '.upload'),
   }),
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB
   fileFilter: (req, file, cb) => {
     if (/\.zip$/i.test(file.originalname || '')) cb(null, true);
-    else cb(new Error('ZIP 파일만 업로드할 수 있습니다'));
+    else cb(new Error('Only .zip files can be uploaded'));
   },
 });
 
@@ -421,6 +421,45 @@ app.delete('/archives/:id', async (req, res) => {
   archives.remove(id);
   try { await rm(join(archivesDir, id + '.zip'), { force: true }); } catch {}
   res.json({ ok: true });
+});
+
+// ── 찾아본 단어장 (vocab) ─────────────────────────────────────────────────────
+app.get('/vocab', (req, res) => {
+  try {
+    res.json(vocab.list());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/vocab', (req, res) => {
+  try {
+    const word = String((req.body || {}).word || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!word || word.length > 50) return res.status(400).json({ error: 'word required' });
+    vocab.record(word);
+    res.json({ ok: true, word });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/vocab/:word', (req, res) => {
+  try {
+    vocab.remove(req.params.word);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 전체 비우기
+app.delete('/vocab', (req, res) => {
+  try {
+    vocab.removeAll();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // health check

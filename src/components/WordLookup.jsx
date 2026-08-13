@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useFullscreenPortal } from '../lib/fullscreenPortal.js';
 import { isCandidate, lookupDefinition, PROVIDER_LABEL } from '../lib/dictionary.js';
+import { api } from '../lib/api.js';
 
 // ═══════════════════════════════════════════════════════════════
 // WordLookup — 영영사전(Wiktionary) 표시 전용 컴포넌트
@@ -64,11 +65,17 @@ export default function WordLookup() {
     setState(null);
   }, []);
 
+  // 찾아본 단어 기록 — 정의가 있는 경우에만 서버 단어장에 저장 (실패는 조용히 무시)
+  const recordLookup = useCallback((word, data) => {
+    if (data && !data.notFound && !data.error) api.recordVocab(word).catch(() => {});
+  }, []);
+
   const showWord = useCallback((word, x, y) => {
     if (currentRef.current?.word === word) return; // 이미 같은 단어 — 중복 표시 방지
     currentRef.current = { word, x, y };
     const cached = cache.get(word);
     if (cached) {
+      recordLookup(word, cached);
       setState({ word, x, y, status: 'done', data: cached });
       return;
     }
@@ -77,10 +84,11 @@ export default function WordLookup() {
     fetchTimerRef.current = setTimeout(() => {
       fetchDefinition(word).then((data) => {
         if (currentRef.current?.word !== word) return; // 새 단어로 바뀜 — 폐기
+        recordLookup(word, data);
         setState((prev) => (prev && prev.word === word ? { ...prev, status: 'done', data } : prev));
       });
     }, 60);
-  }, []);
+  }, [recordLookup]);
 
   // 카드를 주어진 사각형 기준으로 열기 (위치 계산 + 중복 방지)
   const openCard = useCallback((word, rect) => {
