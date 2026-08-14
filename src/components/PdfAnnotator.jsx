@@ -76,6 +76,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [openCommentId, setOpenCommentId] = useState(null); // READ 모드에서 내용을 연 코멘트 마커
   const [problems, setProblems] = useState([]);      // 현재 문서의 푼/틀린 문제 (서버)
   const [problemsOpen, setProblemsOpen] = useState(false);
+  const [annotationsOpen, setAnnotationsOpen] = useState(false); // 주석 모아보기 사이드바
+  const [annotationFocus, setAnnotationFocus] = useState(null);  // 점프한 주석 { id, pageNumber } — 렌더 후 플래시
   const [toast, setToast] = useState(null);        // 잠깐 표시되는 등록 피드백
   const [flashPage, setFlashPage] = useState(null); // 문제 점프 시 페이지 플래시
 
@@ -663,6 +665,27 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     return annotations.filter((a) => a.pageNumber === pageNumber);
   }, [annotations]);
 
+  // 주석 모아보기에서 클릭 → 해당 페이지로 이동 후 주석 플래시
+  const jumpToAnnotation = useCallback((a) => {
+    setAnnotationsOpen(false);
+    goToPage(a.pageNumber);
+    setAnnotationFocus({ id: a.id, pageNumber: a.pageNumber });
+  }, [goToPage]);
+
+  // 점프한 주석이 페이지 렌더 후 DOM에 나타나면 스크롤 + 플래시
+  useEffect(() => {
+    if (!annotationFocus) return;
+    const el = document.querySelector(`[data-annotation-id="${CSS.escape(annotationFocus.id)}"]`);
+    if (!el) return; // 아직 렌더 안 됨 — pageRenderTick 변경 시 재시도
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('pdf-annotator__focus-flash');
+    const t = setTimeout(() => {
+      el.classList.remove('pdf-annotator__focus-flash');
+      setAnnotationFocus(null);
+    }, 2600);
+    return () => clearTimeout(t);
+  }, [annotationFocus, pageRenderTick]);
+
   // ── PDF.js 옵션 (cMaps, 표준 폰트 CDN) ────────────────────
   const documentOptions = useMemo(() => ({
     cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
@@ -722,6 +745,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
               📑 Outline
             </button>
           )}
+          <button
+            className={'pdf-annotator__tool' + (annotationsOpen ? ' pdf-annotator__tool--active' : '')}
+            onClick={() => setAnnotationsOpen(!annotationsOpen)}
+            title="Notes"
+          >
+            🗒️ Notes
+          </button>
           <button
             className={'pdf-annotator__tool' + (bookmarksOpen ? ' pdf-annotator__tool--active' : '')}
             onClick={() => setBookmarksOpen(!bookmarksOpen)}
@@ -811,13 +841,16 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             [...bookmarks]
               .sort((a, b) => a.pageNumber - b.pageNumber)
               .map((bm) => (
-                <button
+                <div
                   key={bm.id}
                   className="pdf-annotator__toc-item"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     goToPage(bm.pageNumber);
                     setBookmarksOpen(false);
                   }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { goToPage(bm.pageNumber); setBookmarksOpen(false); } }}
                 >
                   <span className="pdf-annotator__toc-label">Page {bm.pageNumber}</span>
                   <button
@@ -832,12 +865,53 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                   >
                     ×
                   </button>
-                </button>
+                </div>
               ))
           )}
         </div>
       </div>
       <div className="pdf-annotator__toc-overlay" onClick={() => setBookmarksOpen(false)} />
+
+      {/* Notes Sidebar — 주석 모아보기 (클릭 → 해당 페이지/주석으로 이동) */}
+      <div className={'pdf-annotator__toc-sidebar' + (annotationsOpen ? ' pdf-annotator__toc-sidebar--open' : '')}>
+        <div className="pdf-annotator__toc-header">
+          <span>🗒️ Notes ({annotations.length})</span>
+          <button className="pdf-annotator__toc-close" onClick={() => setAnnotationsOpen(false)}>×</button>
+        </div>
+        <div className="pdf-annotator__toc-list">
+          {annotations.length === 0 ? (
+            <div className="pdf-annotator__toc-item" style={{ opacity: 0.5, cursor: 'default' }}>
+              No notes yet
+            </div>
+          ) : (
+            [...annotations]
+              .sort((a, b) => a.pageNumber - b.pageNumber)
+              .map((a) => (
+                <div key={a.id} className="pdf-annotator__note">
+                  <button
+                    className="pdf-annotator__note-open"
+                    onClick={() => jumpToAnnotation(a)}
+                    title={`Go to page ${a.pageNumber}`}
+                  >
+                    <span className="pdf-annotator__note-icon">
+                      {a.type === 'comment' ? '💬' : a.type === 'underline' ? '⎁' : '🖍️'}
+                    </span>
+                    <span className="pdf-annotator__note-body">
+                      <span className="pdf-annotator__note-page">p.{a.pageNumber} · {a.type}</span>
+                      {a.text && <span className="pdf-annotator__note-text">{a.text}</span>}
+                    </span>
+                  </button>
+                  <button
+                    className="pdf-annotator__delete-btn"
+                    onClick={() => removeAnnotation(a.id)}
+                    title="Delete note"
+                  >×</button>
+                </div>
+              ))
+          )}
+        </div>
+      </div>
+      <div className="pdf-annotator__toc-overlay" onClick={() => setAnnotationsOpen(false)} />
 
       {/* Problems Sidebar — 풀스크린 포함 접근 가능 */}
       <div className={'pdf-annotator__toc-sidebar' + (problemsOpen ? ' pdf-annotator__toc-sidebar--open' : '')}>
@@ -1214,6 +1288,7 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
   if (annotation.type === 'comment') {
     return (
       <div
+        data-annotation-id={annotation.id}
         className={'pdf-annotator__comment-marker' +
           (eraseMode ? ' pdf-annotator__comment-marker--erasable' : ' pdf-annotator__comment-marker--viewable') +
           (viewOpen ? ' pdf-annotator__comment-marker--open' : '')}
@@ -1242,6 +1317,7 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
 
   return (
     <div
+      data-annotation-id={annotation.id}
       className={'pdf-annotator__mark pdf-annotator__mark--' + annotation.type + (isDashed ? ' pdf-annotator__mark--dashed' : '') + (eraseMode ? ' pdf-annotator__mark--erasable' : '')}
       style={{
         left: rect.left,

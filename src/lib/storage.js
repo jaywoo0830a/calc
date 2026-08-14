@@ -177,102 +177,166 @@ export async function deleteZip(id) {
 }
 
 // ============================================================
-// PDF Annotations CRUD
+// PDF Annotations CRUD — 클라우드(서버) 동기화 + 로컬 오프라인 캐시
 // ============================================================
 
-/** 특정 파일의 모든 어노테이션 조회 */
-export async function getAnnotations(filePath) {
+async function annotationRequest(path, options = {}) {
+  const res = await fetch('/api/annotations' + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  if (!res.ok) {
+    let msg = 'API ' + res.status;
+    try { msg = (await res.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+  return res;
+}
+
+async function localGetAnnotations(filePath) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_ANNOTATIONS, 'readonly');
-    const idx = tx.objectStore(STORE_ANNOTATIONS).index('filePath');
-    const req = idx.getAll(filePath);
+    const req = db.transaction(STORE_ANNOTATIONS, 'readonly')
+      .objectStore(STORE_ANNOTATIONS).index('filePath').getAll(filePath);
     req.onsuccess = () => resolve(req.result || []);
     req.onerror = () => reject(req.error);
   });
 }
 
-/** 어노테이션 저장 (id 있으면 update, 없으면 insert) */
-export async function saveAnnotation(annotation) {
+async function localPutAnnotation(record) {
   const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_ANNOTATIONS, 'readwrite')
+      .objectStore(STORE_ANNOTATIONS).put(record);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function localDeleteAnnotation(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_ANNOTATIONS, 'readwrite')
+      .objectStore(STORE_ANNOTATIONS).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** 특정 파일의 모든 어노테이션 조회 — 서버가 진실의 원천, 오프라인이면 로컬 */
+export async function getAnnotations(filePath) {
+  try {
+    const res = await annotationRequest('?file=' + encodeURIComponent(filePath));
+    return await res.json();
+  } catch {
+    return localGetAnnotations(filePath);
+  }
+}
+
+/** 어노테이션 저장 (id 있으면 update) — 서버 upsert + 로컬 캐시 (오프라인이면 로컬만) */
+export async function saveAnnotation(annotation) {
   const record = {
     ...annotation,
     id: annotation.id || `${annotation.filePath}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     updatedAt: new Date().toISOString(),
   };
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_ANNOTATIONS, 'readwrite');
-    const store = tx.objectStore(STORE_ANNOTATIONS);
-    const req = store.put(record);
-    req.onsuccess = () => resolve(record);
-    req.onerror = () => reject(req.error);
-  });
+  try { await localPutAnnotation(record); } catch { /* 로컬 저장 실패 무시 */ }
+  try {
+    const res = await annotationRequest('', { method: 'POST', body: JSON.stringify(record) });
+    return await res.json();
+  } catch {
+    return record; // 오프라인 — 로컬에만 저장 (다음 접속 시엔 이 기기에만 존재)
+  }
 }
 
-/** 어노테이션 삭제 */
+/** 어노테이션 삭제 — 서버 + 로컬 */
 export async function deleteAnnotation(id) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_ANNOTATIONS, 'readwrite');
-    const req = tx.objectStore(STORE_ANNOTATIONS).delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  try { await localDeleteAnnotation(id); } catch {}
+  try { await annotationRequest('/' + encodeURIComponent(id), { method: 'DELETE' }); } catch { /* 서버 삭제 실패 무시 */ }
 }
 
-/** 특정 파일의 모든 어노테이션 삭제 */
+/** 특정 파일의 모든 어노테이션 삭제 — 서버 + 로컬 */
 export async function deleteAllAnnotations(filePath) {
-  const db = await openDB();
-  const all = await getAnnotations(filePath);
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_ANNOTATIONS, 'readwrite');
-    const store = tx.objectStore(STORE_ANNOTATIONS);
-    for (const a of all) store.delete(a.id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  const local = await localGetAnnotations(filePath);
+  for (const a of local) await localDeleteAnnotation(a.id);
+  try { await annotationRequest('?file=' + encodeURIComponent(filePath), { method: 'DELETE' }); } catch {}
 }
 
 // ============================================================
-// PDF Bookmarks CRUD
+// PDF Bookmarks CRUD — 클라우드(서버) 동기화 + 로컬 오프라인 캐시
 // ============================================================
 
-/** 특정 파일의 모든 북마크 조회 */
-export async function getBookmarks(filePath) {
+async function bookmarkRequest(path, options = {}) {
+  const res = await fetch('/api/bookmarks' + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  if (!res.ok) {
+    let msg = 'API ' + res.status;
+    try { msg = (await res.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+  return res;
+}
+
+async function localGetBookmarks(filePath) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_BOOKMARKS, 'readonly');
-    const idx = tx.objectStore(STORE_BOOKMARKS).index('filePath');
-    const req = idx.getAll(filePath);
+    const req = db.transaction(STORE_BOOKMARKS, 'readonly')
+      .objectStore(STORE_BOOKMARKS).index('filePath').getAll(filePath);
     req.onsuccess = () => resolve(req.result || []);
     req.onerror = () => reject(req.error);
   });
 }
 
-/** 북마크 저장 */
-export async function saveBookmark(bookmark) {
+async function localPutBookmark(record) {
   const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_BOOKMARKS, 'readwrite')
+      .objectStore(STORE_BOOKMARKS).put(record);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function localDeleteBookmark(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_BOOKMARKS, 'readwrite')
+      .objectStore(STORE_BOOKMARKS).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** 특정 파일의 모든 북마크 조회 — 서버가 진실의 원천, 오프라인이면 로컬 */
+export async function getBookmarks(filePath) {
+  try {
+    const res = await bookmarkRequest('?file=' + encodeURIComponent(filePath));
+    return await res.json();
+  } catch {
+    return localGetBookmarks(filePath);
+  }
+}
+
+/** 북마크 저장 — 서버 upsert + 로컬 캐시 (오프라인이면 로컬만) */
+export async function saveBookmark(bookmark) {
   const record = {
     ...bookmark,
     id: bookmark.id || `${bookmark.filePath}_${bookmark.pageNumber}`,
     createdAt: bookmark.createdAt || new Date().toISOString(),
   };
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_BOOKMARKS, 'readwrite');
-    const store = tx.objectStore(STORE_BOOKMARKS);
-    const req = store.put(record);
-    req.onsuccess = () => resolve(record);
-    req.onerror = () => reject(req.error);
-  });
+  try { await localPutBookmark(record); } catch { /* 로컬 저장 실패 무시 */ }
+  try {
+    const res = await bookmarkRequest('', { method: 'POST', body: JSON.stringify(record) });
+    return await res.json();
+  } catch {
+    return record; // 오프라인 — 로컬에만 저장
+  }
 }
 
-/** 북마크 삭제 */
+/** 북마크 삭제 — 서버 + 로컬 */
 export async function deleteBookmark(id) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_BOOKMARKS, 'readwrite');
-    const req = tx.objectStore(STORE_BOOKMARKS).delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  try { await localDeleteBookmark(id); } catch {}
+  try { await bookmarkRequest('/' + encodeURIComponent(id), { method: 'DELETE' }); } catch { /* 서버 삭제 실패 무시 */ }
 }

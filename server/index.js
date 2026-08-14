@@ -6,7 +6,7 @@ import { rm, mkdir, writeFile, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { problems, archives, archivesDir, vocab } from './db.js';
+import { problems, archives, archivesDir, vocab, annotations, bookmarks } from './db.js';
 const app = express();
 app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
@@ -456,6 +456,104 @@ app.delete('/vocab/:word', (req, res) => {
 app.delete('/vocab', (req, res) => {
   try {
     vocab.removeAll();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── PDF 주석 (annotations) — 클라우드 동기화 ─────────────────────────────────
+app.get('/annotations', (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ error: 'file query param required' });
+    res.json(annotations.list(file));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/annotations', (req, res) => {
+  try {
+    const { id, filePath, pageNumber, type, color, style, text, rect } = req.body || {};
+    if (!id || !filePath) return res.status(400).json({ error: 'id and filePath required' });
+    res.json(annotations.upsert({
+      id: String(id).slice(0, 120),
+      filePath: String(filePath),
+      pageNumber: Number(pageNumber) || 1,
+      type: String(type || 'highlight').slice(0, 20),
+      color: String(color || '').slice(0, 40),
+      style: String(style || '').slice(0, 20),
+      text: String(text || '').slice(0, 2000),
+      rect,
+    }));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/annotations/:id', (req, res) => {
+  try {
+    annotations.remove(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 특정 파일의 주석 전체 삭제
+app.delete('/annotations', (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ error: 'file query param required' });
+    annotations.removeByFile(file);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── PDF 북마크 — 클라우드 동기화 ──────────────────────────────────────────────
+app.get('/bookmarks', (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ error: 'file query param required' });
+    res.json(bookmarks.list(file));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/bookmarks', (req, res) => {
+  try {
+    const { id, filePath, pageNumber, title } = req.body || {};
+    if (!filePath) return res.status(400).json({ error: 'filePath required' });
+    res.json(bookmarks.upsert({
+      id: String(id || `${filePath}_${Number(pageNumber) || 1}`).slice(0, 160),
+      filePath: String(filePath),
+      pageNumber: Number(pageNumber) || 1,
+      title: String(title || '').slice(0, 200),
+    }));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/bookmarks/:id', (req, res) => {
+  try {
+    bookmarks.remove(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 특정 파일의 북마크 전체 삭제
+app.delete('/bookmarks', (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ error: 'file query param required' });
+    bookmarks.removeByFile(file);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

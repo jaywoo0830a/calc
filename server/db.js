@@ -47,6 +47,29 @@ db.exec(`
     created_at TEXT NOT NULL,
     last_at    TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS annotations (
+    id          TEXT PRIMARY KEY,
+    file_path   TEXT NOT NULL,
+    page_number INTEGER NOT NULL DEFAULT 1,
+    type        TEXT NOT NULL DEFAULT 'highlight',
+    color       TEXT NOT NULL DEFAULT '',
+    style       TEXT NOT NULL DEFAULT '',
+    text        TEXT NOT NULL DEFAULT '',
+    rect        TEXT NOT NULL DEFAULT '{}', -- JSON {x,y,w,h} (0~1 정규화)
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_annotations_file ON annotations(file_path);
+
+  CREATE TABLE IF NOT EXISTS bookmarks (
+    id          TEXT PRIMARY KEY,
+    file_path   TEXT NOT NULL,
+    page_number INTEGER NOT NULL DEFAULT 1,
+    title       TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_bookmarks_file ON bookmarks(file_path);
 `);
 
 // ── 레거시 정리 (호환성 불필요) ──────────────────────────────────────────
@@ -186,5 +209,76 @@ export const vocab = {
   },
   removeAll() {
     db.prepare('DELETE FROM vocab').run();
+  },
+};
+
+/** PDF 주석(하이라이트/밑줄/코멘트) — 클라우드 동기화 (기기 간 동일 표시) */
+export const annotations = {
+  list(filePath) {
+    const rows = db.prepare(
+      'SELECT * FROM annotations WHERE file_path = ? ORDER BY page_number ASC, created_at ASC'
+    ).all(filePath);
+    return rows.map((r) => ({
+      id: r.id,
+      filePath: r.file_path,
+      pageNumber: r.page_number,
+      type: r.type,
+      color: r.color,
+      style: r.style,
+      text: r.text,
+      rect: JSON.parse(r.rect || '{}'),
+    }));
+  },
+  upsert({ id, filePath, pageNumber, type, color, style, text, rect }) {
+    const now = new Date().toISOString();
+    const exists = db.prepare('SELECT id FROM annotations WHERE id = ?').get(id);
+    const data = { id, filePath, pageNumber, type, color, style, text, rect: JSON.stringify(rect || {}) };
+    if (exists) {
+      db.prepare(`
+        UPDATE annotations
+        SET file_path = @filePath, page_number = @pageNumber, type = @type,
+            color = @color, style = @style, text = @text, rect = @rect, updated_at = @now
+        WHERE id = @id
+      `).run({ ...data, now });
+    } else {
+      db.prepare(`
+        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, created_at, updated_at)
+        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @now, @now)
+      `).run({ ...data, now });
+    }
+    return { id, filePath, pageNumber, type, color, style, text, rect };
+  },
+  remove(id) {
+    db.prepare('DELETE FROM annotations WHERE id = ?').run(id);
+  },
+  removeByFile(filePath) {
+    db.prepare('DELETE FROM annotations WHERE file_path = ?').run(filePath);
+  },
+};
+
+/** PDF 북마크 — 클라우드 동기화 (기기 간 동일) */
+export const bookmarks = {
+  list(filePath) {
+    return db.prepare(
+      'SELECT id, file_path AS filePath, page_number AS pageNumber, title, created_at AS createdAt FROM bookmarks WHERE file_path = ? ORDER BY page_number ASC'
+    ).all(filePath);
+  },
+  upsert({ id, filePath, pageNumber, title }) {
+    const now = new Date().toISOString();
+    const exists = db.prepare('SELECT id FROM bookmarks WHERE id = ?').get(id);
+    if (exists) {
+      db.prepare('UPDATE bookmarks SET file_path = @filePath, page_number = @pageNumber, title = @title WHERE id = @id')
+        .run({ id, filePath, pageNumber, title });
+    } else {
+      db.prepare('INSERT INTO bookmarks (id, file_path, page_number, title, created_at) VALUES (@id, @filePath, @pageNumber, @title, @now)')
+        .run({ id, filePath, pageNumber, title, now });
+    }
+    return { id, filePath, pageNumber, title, createdAt: now };
+  },
+  remove(id) {
+    db.prepare('DELETE FROM bookmarks WHERE id = ?').run(id);
+  },
+  removeByFile(filePath) {
+    db.prepare('DELETE FROM bookmarks WHERE file_path = ?').run(filePath);
   },
 };
