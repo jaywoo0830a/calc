@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSound } from '../hooks/useSound.js';
 import { useFullscreenPortal } from '../lib/fullscreenPortal.js';
@@ -17,30 +17,35 @@ export default function SolverTimer() {
   const [remaining, setRemaining] = useState(TOTAL_MS);
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState(false);
+  const finishedRef = useRef(false); // 재충전 직후 잔여 틱이 깎지 못하게 (레이스 방지)
   const { unlock, play } = useSound();
   const portalTarget = useFullscreenPortal();
 
-  // 1초 틱
+  // 1초 틱 (완료 감지 후에는 decrement하지 않음)
   useEffect(() => {
     if (!running) return;
-    const id = setInterval(() => setRemaining((r) => r - 1000), 1000);
+    finishedRef.current = false;
+    const id = setInterval(() => {
+      if (!finishedRef.current) setRemaining((r) => r - 1000);
+    }, 1000);
     return () => clearInterval(id);
   }, [running]);
 
-  // 0:00 도달 → 정지 + 경고음
+  // 0:00 도달 → 정지 + 경고음 + 자동으로 10:00 재충전 (0 상태 없음)
   useEffect(() => {
     if (running && remaining <= 0) {
+      finishedRef.current = true; // 이후 틱이 재충전된 값을 깎지 않도록 즉시 차단
       setRunning(false);
       setFinished(true);
+      setRemaining(TOTAL_MS); // 바로 다음 라운드 준비
       play('timer');
     }
   }, [remaining, running, play]);
 
-  // 본체 탭: 시작 / 일시정지 / (종료 후) 리셋+재시작
+  // 본체 탭: 시작 / 일시정지 / (종료 후) 바로 재시작 — remaining은 이미 재충전됨
   const toggle = useCallback(() => {
     unlock();
     if (finished) {
-      setRemaining(TOTAL_MS);
       setFinished(false);
       setRunning(true);
       return;
