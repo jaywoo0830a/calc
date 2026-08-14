@@ -23,7 +23,11 @@ export default function RecentNav() {
     if (!open) return;
     const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
     const onDown = (e) => { if (!e.target.closest('.recent-nav')) setOpen(false); };
-    const onScroll = () => setOpen(false);
+    // 패널 내부 리스트 스크롤은 무시 — 배경 문서가 스크롤될 때만 닫기
+    const onScroll = (e) => {
+      if (e.target.closest && e.target.closest('.recent-nav')) return;
+      setOpen(false);
+    };
     document.addEventListener('keydown', onKey);
     document.addEventListener('mousedown', onDown, true);
     document.addEventListener('touchstart', onDown, true);
