@@ -1,0 +1,120 @@
+@use 'variables' as *;
+
+// ============================================================
+// PDF 전체 텍스트 검색 — 사이드바 패널 + 페이지 하이라이트
+// ============================================================
+
+.pdf-annotator {
+  // 페이지 위 검색 매치 하이라이트 (어노테이션과 동일한 정규화 좌표계)
+  &__search-hit {
+    position: absolute;
+    z-index: 5;
+    background: rgba(255, 156, 58, 0.32);
+    border: 1px solid rgba(255, 120, 28, 0.85);
+    border-radius: $radius-sm;
+    pointer-events: none;
+    animation: pdf-search-hit-in $transition-normal ease-out;
+  }
+
+  &__search-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding-top: $sp-2;
+  }
+
+  &__search-input {
+    margin: 0 $sp-3 $sp-1;
+    padding: $sp-2 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-paper;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step-0;
+    outline: none;
+    transition: border-color $transition-fast, box-shadow $transition-fast;
+
+    &:focus {
+      border-color: $c-accent;
+      box-shadow: 0 0 0 2px $c-accent-light;
+    }
+  }
+
+  &__search-status {
+    padding: $sp-1 $sp-3 $sp-2;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-family: $ff;
+    flex-shrink: 0;
+  }
+
+  &__search-item {
+    display: block;
+    width: 100%;
+    padding: $sp-2 $sp-3;
+    border: none;
+    border-bottom: $border-thin solid $c-rule-light;
+    background: transparent;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    text-align: left;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    &:hover {
+      background: $c-page-dark;
+    }
+  }
+
+  &__search-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: $sp-1;
+  }
+
+  &__search-page {
+    font-weight: $fw-bold;
+    font-size: $fs-step-0;
+    color: $c-accent;
+  }
+
+  &__search-count {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    background: $c-page-dark;
+    border-radius: $radius-lg;
+    padding: 0 $sp-2;
+  }
+
+  &__search-snippet {
+    display: block;
+    color: $c-ink-soft;
+    font-size: $fs-step--1;
+    line-height: 1.45;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    mark {
+      background: rgba(255, 190, 90, 0.55);
+      color: $c-ink;
+      padding: 0 $sp-1;
+      border-radius: $radius-sm;
+    }
+  }
+}
+
+@keyframes pdf-search-hit-in {
+  from {
+    background: rgba(255, 156, 58, 0.75);
+    box-shadow: 0 0 0 4px rgba(255, 156, 58, 0.5);
+  }
+  to {
+    background: rgba(255, 156, 58, 0.32);
+    box-shadow: 0 0 0 0 rgba(255, 156, 58, 0);
+  }
+}

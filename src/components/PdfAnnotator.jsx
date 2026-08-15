@@ -6,6 +6,7 @@ import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBoo
 import { api } from '../lib/api.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+import PdfSearchPanel from './PdfSearchPanel.jsx';
 
 // ── PDF.js worker: CDN (most reliable for Vite production builds) ──
 // Uses the exact pdfjs-dist version bundled with react-pdf
@@ -77,6 +78,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [problems, setProblems] = useState([]);      // 현재 문서의 푼/틀린 문제 (서버)
   const [problemsOpen, setProblemsOpen] = useState(false);
   const [annotationsOpen, setAnnotationsOpen] = useState(false); // 주석 모아보기 사이드바
+  const [searchOpen, setSearchOpen] = useState(false); // 🔎 전체 텍스트 검색
+  const [searchHits, setSearchHits] = useState(new Map()); // pageNumber → 정규화 사각형 목록
   const [annotationFocus, setAnnotationFocus] = useState(null);  // 점프한 주석 { id, pageNumber } — 렌더 후 플래시
   const [toast, setToast] = useState(null);        // 잠깐 표시되는 등록 피드백
   const [flashPage, setFlashPage] = useState(null); // 문제 점프 시 페이지 플래시
@@ -372,6 +375,16 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     setProblemsOpen(false);
   }, [filePath, numPages, goToPage, setToast]);
 
+  // 🔎 검색 결과 페이지로 점프 + 플래시 (검색 사이드바는 계속 열어 둠)
+  const jumpToSearchHit = useCallback((p) => {
+    goToPage(p);
+    setFlashPage(p);
+    setTimeout(() => setFlashPage(null), 2200);
+  }, [goToPage]);
+
+  const handleSearchHits = useCallback((m) => setSearchHits(m), []);
+  const closeSearch = useCallback(() => { setSearchOpen(false); setSearchHits(new Map()); }, []);
+
   // 상태 지정(맞음/틀림) — 같은 상태 재클릭도 시도 횟수로 기록
   const setProblemStatus = useCallback((p, status) => {
     api.updateProblem(p.id, { status, attempts: p.attempts + 1 }).then(refreshProblems).catch(() => {});
@@ -388,6 +401,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     setLoadError(null);
     setNumPages(0);
     setFlashPage(null);
+    setSearchOpen(false);
+    setSearchHits(new Map());
     autoFsRef.current = false; // 새 문서 → 다시 자동 풀스크린 유도
     return () => {
       // 이전 PDF 문서/페이지 참조 해제 (메모리 누수 방지)
@@ -746,6 +761,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             </button>
           )}
           <button
+            className={'pdf-annotator__tool' + (searchOpen ? ' pdf-annotator__tool--active' : '')}
+            onClick={() => { if (searchOpen) closeSearch(); else setSearchOpen(true); }}
+            title="Search text in this document"
+          >
+            🔎 Search
+          </button>
+          <button
             className={'pdf-annotator__tool' + (annotationsOpen ? ' pdf-annotator__tool--active' : '')}
             onClick={() => setAnnotationsOpen(!annotationsOpen)}
             title="Notes"
@@ -960,6 +982,17 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       </div>
       <div className="pdf-annotator__toc-overlay" onClick={() => setProblemsOpen(false)} />
 
+      {/* Search Sidebar — 문서 전체 텍스트 검색 (인덱스 페이지 등) */}
+      <PdfSearchPanel
+        filePath={filePath}
+        pdf={pdfDocRef.current}
+        numPages={numPages}
+        open={searchOpen}
+        onClose={closeSearch}
+        onJump={jumpToSearchHit}
+        onHitsChange={handleSearchHits}
+      />
+
       {/* Comment input overlay — 클릭한 위치(뷰포트 좌표)에 고정 배치 */}
       {activeComment && (
         <div
@@ -1045,6 +1078,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           {[currentPage - 1].filter(i => i >= 0 && i < numPages).map((i) => {
             const pageNumber = i + 1;
             const annos = pageAnnotations(pageNumber);
+            const pageHits = searchOpen ? searchHits.get(pageNumber) : undefined;
             const vw = window.innerWidth;
             // Dynamic scaling: fit page within viewport comfortably
             const maxW = fullscreen ? Math.min(vw * 0.9, 1600) : 700;
@@ -1085,6 +1119,27 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                     onViewComment={setOpenCommentId}
                   />
                 ))}
+                {/* 🔎 검색 매치 하이라이트 (정규화 좌표 → 캔버스 기준) */}
+                {pageHits && pageHits.map((r, i) => {
+                  const pos = annoRect({ rect: r }, pageRefs.current[pageNumber]);
+                  return (
+                    <div
+                      key={'s' + i}
+                      className="pdf-annotator__search-hit"
+                      style={pos ? {
+                        left: pos.left,
+                        top: pos.top,
+                        width: pos.width,
+                        height: pos.height,
+                      } : {
+                        left: `${r.x * 100}%`,
+                        top: `${r.y * 100}%`,
+                        width: `${r.w * 100}%`,
+                        height: `${r.h * 100}%`,
+                      }}
+                    />
+                  );
+                })}
               </div>
             );
           })}
