@@ -154,6 +154,7 @@ export default function Viewer() {
   const [selectedPath, setSelectedPath] = useState('');
   const [imageBlobs, setImageBlobs] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [treeCollapsed, setTreeCollapsed] = useState(true); // 파일 트리 기본 접힘
   const [tocOpen, setTocOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [storedZips, setStoredZips] = useState([]);
@@ -167,6 +168,23 @@ export default function Viewer() {
   const [loading, setLoading] = useState(false);               // ZIP 로딩 표시
   const [mdToast, setMdToast] = useState(null);                // 등록 피드백 (PDF와 통일)
   const [dlProgress, setDlProgress] = useState(null);          // 서버 ZIP 다운로드 진행률 { loaded, total }
+
+  // 새 ZIP이 열리면 파일 트리는 기본 접힘
+  useEffect(() => { setTreeCollapsed(true); }, [zipTree]);
+
+  // 트리에 포함된 파일(디렉토리 제외) 개수
+  const treeFileCount = useMemo(() => {
+    let n = 0;
+    const walk = (children) => {
+      for (const key of Object.keys(children || {})) {
+        const node = children[key];
+        if (node.isDir) walk(node.children);
+        else n += 1;
+      }
+    };
+    walk(zipTree?.children);
+    return n;
+  }, [zipTree]);
   const previewRef = useRef(null);
   const scrollPositions = useRef({});
   const pdfState = useRef({});   // { path: { page, scrollTop } } PDF 읽기 위치 보존
@@ -482,6 +500,7 @@ export default function Viewer() {
       const q = query.toLowerCase();
       const results = [];
       for (const [path, text] of Object.entries(searchIndex.current)) {
+        if (typeof text !== 'string') { console.warn('[search-index] non-string entry', path, typeof text, text); continue; }
         const lower = text.toLowerCase();
         let idx = lower.indexOf(q);
         if (idx === -1) continue;
@@ -517,6 +536,7 @@ export default function Viewer() {
     const seq = ++navSeq.current;                    // 검색 결과 이동 = 최신 탐색
     setSearchOpen(false);
     setSearchQuery('');
+    setTreeCollapsed(false);                         // 검색으로 연 파일이 보이도록 트리 펼침
     if (selectedPath && previewRef.current) {
       scrollPositions.current[posKey(selectedPath)] = previewRef.current.scrollTop;
     }
@@ -569,7 +589,7 @@ export default function Viewer() {
       zipRef.current = zip;                          // 크로스 링크용 보관
       const blobs = await indexImages(zip);
       if (seq !== navSeq.current) return;
-      const searchIndex = await buildSearchIndex(zip); // 검색 인덱스 구축
+      const idx = await buildSearchIndex(zip);        // 검색 인덱스 구축 (ref도 내부에서 갱신)
       const tree = buildZipTree(zip);
       if (seq !== navSeq.current) return;
 
@@ -592,9 +612,9 @@ export default function Viewer() {
       zipInfoRef.current = { zipId: id, zipName: file.name };
       setZipStamp((s) => s + 1);
       setImageBlobs(blobs);
-      searchIndex.current = searchIndex;
+      searchIndex.current = idx;
       setZipTree(tree);
-      cacheZip(id, { zip, fileName: file.name, tree, blobs, searchIndex });
+      cacheZip(id, { zip, fileName: file.name, tree, blobs, searchIndex: idx });
       // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
       setSelectedPath('');
       setPdfUrl('');
@@ -646,13 +666,13 @@ export default function Viewer() {
       zipRef.current = zip;                          // 크로스 링크용 보관
       const blobs = await indexImages(zip);
       if (seq !== navSeq.current) return;
-      const searchIndex = await buildSearchIndex(zip); // 검색 인덱스 구축
+      const idx = await buildSearchIndex(zip);        // 검색 인덱스 구축 (ref도 내부에서 갱신)
       const tree = buildZipTree(zip);
       if (seq !== navSeq.current) return;
       setImageBlobs(blobs);
-      searchIndex.current = searchIndex;
+      searchIndex.current = idx;
       setZipTree(tree);
-      cacheZip(entry.id, { zip, fileName: stored.name, tree, blobs, searchIndex });
+      cacheZip(entry.id, { zip, fileName: stored.name, tree, blobs, searchIndex: idx });
       zipInfoRef.current = { zipId: entry.id, zipName: stored.name };
       setZipStamp((s) => s + 1);
       // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
@@ -791,9 +811,9 @@ export default function Viewer() {
         if (!stored) { setLoading(false); return; }
         const zip = await JSZip.loadAsync(stored.blob);
         const blobs = await indexImages(zip);
-        const searchIndex = await buildSearchIndex(zip);
+        const idx = await buildSearchIndex(zip);
         const tree = buildZipTree(zip);
-        entry = { zip, fileName: stored.name, tree, blobs, searchIndex };
+        entry = { zip, fileName: stored.name, tree, blobs, searchIndex: idx };
         cacheZip(targetZipId, entry);
       }
       if (seq !== navSeq.current) return;
@@ -810,6 +830,7 @@ export default function Viewer() {
       const file = entry.zip.files[path];
       if (!file || file.dir) { setLoading(false); return; }
       setSelectedPath(path);
+      setTreeCollapsed(false); // 다른 ZIP에서 전환 — 열린 파일이 보이도록 트리 펼침
       if (path.endsWith('.pdf')) {
         const blob = await file.async('blob');
         if (seq !== navSeq.current) return;
@@ -856,6 +877,7 @@ export default function Viewer() {
     const file = zip.files[doc_path];
     const seq = ++navSeq.current;                    // 문제 점프 = 최신 탐색
     setSelectedPath(doc_path);
+    setTreeCollapsed(false);                         // 문제 점프 — 열린 파일이 보이도록 트리 펼침
     if (doc_path.endsWith('.pdf')) {
       setPdfInitialPage(p.ref ? Number(p.ref) || null : null);
       file.async('blob').then((blob) => {
@@ -1016,6 +1038,7 @@ export default function Viewer() {
       scrollPositions.current[posKey(selectedPath)] = previewRef.current.scrollTop;
     }
     setSelectedPath(path);
+    setTreeCollapsed(false);                         // 히스토리 이동 — 열린 파일이 보이도록 트리 펼침
     if (path.endsWith('.pdf')) {
       file.async('blob').then((blob) => {
         if (seq !== navSeq.current) return;
@@ -1129,7 +1152,17 @@ export default function Viewer() {
       <div className="viewer__panes">
         {zipTree && (<>
           <div className={'viewer__sidebar' + (sidebarOpen ? ' viewer__sidebar--open' : '')}>
-            <ZipTree tree={zipTree} selectedPath={selectedPath} onSelect={openFile} />
+            <button
+              className="viewer__tree-header"
+              onClick={() => setTreeCollapsed(!treeCollapsed)}
+              title={treeCollapsed ? 'Expand file list' : 'Collapse file list'}
+            >
+              <span className="viewer__tree-header-icon">{treeCollapsed ? '📦' : '📂'}</span>
+              <span className="viewer__tree-header-name">{fileName || 'Archive'}</span>
+              <span className="viewer__tree-header-count">{treeFileCount} {treeFileCount === 1 ? 'file' : 'files'}</span>
+              <span className="viewer__tree-header-arrow">{treeCollapsed ? '▾' : '▴'}</span>
+            </button>
+            {!treeCollapsed && <ZipTree tree={zipTree} selectedPath={selectedPath} onSelect={openFile} />}
           </div>
           <button className="viewer__sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle file tree" />
         </>)}

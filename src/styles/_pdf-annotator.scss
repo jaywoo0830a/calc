@@ -8,7 +8,10 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  contain: layout style;
+  // ⚠️ contain: layout 금지 — fixed 사이드바(Outline/Notes/Problems 등)가
+  // PDF 영역 기준으로 바뀌어 일반 모드에서 잘리고 내부 스크롤이 생김.
+  // style containment만 유지.
+  contain: style;
 
   // ---- Floating chrome toggle (show/hide toolbar+nav) ----
   &__chrome-toggle {

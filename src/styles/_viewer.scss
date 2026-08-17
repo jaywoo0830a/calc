@@ -318,6 +318,54 @@
     border-left: $border-thin solid $c-rule;
   }
 
+  // ---- 파일 트리 헤더 (기본 접힘 → 펼치기) -----------------
+  &__tree-header {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    width: 100%;
+    padding: $sp-2 0;
+    border: none;
+    border-bottom: $border-thin solid $c-rule;
+    background: transparent;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    text-align: left;
+    cursor: pointer;
+    transition: color $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        color: $c-accent;
+      }
+    }
+  }
+
+  &__tree-header-icon {
+    flex-shrink: 0;
+  }
+
+  &__tree-header-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: $fw-semibold;
+  }
+
+  &__tree-header-count {
+    flex-shrink: 0;
+    color: $c-ink-faint;
+    font-size: $fs-step--2;
+  }
+
+  &__tree-header-arrow {
+    flex-shrink: 0;
+    color: $c-ink-faint;
+  }
+
   // ---- Backdrop overlay (sidebar 열렸을 때) -----------------
   &__overlay {
     position: fixed;
