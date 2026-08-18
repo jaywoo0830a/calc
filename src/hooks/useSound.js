@@ -44,6 +44,10 @@ export function useSound() {
         setTimeout(() => beep(880, 0.12, 'sine', 0.09), 180);
         setTimeout(() => beep(1320, 0.30, 'sine', 0.10), 360);
         break;
+      case 'quick': // 30초 타이머 완료 — 짧은 두 번 알림
+        beep(700, 0.10, 'sine', 0.09);
+        setTimeout(() => beep(940, 0.12, 'sine', 0.08), 130);
+        break;
     }
   }, [beep]);
 

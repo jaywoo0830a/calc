@@ -13,6 +13,7 @@ const randInt = (n) => Math.floor(Math.random() * n) + 1;
 export default function RandomPicker({ toc = [], onJumpHeading }) {
   const [open, setOpen] = useState(false);
   const [max, setMax] = useState(20);
+  const [maxDraft, setMaxDraft] = useState(null); // null = max 그대로 표시, '' = 입력 중 빈 값
   const maxTouched = useRef(false);
   const [result, setResult] = useState(null);
   const [rolling, setRolling] = useState(false);
@@ -87,8 +88,15 @@ export default function RandomPicker({ toc = [], onJumpHeading }) {
                 type="number"
                 min="1"
                 max="999"
-                value={max}
-                onChange={(e) => { maxTouched.current = true; setMax(Number(e.target.value) || 1); }}
+                value={maxDraft ?? max}
+                onChange={(e) => {
+                  maxTouched.current = true;
+                  const raw = e.target.value;
+                  if (raw === '') { setMaxDraft(''); return; } // 지우는 중 허용 (1의 자리도 비울 수 있게)
+                  setMaxDraft(null);
+                  setMax(Number(raw) || 1);
+                }}
+                onBlur={() => setMaxDraft(null)} // 포커스 아웃 시 확정된 값으로 복원
               />
             </div>
             <div className={'random-picker__result' + (rolling ? ' random-picker__result--rolling' : '')}>

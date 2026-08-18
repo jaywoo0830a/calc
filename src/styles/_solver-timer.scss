@@ -7,12 +7,21 @@
 
 .solver-timer {
   position: fixed;
-  left: calc($sp-4 + (2.5rem + $sp-1) * 3); // ✂️(1rem) + 🕘(2.75rem) + 📋(2.75rem) 다음
+  left: calc($sp-4 + (2.5rem + $sp-1) * 4); // ✂️ + 🕘 + 📋 + ⚡30초 다음 (10분 타이머)
   bottom: calc($sp-4 + env(safe-area-inset-bottom, 0px));
   z-index: 450;
   width: 2.5rem;
   height: 2.5rem;
   animation: solverTimerIn 0.2s ease;
+
+  // ⚡ 30초 타이머 — 10분 타이머 왼쪽 슬롯
+  &--quick {
+    left: calc($sp-4 + (2.5rem + $sp-1) * 3); // ✂️ + 🕘 + 📋 다음
+
+    .solver-timer__icon {
+      font-size: 0.7rem;
+    }
+  }
 
   &__main {
     display: flex;
@@ -145,8 +154,16 @@
     color: $c-ink-soft;
   }
 
-  &__overlay-btn {
+  &__overlay-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: $sp-2;
     margin-top: $sp-2;
+  }
+
+  &__overlay-btn {
     padding: $sp-2 $sp-6;
     border: none;
     border-radius: 999px;
@@ -160,6 +177,13 @@
 
     &:hover { background: darken($c-error, 8%); }
     &:active { transform: scale(0.96); }
+
+    // +5분 연장 버튼 (한 번만 가능)
+    &--extend {
+      background: $c-accent;
+
+      &:hover { background: darken($c-accent, 8%); }
+    }
   }
 }
 

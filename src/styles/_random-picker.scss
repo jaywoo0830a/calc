@@ -7,7 +7,7 @@
 
 .random-picker {
   position: fixed;
-  left: calc($sp-4 + (2.5rem + $sp-1) * 4); // ✂️(1rem) + 🕘(2.75rem) + 📋(2.75rem) + ⏱(2.75rem) 다음
+  left: calc($sp-4 + (2.5rem + $sp-1) * 5); // ✂️ + 🕘 + 📋 + ⚡30초 + ⏱10분 다음
   bottom: calc($sp-4 + env(safe-area-inset-bottom, 0px));
   z-index: 450;
 
