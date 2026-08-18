@@ -56,10 +56,11 @@ db.exec(`
     last_at    TEXT NOT NULL
   );
 
-  -- 나만의 의미 매핑 (1단어 → N개 별칭)
+  -- 나만의 의미 매핑 (1단어 → N개 별칭 + 예문)
   CREATE TABLE IF NOT EXISTS vocab_aliases (
     word       TEXT NOT NULL,
     alias      TEXT NOT NULL,
+    example    TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     PRIMARY KEY (word, alias)
   );
@@ -93,6 +94,14 @@ db.exec(`
   const cols = db.prepare('PRAGMA table_info(problems)').all();
   if (!cols.some((c) => c.name === 'solved_at')) {
     db.exec('ALTER TABLE problems ADD COLUMN solved_at TEXT');
+  }
+}
+
+// ── 마이그레이션: vocab_aliases.example 추가 ────────────────────────────
+{
+  const cols = db.prepare('PRAGMA table_info(vocab_aliases)').all();
+  if (cols.length > 0 && !cols.some((c) => c.name === 'example')) {
+    db.exec("ALTER TABLE vocab_aliases ADD COLUMN example TEXT NOT NULL DEFAULT ''");
   }
 }
 
@@ -276,18 +285,21 @@ export const vocab = {
 /** 나만의 의미 매핑 — 단어별 별칭 1:N (예: concise → shorten, compressed) */
 export const vocabAliases = {
   listAll() {
-    return db.prepare('SELECT word, alias, created_at FROM vocab_aliases ORDER BY created_at ASC').all();
+    return db.prepare('SELECT word, alias, example, created_at FROM vocab_aliases ORDER BY created_at ASC').all();
   },
   listFor(word) {
     return db.prepare(
-      'SELECT word, alias, created_at FROM vocab_aliases WHERE word = ? ORDER BY created_at ASC, alias ASC'
+      'SELECT word, alias, example, created_at FROM vocab_aliases WHERE word = ? ORDER BY created_at ASC, alias ASC'
     ).all(word);
   },
-  add(word, alias) {
+  add(word, alias, example = '') {
     const now = new Date().toISOString();
-    db.prepare('INSERT OR IGNORE INTO vocab_aliases (word, alias, created_at) VALUES (?, ?, ?)')
-      .run(word, alias, now);
-    return db.prepare('SELECT word, alias, created_at FROM vocab_aliases WHERE word = ? AND alias = ?')
+    // 같은 뜻을 다시 추가하면 예문만 갱신 (upsert)
+    db.prepare(`
+      INSERT INTO vocab_aliases (word, alias, example, created_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(word, alias) DO UPDATE SET example = excluded.example
+    `).run(word, alias, example, now);
+    return db.prepare('SELECT word, alias, example, created_at FROM vocab_aliases WHERE word = ? AND alias = ?')
       .get(word, alias) || null;
   },
   remove(word, alias) {

@@ -152,7 +152,7 @@
 
   &__alias {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: $sp-2;
   }
 
@@ -160,12 +160,27 @@
     color: $c-accent;
     font-weight: $fw-semibold;
     font-size: $fs-step--1;
+    padding-top: 0.1rem;
+  }
+
+  &__alias-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    flex: 1;
+    min-width: 0;
   }
 
   &__alias-text {
     color: $c-ink;
     font-weight: $fw-semibold;
     font-size: $fs-step-0;
+  }
+
+  &__alias-example {
+    color: $c-ink-faint;
+    font-style: italic;
+    font-size: $fs-step--1;
   }
 
   &__alias-delete {
@@ -187,12 +202,15 @@
 
   &__alias-add {
     display: flex;
+    flex-direction: column;
     gap: $sp-2;
   }
 
   &__alias-input {
     flex: 1;
     min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
     padding: $sp-1 $sp-2;
     border: $border-thin solid $c-rule;
     border-radius: $radius-sm;
@@ -209,6 +227,8 @@
   }
 
   &__alias-btn {
+    width: 100%;
+    box-sizing: border-box;
     padding: $sp-1 $sp-3;
     border: none;
     border-radius: $radius-sm;
@@ -262,5 +282,210 @@
     color: $c-ink-faint;
     font-style: italic;
     margin-top: 0.125rem;
+  }
+
+  // ---- 🧠 퀴즈 (My meaning 단어만) --------------------------
+  &__quiz-start {
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    color: $c-accent;
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-accent;
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-accent-light;
+      }
+    }
+  }
+
+  &__quiz {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: $sp-4;
+    background: rgba(44, 36, 22, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    cursor: pointer;
+    animation: vocabQuizIn 0.2s ease;
+  }
+
+  &__quiz-card {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-3;
+    max-width: min(24rem, calc(100vw - 2rem));
+    width: 100%;
+    padding: $sp-6;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-xl;
+    box-shadow: $shadow-xl;
+    cursor: default;
+  }
+
+  &__quiz-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: $ff;
+    font-weight: $fw-semibold;
+    font-size: $fs-step-0;
+    color: $c-ink;
+  }
+
+  &__quiz-close {
+    font-size: $fs-step-1;
+    padding: 0 $sp-2;
+    border-radius: $radius-sm;
+    color: $c-ink-soft;
+    cursor: pointer;
+
+    &:hover { background: $c-page-dark; color: $c-ink; }
+  }
+
+  &__quiz-body {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-3;
+  }
+
+  &__quiz-progress {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    font-family: $ff;
+  }
+
+  &__quiz-score-chip {
+    font-size: $fs-step--2;
+    color: $c-equals;
+    background: rgba(61, 90, 64, 0.1);
+    border-radius: 999px;
+    padding: 0.1rem $sp-2;
+    font-weight: $fw-semibold;
+  }
+
+  &__quiz-q {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $sp-2;
+    padding: $sp-5 $sp-4;
+    background: rgba(92, 61, 46, 0.06);
+    border: $border-thin solid rgba(92, 61, 46, 0.18);
+    border-radius: $radius-md;
+    text-align: center;
+  }
+
+  &__quiz-label {
+    font-size: $fs-step--2;
+    color: $c-accent;
+    font-weight: $fw-semibold;
+    text-transform: uppercase;
+    letter-spacing: $ls-wide;
+  }
+
+  &__quiz-meaning {
+    font-family: $ff;
+    font-size: $fs-step-2;
+    font-weight: $fw-bold;
+    color: $c-ink;
+  }
+
+  &__quiz-example {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    font-style: italic;
+  }
+
+  &__quiz-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: $sp-2 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-paper;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step-0;
+    outline: none;
+
+    &:focus {
+      border-color: $c-accent;
+      box-shadow: 0 0 0 2px $c-accent-light;
+    }
+  }
+
+  &__quiz-feedback {
+    font-size: $fs-step-0;
+    font-weight: $fw-semibold;
+    font-family: $ff;
+    text-align: center;
+
+    &--ok { color: $c-equals; }
+    &--no { color: $c-error; }
+  }
+
+  &__quiz-btn {
+    width: 100%;
+    box-sizing: border-box;
+    padding: $sp-2 $sp-6;
+    border: none;
+    border-radius: 999px;
+    background: $c-accent;
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step-0;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover { background: $c-accent-hover; }
+    &:active { transform: scale(0.97); }
+
+    &--ghost {
+      background: transparent;
+      color: $c-ink-soft;
+      border: $border-thin solid $c-rule;
+
+      &:hover { background: $c-page-dark; color: $c-ink; }
+    }
+  }
+
+  &__quiz-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $sp-4;
+    padding: $sp-3 0;
+  }
+
+  &__quiz-score {
+    font-family: $ff;
+    font-size: $fs-step-2;
+    font-weight: $fw-bold;
+    color: $c-ink;
+  }
+
+  &__quiz-actions {
+    display: flex;
+    gap: $sp-2;
+    width: 100%;
+
+    .vocab__quiz-btn {
+      width: auto;
+      flex: 1;
+    }
   }
 }

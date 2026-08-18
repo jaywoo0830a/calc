@@ -518,11 +518,11 @@ app.get('/vocab/:word/aliases', (req, res) => {
 app.post('/vocab/:word/aliases', (req, res) => {
   try {
     const word = String(req.params.word || '');
-    const alias = String((req.body || {}).alias || '').replace(/\s+/g, ' ').trim();
+    const body = req.body || {};
+    const alias = String(body.alias || '').replace(/\s+/g, ' ').trim();
+    const example = String(body.example || '').replace(/\s+/g, ' ').trim();
     if (!word || !alias) return res.status(400).json({ error: 'word and alias are required' });
-    const saved = vocabAliases.add(word, alias);
-    if (!saved) return res.status(200).json({ ok: true, duplicate: true });
-    res.json(saved);
+    res.json(vocabAliases.add(word, alias, example));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

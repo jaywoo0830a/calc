@@ -219,7 +219,10 @@ export default function WordLookup() {
             <div className="word-lookup__aliases-title">⭐ My meaning</div>
             <ol className="word-lookup__aliases-list">
               {aliases.map((a, i) => (
-                <li key={i} className="word-lookup__alias">{a.alias}</li>
+                <li key={i} className="word-lookup__alias">
+                  {a.alias}
+                  {a.example && <span className="word-lookup__alias-example">“{a.example}”</span>}
+                </li>
               ))}
             </ol>
           </div>

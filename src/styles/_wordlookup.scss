@@ -129,6 +129,14 @@
     line-height: 1.4;
   }
 
+  &__alias-example {
+    display: block;
+    color: $c-ink-faint;
+    font-style: italic;
+    font-weight: $fw-normal;
+    font-size: $fs-step--1;
+  }
+
   &__meaning {
     margin-bottom: $sp-3;
 

@@ -78,10 +78,10 @@ export const api = {
   listVocabAliases(word) {
     return request('/vocab/' + encodeURIComponent(word) + '/aliases');
   },
-  addVocabAlias(word, alias) {
+  addVocabAlias(word, alias, example = '') {
     return request('/vocab/' + encodeURIComponent(word) + '/aliases', {
       method: 'POST',
-      body: JSON.stringify({ alias }),
+      body: JSON.stringify({ alias, example }),
     });
   },
   deleteVocabAlias(word, alias) {

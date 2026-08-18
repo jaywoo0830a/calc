@@ -25,6 +25,7 @@ export default function Vocab() {
   const [expanded, setExpanded] = useState(null);  // { word, status, data }
   const [aliases, setAliases] = useState([]);      // 나만의 의미 (⭐)
   const [aliasInput, setAliasInput] = useState('');
+  const [exampleInput, setExampleInput] = useState(''); // 의미와 함께 입력할 예문
   const [quiz, setQuiz] = useState(null);          // 🧠 퀴즈 (My meaning 정의된 단어만)
   const [quizCount, setQuizCount] = useState(0);   // 퀴즈 가능 단어 수
   const expandedRef = useRef(null);
@@ -56,6 +57,7 @@ export default function Vocab() {
     expandedRef.current = word;
     setExpanded({ word, status: 'loading', data: null });
     setAliasInput('');
+    setExampleInput('');
     refreshAliases(word);
     lookupDefinition(word).then((data) => {
       if (expandedRef.current !== word) return;
@@ -63,18 +65,20 @@ export default function Vocab() {
     });
   }, [refreshAliases]);
 
-  // 나만의 의미 추가 (1단어 → N개)
+  // 나만의 의미 추가 (1단어 → N개, 예문 선택)
   const addAlias = useCallback((e) => {
     e.preventDefault();
     const word = expandedRef.current;
     const alias = aliasInput.replace(/\s+/g, ' ').trim();
+    const example = exampleInput.replace(/\s+/g, ' ').trim();
     if (!word || !alias) return;
-    api.addVocabAlias(word, alias).then(() => {
+    api.addVocabAlias(word, alias, example).then(() => {
       setAliasInput('');
+      setExampleInput('');
       refreshAliases(word);
       refreshQuizCount();
     }).catch(() => {});
-  }, [aliasInput, refreshAliases, refreshQuizCount]);
+  }, [aliasInput, exampleInput, refreshAliases, refreshQuizCount]);
 
   const removeAlias = useCallback((word, alias) => {
     api.deleteVocabAlias(word, alias).then(() => {
@@ -99,13 +103,12 @@ export default function Vocab() {
     const byWord = new Map();
     for (const row of list || []) {
       if (!byWord.has(row.word)) byWord.set(row.word, []);
-      byWord.get(row.word).push(row.alias);
+      byWord.get(row.word).push(row); // { alias, example } 객체 통째로 보관
     }
-    const entries = [...byWord.entries()].map(([word, meanings]) => ({
-      word,
-      q: meanings[Math.floor(Math.random() * meanings.length)], // 뜻 중 하나를 문제로
-      meanings,
-    }));
+    const entries = [...byWord.entries()].map(([word, meanings]) => {
+      const q = meanings[Math.floor(Math.random() * meanings.length)]; // 뜻 중 하나를 문제로
+      return { word, q: q.alias, qExample: q.example || '', meanings };
+    });
     // 셔플
     for (let i = entries.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -202,7 +205,10 @@ export default function Vocab() {
                         {aliases.map((a, i) => (
                           <li key={a.alias} className="vocab__alias">
                             <span className="vocab__alias-num">{i + 1}.</span>
-                            <span className="vocab__alias-text">{a.alias}</span>
+                            <span className="vocab__alias-body">
+                              <span className="vocab__alias-text">{a.alias}</span>
+                              {a.example && <span className="vocab__alias-example">“{a.example}”</span>}
+                            </span>
                             <button
                               className="vocab__alias-delete"
                               onClick={() => removeAlias(it.word, a.alias)}
@@ -219,6 +225,12 @@ export default function Vocab() {
                         placeholder="Add your own meaning…"
                         value={aliasInput}
                         onChange={(e) => setAliasInput(e.target.value)}
+                      />
+                      <input
+                        className="vocab__alias-input"
+                        placeholder="Example sentence (optional)…"
+                        value={exampleInput}
+                        onChange={(e) => setExampleInput(e.target.value)}
                       />
                       <button className="vocab__alias-btn" type="submit">Add</button>
                     </form>
@@ -271,11 +283,15 @@ export default function Vocab() {
             ) : (
               <div className="vocab__quiz-body">
                 <div className="vocab__quiz-progress">
-                  {quiz.index + 1} / {quiz.items.length} · ✓ {quiz.score}
+                  <span>Question {quiz.index + 1} / {quiz.items.length}</span>
+                  <span className="vocab__quiz-score-chip">✓ {quiz.score}</span>
                 </div>
                 <div className="vocab__quiz-q">
                   <span className="vocab__quiz-label">Meaning</span>
                   <span className="vocab__quiz-meaning">{quiz.items[quiz.index].q}</span>
+                  {quiz.items[quiz.index].qExample && (
+                    <span className="vocab__quiz-example">“{quiz.items[quiz.index].qExample}”</span>
+                  )}
                 </div>
                 <input
                   className="vocab__quiz-input"
