@@ -4,6 +4,8 @@ import { getRangeSelectState, subscribeRangeSelect } from '../lib/rangeSelectSta
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
 import { api } from '../lib/api.js';
+import ClearGate from './ClearGate.jsx';
+import { useClearGate } from '../hooks/useClearGate.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import PdfSearchPanel from './PdfSearchPanel.jsx';
@@ -390,9 +392,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     api.updateProblem(p.id, { status, attempts: p.attempts + 1 }).then(refreshProblems).catch(() => {});
   }, [refreshProblems]);
 
+  const { requireClear, gateProps } = useClearGate(); // 파괴적 작업 비밀번호 게이트
+
   const removeProblemItem = useCallback((p) => {
-    api.deleteProblem(p.id).then(refreshProblems).catch(() => {});
-  }, [refreshProblems]);
+    requireClear('Delete this problem', () => {
+      api.deleteProblem(p.id).then(refreshProblems).catch(() => {});
+    });
+  }, [requireClear, refreshProblems]);
 
   // ── Reset state when PDF url changes ───────────────────
   useEffect(() => {
@@ -1301,6 +1307,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         >⛶</button>
       )}
       {toast && <div className="pdf-annotator__toast">{toast}</div>}
+      <ClearGate {...gateProps} />
     </div>
   );
 

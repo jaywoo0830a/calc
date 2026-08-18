@@ -12,10 +12,18 @@
 .vocab {
   display: flex;
   flex-direction: column;
+  align-items: center; // 와이드 화면에서 중앙 정렬
   height: 100%;
   min-height: 0;
   padding: $sp-3;
   gap: $sp-3;
+
+  &__head,
+  &__empty,
+  &__list {
+    width: 100%;
+    max-width: 48rem;
+  }
 
   &__head {
     display: flex;
@@ -66,7 +74,6 @@
     display: flex;
     flex-direction: column;
     gap: $sp-1;
-    max-width: 45rem;
   }
 
   &__item {

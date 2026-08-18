@@ -2,12 +2,21 @@
 // Vite dev / Caddy prod 모두 `/api` → API 서버로 프록시된다.
 const BASE = '/api';
 
+// 파괴적(DELETE) 요청용 세션 토큰 — 비밀번호 검증 성공 시 서버가 발급
+let clearToken = null;
+
+/** api 모듈 밖(storage.js 등)에서 토큰 헤더를 붙일 때 사용 */
+export function getClearToken() {
+  return clearToken;
+}
+
 async function request(path, options = {}) {
-  const res = await fetch(BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (options.method === 'DELETE' && clearToken) headers['X-Clear-Token'] = clearToken;
+  const res = await fetch(BASE + path, { ...options, headers });
   if (!res.ok) {
+    // 토큰 무효(서버 재시작 등)면 폐기 — 다음 파괴적 작업에서 다시 비밀번호 확인
+    if (options.method === 'DELETE' && res.status === 401) clearToken = null;
     let msg = `API ${res.status}`;
     try { msg = (await res.json()).error || msg; } catch { /* keep default */ }
     throw new Error(msg);
@@ -87,6 +96,18 @@ export const api = {
   deleteVocabAlias(word, alias) {
     return request('/vocab/' + encodeURIComponent(word) + '/aliases/' + encodeURIComponent(alias), {
       method: 'DELETE',
+    });
+  },
+  /** 파괴적 작업 승인 상태 — 세션 토큰 보유 여부 */
+  hasClearToken() {
+    return !!clearToken;
+  },
+
+  /** 파괴적 작업용 비밀번호 검증 — 성공 시 세션 토큰 저장 (이후 같은 세션은 재입력 생략) */
+  verifyClearPassword(password) {
+    return request('/admin/verify', { method: 'POST', body: JSON.stringify({ password }) }).then((data) => {
+      if (data && data.token) clearToken = data.token;
+      return data;
     });
   },
 };

@@ -11,7 +11,9 @@ import PdfViewer from '../components/PdfViewer.jsx';
 import SolverTimer from '../components/SolverTimer.jsx';
 import RandomPicker from '../components/RandomPicker.jsx';
 import ViewerProblemsFab from '../components/ViewerProblemsFab.jsx';
+import ClearGate from '../components/ClearGate.jsx';
 import useProblemJump from '../hooks/useProblemJump.js';
+import { useClearGate } from '../hooks/useClearGate.js';
 import { getZipEntry, setZipEntry, deleteZipEntry, zipEntries } from '../lib/zipCache.js';
 import { listZips, saveZip, loadZip as loadZipFromDB, deleteZip } from '../lib/storage.js';
 import { api } from '../lib/api.js';
@@ -179,6 +181,9 @@ export default function Viewer() {
   const stateRef = useRef({ zipId: '', fileName: '', selectedPath: '', readability: 0 }); // 세션 저장용 최신 스냅샷
   const zipInfoRef = useRef({ zipId: '', zipName: '' }); // Recent 기록용 현재 ZIP 정보 (활성화 시 동기 갱신)
   const [zipStamp, setZipStamp] = useState(0);           // ZIP 활성화 신호 — Recent 재기록 트리거
+
+  // ── 파괴적 작업 비밀번호 게이트 (문제/아카이브 삭제) ──
+  const { requireClear, gateProps } = useClearGate();
 
   // ── 문제 점프 (위치 탐색 + 스크롤) — useProblemJump 훅으로 분리 ──
   const { queueJump, pendingJumpRef } = useProblemJump({
@@ -912,8 +917,10 @@ export default function Viewer() {
   }, [refreshProblems]);
 
   const removeProblem = useCallback((p) => {
-    api.deleteProblem(p.id).then(refreshProblems).catch(() => {});
-  }, [refreshProblems]);
+    requireClear('Delete this problem', () => {
+      api.deleteProblem(p.id).then(refreshProblems).catch(() => {});
+    });
+  }, [requireClear, refreshProblems]);
 
   // 문제 문서가 열려 있는 ZIP들 중 어딘가에 존재하는지 (점프 가능 여부)
   const isDocInCurrentZip = useCallback((docPath) => {
@@ -947,19 +954,21 @@ export default function Viewer() {
     return [...groups.entries()];
   }, [docProblems]);
 
-  const handleDeleteStored = useCallback(async (id, e) => {
+  const handleDeleteStored = useCallback((id, e) => {
     e.stopPropagation();
-    await deleteZip(id);
-    // 메모리 캐시에서도 제거 — 다시 불러올 수 없으므로 이미지 blob URL 즉시 해제 (현재 ZIP이 아니어야 안전)
-    const cached = getZipEntry(id);
-    if (cached && id !== zipIdRef.current) {
-      deleteZipEntry(id);
-      for (const url of Object.values(cached.blobs || {})) {
-        if (typeof url === 'string' && url.startsWith('blob:')) URL.revokeObjectURL(url);
+    requireClear('Delete this archive', async () => {
+      await deleteZip(id);
+      // 메모리 캐시에서도 제거 — 다시 불러올 수 없으므로 이미지 blob URL 즉시 해제 (현재 ZIP이 아니어야 안전)
+      const cached = getZipEntry(id);
+      if (cached && id !== zipIdRef.current) {
+        deleteZipEntry(id);
+        for (const url of Object.values(cached.blobs || {})) {
+          if (typeof url === 'string' && url.startsWith('blob:')) URL.revokeObjectURL(url);
+        }
       }
-    }
-    await refreshStored();
-  }, [refreshStored]);
+      await refreshStored();
+    });
+  }, [requireClear, refreshStored]);
 
   const openFile = useCallback(async (node) => {
     if (!node || !node.file) return;
@@ -1378,6 +1387,7 @@ export default function Viewer() {
           </div>
         </div>
       )}
+      <ClearGate {...gateProps} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 // 간단한 IndexedDB wrapper — PDF 어노테이션/북마크 저장
 // ⚠️ ZIP 아카이브는 서버 저장으로 이동 — listZips/saveZip/loadZip/deleteZip는
 //    아래에서 /api/archives를 호출한다. (모든 기기에서 같은 라이브러리)
+import { getClearToken } from './api.js';
 const DB_NAME = 'calc-viewer';
 const DB_VERSION = 3;
 const STORE_ZIPS = 'zips';
@@ -172,7 +173,12 @@ export async function loadZip(id, onProgress) {
 export async function deleteZip(id) {
   try { await localZipDelete(id); } catch {}
   if (!String(id).startsWith('local_')) {
-    try { await archiveRequest('/' + encodeURIComponent(id), { method: 'DELETE' }); } catch { /* 서버 삭제 실패는 무시 */ }
+    try {
+      await archiveRequest('/' + encodeURIComponent(id), {
+        method: 'DELETE',
+        headers: { 'X-Clear-Token': getClearToken() || '' },
+      });
+    } catch { /* 서버 삭제 실패는 무시 */ }
   }
 }
 
@@ -259,7 +265,12 @@ export async function deleteAnnotation(id) {
 export async function deleteAllAnnotations(filePath) {
   const local = await localGetAnnotations(filePath);
   for (const a of local) await localDeleteAnnotation(a.id);
-  try { await annotationRequest('?file=' + encodeURIComponent(filePath), { method: 'DELETE' }); } catch {}
+  try {
+    await annotationRequest('?file=' + encodeURIComponent(filePath), {
+      method: 'DELETE',
+      headers: { 'X-Clear-Token': getClearToken() || '' },
+    });
+  } catch {}
 }
 
 // ============================================================

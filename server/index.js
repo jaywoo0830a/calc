@@ -8,6 +8,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { problems, archives, archivesDir, vocab, vocabAliases, annotations, bookmarks } from './db.js';
+import { CONFIG } from './config.js';
 const app = express();
 app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
@@ -380,7 +381,7 @@ app.patch('/problems/:id', (req, res) => {
 });
 
 // 특정 문서의 문제 전체 삭제 — doc 미지정 시 전체 삭제 (Problems 탭 Clear all)
-app.delete('/problems', (req, res) => {
+app.delete('/problems', requireClearToken, (req, res) => {
   try {
     const { doc } = req.query;
     if (doc) {
@@ -394,7 +395,7 @@ app.delete('/problems', (req, res) => {
   }
 });
 
-app.delete('/problems/:id', (req, res) => {
+app.delete('/problems/:id', requireClearToken, (req, res) => {
   try {
     problems.remove(req.params.id);
     res.json({ ok: true });
@@ -404,6 +405,29 @@ app.delete('/problems/:id', (req, res) => {
 });
 
 // ── ZIP 아카이브 (서버 저장 — 어떤 기기에서든 같은 라이브러리) ────────────────
+// 파괴적(DELETE) 요청용 세션 토큰 — 비밀번호 확인 성공 시 발급 (서버 재시작까지 유효)
+const clearTokens = new Set();
+
+function requireClearToken(req, res, next) {
+  const token = String(req.get('x-clear-token') || '');
+  if (token && clearTokens.has(token)) return next();
+  res.status(401).json({ error: 'Password required', ok: false });
+}
+
+app.post('/admin/verify', (req, res) => {
+  try {
+    const password = String((req.body || {}).password || '');
+    if (password !== CONFIG.clearAllPassword) {
+      return res.status(401).json({ error: 'Wrong password', ok: false });
+    }
+    const token = randomUUID();
+    clearTokens.add(token);
+    res.json({ ok: true, token });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/archives', (req, res) => {
   try {
     res.json(archives.list());
@@ -462,7 +486,7 @@ app.get('/archives/:id', (req, res) => {
   res.download(filePath, meta.name);
 });
 
-app.delete('/archives/:id', async (req, res) => {
+app.delete('/archives/:id', requireClearToken, async (req, res) => {
   const { id } = req.params;
   if (!/^[\w-]{1,64}$/.test(id)) return res.status(400).json({ error: 'bad id' });
   archives.remove(id);
@@ -490,7 +514,7 @@ app.post('/vocab', (req, res) => {
   }
 });
 
-app.delete('/vocab/:word', (req, res) => {
+app.delete('/vocab/:word', requireClearToken, (req, res) => {
   try {
     vocab.remove(req.params.word);
     res.json({ ok: true });
@@ -528,7 +552,7 @@ app.post('/vocab/:word/aliases', (req, res) => {
   }
 });
 
-app.delete('/vocab/:word/aliases/:alias', (req, res) => {
+app.delete('/vocab/:word/aliases/:alias', requireClearToken, (req, res) => {
   try {
     vocabAliases.remove(String(req.params.word || ''), String(req.params.alias || ''));
     res.json({ ok: true });
@@ -537,7 +561,7 @@ app.delete('/vocab/:word/aliases/:alias', (req, res) => {
   }
 });
 // 전체 비우기
-app.delete('/vocab', (req, res) => {
+app.delete('/vocab', requireClearToken, (req, res) => {
   try {
     vocab.removeAll();
     res.json({ ok: true });
@@ -586,7 +610,7 @@ app.delete('/annotations/:id', (req, res) => {
 });
 
 // 특정 파일의 주석 전체 삭제
-app.delete('/annotations', (req, res) => {
+app.delete('/annotations', requireClearToken, (req, res) => {
   try {
     const file = String(req.query.file || '');
     if (!file) return res.status(400).json({ error: 'file query param required' });
@@ -633,7 +657,7 @@ app.delete('/bookmarks/:id', (req, res) => {
 });
 
 // 특정 파일의 북마크 전체 삭제
-app.delete('/bookmarks', (req, res) => {
+app.delete('/bookmarks', requireClearToken, (req, res) => {
   try {
     const file = String(req.query.file || '');
     if (!file) return res.status(400).json({ error: 'file query param required' });

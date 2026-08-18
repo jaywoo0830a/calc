@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { lookupDefinition } from '../lib/dictionary.js';
+import { useClearGate } from '../hooks/useClearGate.js';
+import ClearGate from '../components/ClearGate.jsx';
 
 // ── Vocab — 찾아본 단어장 (서버 DB) ─────────────────────────────────────────
 // WordLookup이 정의 카드를 띄울 때마다 서버에 기록되고, 이 페이지에서
@@ -28,6 +30,7 @@ export default function Vocab() {
   const [exampleInput, setExampleInput] = useState(''); // 의미와 함께 입력할 예문
   const [quiz, setQuiz] = useState(null);          // 🧠 퀴즈 (My meaning 정의된 단어만)
   const [quizCount, setQuizCount] = useState(0);   // 퀴즈 가능 단어 수
+  const { requireClear, gateProps } = useClearGate(); // 파괴적 작업 비밀번호 게이트
   const expandedRef = useRef(null);
 
   const refreshQuizCount = useCallback(() => {
@@ -81,19 +84,22 @@ export default function Vocab() {
   }, [aliasInput, exampleInput, refreshAliases, refreshQuizCount]);
 
   const removeAlias = useCallback((word, alias) => {
-    api.deleteVocabAlias(word, alias).then(() => {
-      refreshAliases(word);
-      refreshQuizCount();
-    }).catch(() => {});
-  }, [refreshAliases, refreshQuizCount]);
+    requireClear('Delete this meaning', () => {
+      api.deleteVocabAlias(word, alias).then(() => {
+        refreshAliases(word);
+        refreshQuizCount();
+      }).catch(() => {});
+    });
+  }, [requireClear, refreshAliases, refreshQuizCount]);
 
   const removeWord = useCallback((word, e) => {
     e.stopPropagation();
-    api.deleteVocab(word).then(refresh).catch(() => {});
-  }, [refresh]);
+    requireClear('Delete this word', () => {
+      api.deleteVocab(word).then(refresh).catch(() => {});
+    });
+  }, [requireClear, refresh]);
 
   const clearAll = useCallback(() => {
-    if (!window.confirm('Clear the whole vocabulary list?')) return;
     api.clearVocab().then(() => { refresh(); refreshQuizCount(); }).catch(() => {});
   }, [refresh, refreshQuizCount]);
 
@@ -166,7 +172,7 @@ export default function Vocab() {
           </button>
         )}
         {items && items.length > 0 && (
-          <button className="vocab__clear" onClick={clearAll}>Clear all</button>
+          <button className="vocab__clear" onClick={() => requireClear('Clear the vocabulary list', clearAll)}>Clear all</button>
         )}
       </div>
 
@@ -265,8 +271,7 @@ export default function Vocab() {
       )}
 
       {/* 🧠 퀴즈 오버레이 — My meaning이 정의된 단어만 (meaning → word 리콜) */}
-      {quiz && (
-        <div className="vocab__quiz" onClick={closeQuiz} role="dialog" aria-modal="true" aria-label="Vocabulary quiz">
+      {quiz && (        <div className="vocab__quiz" onClick={closeQuiz} role="dialog" aria-modal="true" aria-label="Vocabulary quiz">
           <div className="vocab__quiz-card" onClick={(e) => e.stopPropagation()}>
             <div className="vocab__quiz-head">
               <span>🧠 Quiz — recall the word</span>
@@ -318,6 +323,8 @@ export default function Vocab() {
           </div>
         </div>
       )}
+
+      <ClearGate {...gateProps} />
     </main>
   );
 }

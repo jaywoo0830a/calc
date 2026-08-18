@@ -1,0 +1,111 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: clear-gate — 파괴적 작업(Clear all) 비밀번호 확인 모달
+// ============================================================
+
+.clear-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $sp-4;
+  background: rgba(44, 36, 22, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: pointer;
+  animation: clearGateIn 0.2s ease;
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $sp-3;
+    max-width: min(20rem, calc(100vw - 2rem));
+    width: 100%;
+    padding: $sp-6;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-xl;
+    box-shadow: $shadow-xl;
+    text-align: center;
+    cursor: default;
+  }
+
+  &__icon {
+    font-size: 2rem;
+    line-height: 1;
+  }
+
+  &__title {
+    font-family: $ff;
+    font-weight: $fw-semibold;
+    font-size: $fs-step-0;
+    color: $c-ink;
+  }
+
+  &__input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: $sp-2 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-paper;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step-0;
+    text-align: center;
+    outline: none;
+
+    &:focus {
+      border-color: $c-accent;
+      box-shadow: 0 0 0 2px $c-accent-light;
+    }
+  }
+
+  &__error {
+    font-size: $fs-step--1;
+    color: $c-error;
+    font-weight: $fw-semibold;
+    font-family: $ff;
+  }
+
+  &__actions {
+    display: flex;
+    gap: $sp-2;
+    width: 100%;
+  }
+
+  &__btn {
+    flex: 1;
+    padding: $sp-2 $sp-6;
+    border: none;
+    border-radius: 999px;
+    background: $c-error;
+    color: #fff;
+    font-family: $ff;
+    font-size: $fs-step-0;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover { background: darken($c-error, 8%); }
+    &:active { transform: scale(0.97); }
+    &:disabled { opacity: 0.5; cursor: default; }
+
+    &--ghost {
+      background: transparent;
+      color: $c-ink-soft;
+      border: $border-thin solid $c-rule;
+
+      &:hover { background: $c-page-dark; color: $c-ink; }
+    }
+  }
+}
+
+@keyframes clearGateIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

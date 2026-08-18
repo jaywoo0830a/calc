@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { setPendingProblem } from '../lib/problemJump.js';
+import { useClearGate } from '../hooks/useClearGate.js';
+import ClearGate from '../components/ClearGate.jsx';
 
 // ── Problems — 푼/틀린 문제 모아보기 (서버 DB, Vocab 탭과 유사) ──────────────
 // Viewer에서 ✂️ Selecting으로 등록한 문제들을 문서/상태별로 모아 보고,
@@ -30,6 +32,7 @@ export default function Problems() {
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState('all');
   const navigate = useNavigate();
+  const { requireClear, gateProps } = useClearGate(); // 파괴적 작업 비밀번호 게이트
 
   const refresh = useCallback(() => {
     setLoadError(false);
@@ -55,11 +58,12 @@ export default function Problems() {
 
   const removeItem = useCallback((p, e) => {
     e.stopPropagation();
-    api.deleteProblem(p.id).then(refresh).catch(() => {});
-  }, [refresh]);
+    requireClear('Delete this problem', () => {
+      api.deleteProblem(p.id).then(refresh).catch(() => {});
+    });
+  }, [requireClear, refresh]);
 
   const clearAll = useCallback(() => {
-    if (!window.confirm('Delete all problems?')) return;
     api.clearProblems().then(refresh).catch(() => {});
   }, [refresh]);
 
@@ -92,7 +96,7 @@ export default function Problems() {
           ))}
         </div>
         {items && items.length > 0 && (
-          <button className="problems__clear" onClick={clearAll}>Clear all</button>
+          <button className="problems__clear" onClick={() => requireClear('Clear all problems', clearAll)}>Clear all</button>
         )}
       </div>
 
@@ -154,6 +158,8 @@ export default function Problems() {
           ))}
         </ul>
       )}
+
+      <ClearGate {...gateProps} />
     </main>
   );
 }
