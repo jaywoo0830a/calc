@@ -47,6 +47,16 @@ export const api = {
     return request('/problems?doc=' + encodeURIComponent(doc), { method: 'DELETE' });
   },
 
+  /** 전체 문제 삭제 */
+  clearProblems() {
+    return request('/problems', { method: 'DELETE' });
+  },
+
+  /** 특정 파일을 담은 아카이브 검색 — 최근 업로드 순 */
+  findArchivesByFile(path) {
+    return request('/archives/find?path=' + encodeURIComponent(path));
+  },
+
   /** 찾아본 단어장 (vocab) */
   listVocab() {
     return request('/vocab');
@@ -59,5 +69,24 @@ export const api = {
   },
   clearVocab() {
     return request('/vocab', { method: 'DELETE' });
+  },
+
+  /** 나만의 의미 매핑 (1단어 → N개 별칭) */
+  listAllVocabAliases() {
+    return request('/vocab/aliases');
+  },
+  listVocabAliases(word) {
+    return request('/vocab/' + encodeURIComponent(word) + '/aliases');
+  },
+  addVocabAlias(word, alias) {
+    return request('/vocab/' + encodeURIComponent(word) + '/aliases', {
+      method: 'POST',
+      body: JSON.stringify({ alias }),
+    });
+  },
+  deleteVocabAlias(word, alias) {
+    return request('/vocab/' + encodeURIComponent(word) + '/aliases/' + encodeURIComponent(alias), {
+      method: 'DELETE',
+    });
   },
 };

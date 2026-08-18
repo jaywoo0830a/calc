@@ -28,11 +28,19 @@ db.exec(`
     status      TEXT NOT NULL DEFAULT 'wrong' CHECK (status IN ('solved','wrong')),
     wrong_count INTEGER NOT NULL DEFAULT 0,
     attempts    INTEGER NOT NULL DEFAULT 0,
+    solved_at   TEXT,                        -- 마지막으로 맞은 시각
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_problems_doc    ON problems(doc_id);
   CREATE INDEX IF NOT EXISTS idx_problems_status ON problems(status);
+
+  CREATE TABLE IF NOT EXISTS archive_files (
+    archive_id TEXT NOT NULL,
+    path       TEXT NOT NULL,
+    PRIMARY KEY (archive_id, path)
+  );
+  CREATE INDEX IF NOT EXISTS idx_archive_files_path ON archive_files(path);
 
   CREATE TABLE IF NOT EXISTS archives (
     id         TEXT PRIMARY KEY,
@@ -46,6 +54,14 @@ db.exec(`
     count      INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     last_at    TEXT NOT NULL
+  );
+
+  -- 나만의 의미 매핑 (1단어 → N개 별칭)
+  CREATE TABLE IF NOT EXISTS vocab_aliases (
+    word       TEXT NOT NULL,
+    alias      TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (word, alias)
   );
 
   CREATE TABLE IF NOT EXISTS annotations (
@@ -71,6 +87,14 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_bookmarks_file ON bookmarks(file_path);
 `);
+
+// ── 마이그레이션: problems.solved_at 추가 (구버전 DB용) ─────────────────
+{
+  const cols = db.prepare('PRAGMA table_info(problems)').all();
+  if (!cols.some((c) => c.name === 'solved_at')) {
+    db.exec('ALTER TABLE problems ADD COLUMN solved_at TEXT');
+  }
+}
 
 // ── 레거시 정리 (호환성 불필요) ──────────────────────────────────────────
 // 문제는 반드시 ref(마크다운 JSON 좌표 또는 PDF 페이지 번호)를 가져야 점프 가능.
@@ -110,6 +134,7 @@ export const problems = {
 
     if (existing) {
       const becameWrong = status === 'wrong' && existing.status !== 'wrong';
+      const becameSolved = status === 'solved' && existing.status !== 'solved';
       db.prepare(`
         UPDATE problems
         SET status      = @status,
@@ -117,9 +142,10 @@ export const problems = {
             ref         = @ref,      -- 최신 좌표로 항상 갱신
             wrong_count = wrong_count + @becameWrong,
             attempts    = attempts + 1,
+            solved_at   = CASE WHEN @becameSolved = 1 THEN @now ELSE solved_at END,
             updated_at  = @now
         WHERE id = @id
-      `).run({ id, status, docPath, ref, becameWrong: becameWrong ? 1 : 0, now });
+      `).run({ id, status, docPath, ref, becameWrong: becameWrong ? 1 : 0, becameSolved: becameSolved ? 1 : 0, now });
       return db.prepare('SELECT * FROM problems WHERE id = ?').get(id);
     }
 
@@ -128,11 +154,12 @@ export const problems = {
       .run({ docId, text: normalizedText, id });
 
     db.prepare(`
-      INSERT INTO problems (id, doc_id, doc_path, ref, text, status, wrong_count, attempts, created_at, updated_at)
-      VALUES (@id, @docId, @docPath, @ref, @text, @status, @wrongCount, 1, @now, @now)
+      INSERT INTO problems (id, doc_id, doc_path, ref, text, status, wrong_count, attempts, solved_at, created_at, updated_at)
+      VALUES (@id, @docId, @docPath, @ref, @text, @status, @wrongCount, 1, @solvedAt, @now, @now)
     `).run({
       id, docId, docPath, ref, text: normalizedText, status,
       wrongCount: status === 'wrong' ? 1 : 0,
+      solvedAt: status === 'solved' ? now : null,
       now,
     });
     return db.prepare('SELECT * FROM problems WHERE id = ?').get(id);
@@ -146,17 +173,20 @@ export const problems = {
     const statusChanged = nextStatus !== existing.status;
     const nextAttempts = attempts ?? (statusChanged ? existing.attempts + 1 : existing.attempts);
     const becameWrong = nextStatus === 'wrong' && existing.status !== 'wrong';
+    const becameSolved = nextStatus === 'solved' && existing.status !== 'solved';
     db.prepare(`
       UPDATE problems
       SET status      = @status,
           wrong_count = wrong_count + @becameWrong,
           attempts    = @attempts,
+          solved_at   = CASE WHEN @becameSolved = 1 THEN @now ELSE solved_at END,
           updated_at  = @now
       WHERE id = @id
     `).run({
       id,
       status: nextStatus,
       becameWrong: becameWrong ? 1 : 0,
+      becameSolved: becameSolved ? 1 : 0,
       attempts: nextAttempts,
       now: new Date().toISOString(),
     });
@@ -170,6 +200,11 @@ export const problems = {
   /** 특정 문서의 모든 문제 삭제 (재업로드/패치 후 정리용) */
   removeByDoc(docId) {
     db.prepare('DELETE FROM problems WHERE doc_id = ?').run(docId);
+  },
+
+  /** 전체 문제 삭제 (Problems 탭 Clear all) */
+  removeAll() {
+    db.prepare('DELETE FROM problems').run();
   },
 };
 
@@ -187,6 +222,31 @@ export const archives = {
   },
   remove(id) {
     db.prepare('DELETE FROM archives WHERE id = ?').run(id);
+    db.prepare('DELETE FROM archive_files WHERE archive_id = ?').run(id);
+  },
+
+  /** ZIP 내부 파일 목록 저장 (업로드/백필 시) */
+  setFileList(id, paths) {
+    const ins = db.prepare('INSERT OR IGNORE INTO archive_files (archive_id, path) VALUES (?, ?)');
+    const tx = db.transaction((list) => { for (const p of list) ins.run(id, p); });
+    tx(paths);
+  },
+
+  hasFileList(id) {
+    return !!db.prepare('SELECT 1 FROM archive_files WHERE archive_id = ? LIMIT 1').get(id);
+  },
+
+  /** 해당 경로(또는 파일명)를 담은 아카이브 목록 — 최근 업로드 순 */
+  findByFile(path) {
+    const name = String(path || '').split('/').pop();
+    return db.prepare(`
+      SELECT a.id, a.name, a.created_at AS savedAt
+      FROM archive_files af
+      JOIN archives a ON a.id = af.archive_id
+      WHERE af.path = @path OR af.path = @name OR af.path LIKE '%/' || @name
+      GROUP BY a.id
+      ORDER BY a.created_at DESC
+    `).all({ path: String(path || ''), name });
   },
 };
 
@@ -206,12 +266,34 @@ export const vocab = {
   },
   remove(word) {
     db.prepare('DELETE FROM vocab WHERE word = ?').run(word);
+    db.prepare('DELETE FROM vocab_aliases WHERE word = ?').run(word);
   },
   removeAll() {
     db.prepare('DELETE FROM vocab').run();
+    db.prepare('DELETE FROM vocab_aliases').run();
   },
 };
-
+/** 나만의 의미 매핑 — 단어별 별칭 1:N (예: concise → shorten, compressed) */
+export const vocabAliases = {
+  listAll() {
+    return db.prepare('SELECT word, alias, created_at FROM vocab_aliases ORDER BY created_at ASC').all();
+  },
+  listFor(word) {
+    return db.prepare(
+      'SELECT word, alias, created_at FROM vocab_aliases WHERE word = ? ORDER BY created_at ASC, alias ASC'
+    ).all(word);
+  },
+  add(word, alias) {
+    const now = new Date().toISOString();
+    db.prepare('INSERT OR IGNORE INTO vocab_aliases (word, alias, created_at) VALUES (?, ?, ?)')
+      .run(word, alias, now);
+    return db.prepare('SELECT word, alias, created_at FROM vocab_aliases WHERE word = ? AND alias = ?')
+      .get(word, alias) || null;
+  },
+  remove(word, alias) {
+    db.prepare('DELETE FROM vocab_aliases WHERE word = ? AND alias = ?').run(word, alias);
+  },
+};
 /** PDF 주석(하이라이트/밑줄/코멘트) — 클라우드 동기화 (기기 간 동일 표시) */
 export const annotations = {
   list(filePath) {

@@ -93,6 +93,7 @@ export default function Playground() {
         <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Three.js</span>
         <Link to="/math" className="calculator__nav-tab">Math Space</Link>
+        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
         <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
       <div className="playground__toggle-bar">

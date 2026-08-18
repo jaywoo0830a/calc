@@ -23,13 +23,28 @@ export default function Vocab() {
   const [items, setItems] = useState(null);        // null = 로딩 중
   const [loadError, setLoadError] = useState(false);
   const [expanded, setExpanded] = useState(null);  // { word, status, data }
+  const [aliases, setAliases] = useState([]);      // 나만의 의미 (⭐)
+  const [aliasInput, setAliasInput] = useState('');
+  const [quiz, setQuiz] = useState(null);          // 🧠 퀴즈 (My meaning 정의된 단어만)
+  const [quizCount, setQuizCount] = useState(0);   // 퀴즈 가능 단어 수
   const expandedRef = useRef(null);
+
+  const refreshQuizCount = useCallback(() => {
+    api.listAllVocabAliases().then((list) => {
+      setQuizCount(new Set((list || []).map((r) => r.word)).size);
+    }).catch(() => setQuizCount(0));
+  }, []);
 
   const refresh = useCallback(() => {
     setLoadError(false);
     api.listVocab().then(setItems).catch(() => { setItems(null); setLoadError(true); });
-  }, []);
+    refreshQuizCount();
+  }, [refreshQuizCount]);
   useEffect(() => { refresh(); }, [refresh]);
+
+  const refreshAliases = useCallback((word) => {
+    api.listVocabAliases(word).then(setAliases).catch(() => setAliases([]));
+  }, []);
 
   // 단어 클릭 → 정의 펼치기/접기
   const toggleWord = useCallback((word) => {
@@ -40,11 +55,33 @@ export default function Vocab() {
     }
     expandedRef.current = word;
     setExpanded({ word, status: 'loading', data: null });
+    setAliasInput('');
+    refreshAliases(word);
     lookupDefinition(word).then((data) => {
       if (expandedRef.current !== word) return;
       setExpanded({ word, status: 'done', data });
     });
-  }, []);
+  }, [refreshAliases]);
+
+  // 나만의 의미 추가 (1단어 → N개)
+  const addAlias = useCallback((e) => {
+    e.preventDefault();
+    const word = expandedRef.current;
+    const alias = aliasInput.replace(/\s+/g, ' ').trim();
+    if (!word || !alias) return;
+    api.addVocabAlias(word, alias).then(() => {
+      setAliasInput('');
+      refreshAliases(word);
+      refreshQuizCount();
+    }).catch(() => {});
+  }, [aliasInput, refreshAliases, refreshQuizCount]);
+
+  const removeAlias = useCallback((word, alias) => {
+    api.deleteVocabAlias(word, alias).then(() => {
+      refreshAliases(word);
+      refreshQuizCount();
+    }).catch(() => {});
+  }, [refreshAliases, refreshQuizCount]);
 
   const removeWord = useCallback((word, e) => {
     e.stopPropagation();
@@ -53,8 +90,56 @@ export default function Vocab() {
 
   const clearAll = useCallback(() => {
     if (!window.confirm('Clear the whole vocabulary list?')) return;
-    api.clearVocab().then(refresh).catch(() => {});
-  }, [refresh]);
+    api.clearVocab().then(() => { refresh(); refreshQuizCount(); }).catch(() => {});
+  }, [refresh, refreshQuizCount]);
+
+  // ── 🧠 퀴즈: My meaning이 정의된 단어만 (meaning → word 리콜) ──
+  const startQuiz = useCallback(async () => {
+    const list = await api.listAllVocabAliases().catch(() => []);
+    const byWord = new Map();
+    for (const row of list || []) {
+      if (!byWord.has(row.word)) byWord.set(row.word, []);
+      byWord.get(row.word).push(row.alias);
+    }
+    const entries = [...byWord.entries()].map(([word, meanings]) => ({
+      word,
+      q: meanings[Math.floor(Math.random() * meanings.length)], // 뜻 중 하나를 문제로
+      meanings,
+    }));
+    // 셔플
+    for (let i = entries.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [entries[i], entries[j]] = [entries[j], entries[i]];
+    }
+    if (entries.length === 0) return;
+    setQuiz({ items: entries, index: 0, score: 0, input: '', feedback: null, done: false });
+  }, []);
+
+  const closeQuiz = useCallback(() => setQuiz(null), []);
+
+  const submitQuiz = useCallback(() => {
+    setQuiz((q) => {
+      if (!q || q.feedback) return q;
+      const ok = q.input.trim().toLowerCase() === q.items[q.index].word.toLowerCase();
+      return { ...q, feedback: ok ? 'correct' : 'wrong', score: q.score + (ok ? 1 : 0) };
+    });
+  }, []);
+
+  const nextQuiz = useCallback(() => {
+    setQuiz((q) => {
+      if (!q) return q;
+      if (q.index + 1 >= q.items.length) return { ...q, done: true };
+      return { ...q, index: q.index + 1, input: '', feedback: null };
+    });
+  }, []);
+
+  // 퀴즈 중 Esc 닫기
+  useEffect(() => {
+    if (!quiz) return;
+    const onKey = (e) => { if (e.key === 'Escape') closeQuiz(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [quiz, closeQuiz]);
 
   return (
     <main className="vocab">
@@ -63,6 +148,7 @@ export default function Vocab() {
         <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
         <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
         <Link to="/math" className="calculator__nav-tab">Math Space</Link>
+        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Vocab</span>
       </nav>
 
@@ -71,6 +157,11 @@ export default function Vocab() {
         <span className="vocab__count">
           {items ? items.length + (items.length === 1 ? ' word' : ' words') : '…'}
         </span>
+        {quizCount > 0 && (
+          <button className="vocab__quiz-start" onClick={startQuiz} title="Quiz your own meanings">
+            🧠 Quiz ({quizCount})
+          </button>
+        )}
         {items && items.length > 0 && (
           <button className="vocab__clear" onClick={clearAll}>Clear all</button>
         )}
@@ -104,6 +195,34 @@ export default function Vocab() {
               </div>
               {expanded && expanded.word === it.word && (
                 <div className="vocab__defs">
+                  <div className="vocab__aliases">
+                    <div className="vocab__aliases-title">⭐ My meaning</div>
+                    {aliases.length > 0 && (
+                      <ul className="vocab__aliases-list">
+                        {aliases.map((a, i) => (
+                          <li key={a.alias} className="vocab__alias">
+                            <span className="vocab__alias-num">{i + 1}.</span>
+                            <span className="vocab__alias-text">{a.alias}</span>
+                            <button
+                              className="vocab__alias-delete"
+                              onClick={() => removeAlias(it.word, a.alias)}
+                              title="Remove"
+                              aria-label={`Remove ${a.alias}`}
+                            >×</button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <form className="vocab__alias-add" onSubmit={addAlias}>
+                      <input
+                        className="vocab__alias-input"
+                        placeholder="Add your own meaning…"
+                        value={aliasInput}
+                        onChange={(e) => setAliasInput(e.target.value)}
+                      />
+                      <button className="vocab__alias-btn" type="submit">Add</button>
+                    </form>
+                  </div>
                   {expanded.status === 'loading' && <div className="vocab__loading">Looking up…</div>}
                   {expanded.status === 'done' && expanded.data.notFound && (
                     <div className="vocab__loading">No entry found.</div>
@@ -131,6 +250,57 @@ export default function Vocab() {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* 🧠 퀴즈 오버레이 — My meaning이 정의된 단어만 (meaning → word 리콜) */}
+      {quiz && (
+        <div className="vocab__quiz" onClick={closeQuiz} role="dialog" aria-modal="true" aria-label="Vocabulary quiz">
+          <div className="vocab__quiz-card" onClick={(e) => e.stopPropagation()}>
+            <div className="vocab__quiz-head">
+              <span>🧠 Quiz — recall the word</span>
+              <button className="vocab__quiz-close" onClick={closeQuiz} aria-label="Close quiz">×</button>
+            </div>
+            {quiz.done ? (
+              <div className="vocab__quiz-result">
+                <div className="vocab__quiz-score">Score {quiz.score} / {quiz.items.length}</div>
+                <div className="vocab__quiz-actions">
+                  <button className="vocab__quiz-btn" onClick={startQuiz}>Try again</button>
+                  <button className="vocab__quiz-btn vocab__quiz-btn--ghost" onClick={closeQuiz}>Done</button>
+                </div>
+              </div>
+            ) : (
+              <div className="vocab__quiz-body">
+                <div className="vocab__quiz-progress">
+                  {quiz.index + 1} / {quiz.items.length} · ✓ {quiz.score}
+                </div>
+                <div className="vocab__quiz-q">
+                  <span className="vocab__quiz-label">Meaning</span>
+                  <span className="vocab__quiz-meaning">{quiz.items[quiz.index].q}</span>
+                </div>
+                <input
+                  className="vocab__quiz-input"
+                  placeholder="Type the word…"
+                  value={quiz.input}
+                  autoFocus
+                  onChange={(e) => setQuiz((q) => q && { ...q, input: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { quiz.feedback ? nextQuiz() : submitQuiz(); }
+                  }}
+                />
+                {quiz.feedback && (
+                  <div className={'vocab__quiz-feedback' + (quiz.feedback === 'correct' ? ' vocab__quiz-feedback--ok' : ' vocab__quiz-feedback--no')}>
+                    {quiz.feedback === 'correct'
+                      ? '✓ Correct!'
+                      : `✗ The word is “${quiz.items[quiz.index].word}”`}
+                  </div>
+                )}
+                <button className="vocab__quiz-btn" onClick={quiz.feedback ? nextQuiz : submitQuiz}>
+                  {quiz.feedback ? 'Next' : 'Check'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </main>
   );

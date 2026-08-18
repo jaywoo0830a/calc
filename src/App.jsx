@@ -4,6 +4,7 @@ import Viewer from './pages/Viewer.jsx';
 import Playground from './pages/Playground.jsx';
 import MathSpace from './pages/MathSpace.jsx';
 import Vocab from './pages/Vocab.jsx';
+import Problems from './pages/Problems.jsx';
 import CustomCursor from './components/CustomCursor.jsx';
 import WordLookup from './components/WordLookup.jsx';
 import RangeSelect from './components/RangeSelect.jsx';
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/viewer" element={<Viewer />} />
         <Route path="/playground" element={<Playground />} />
         <Route path="/math" element={<MathSpace />} />
+        <Route path="/problems" element={<Problems />} />
         <Route path="/vocab" element={<Vocab />} />
       </Routes>
     </BrowserRouter>

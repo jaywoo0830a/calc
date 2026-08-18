@@ -1,0 +1,213 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: problems — 푼/틀린 문제 모아보기 페이지 (Vocab과 유사)
+// ============================================================
+
+.problems {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: $sp-3;
+  gap: $sp-3;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    font-size: $fs-step-1;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+    margin: 0;
+  }
+
+  &__count {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+  }
+
+  &__wrong-count {
+    font-style: normal;
+    color: $c-error;
+  }
+
+  &__filters {
+    display: flex;
+    gap: $sp-1;
+    margin-left: $sp-2;
+  }
+
+  &__filter {
+    font-size: $fs-step--2;
+    color: $c-ink-soft;
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &--active {
+      background: $c-accent;
+      border-color: $c-accent;
+      color: $c-ink-inverse;
+    }
+  }
+
+  &__clear {
+    margin-left: auto;
+    font-size: $fs-step--1;
+    color: $c-error;
+    padding: $sp-1 $sp-2;
+    border-radius: $radius-sm;
+    transition: background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-error-light;
+      }
+    }
+  }
+
+  &__empty {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+    padding: $sp-3 0;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+    max-width: 48rem;
+  }
+
+  &__item {
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+
+    &--wrong {
+      border-left: 3px solid $c-error;
+    }
+
+    &--solved {
+      border-left: 3px solid $c-equals;
+    }
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    width: 100%;
+    padding: $sp-2 $sp-3;
+    cursor: pointer;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+  }
+
+  &__status {
+    flex-shrink: 0;
+    width: 1.4rem;
+    height: 1.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: $fs-step--2;
+    font-weight: $fw-bold;
+
+    .problems__item--wrong & {
+      background: $c-error;
+      color: #fff;
+    }
+
+    .problems__item--solved & {
+      background: $c-equals;
+      color: #fff;
+    }
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+    min-width: 0;
+    flex: 1;
+  }
+
+  &__src {
+    font-size: $fs-step--2;
+    color: $c-accent;
+    font-weight: $fw-semibold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__text {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__meta {
+    margin-left: auto;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  &__solved-at {
+    color: $c-equals;
+    font-weight: $fw-semibold;
+    margin-right: $sp-2;
+  }
+
+  &__solve,
+  &__wrong,
+  &__delete {
+    flex-shrink: 0;
+    font-size: $fs-step--1;
+    padding: $sp-1;
+    border-radius: $radius-sm;
+    opacity: $opacity-dim;
+    transition: opacity $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        opacity: $opacity-full;
+      }
+    }
+  }
+
+  &__solve:hover {
+    background: rgba(61, 90, 64, 0.14);
+  }
+
+  &__wrong:hover {
+    background: $c-error-light;
+  }
+
+  &__delete:hover {
+    background: $c-error-light;
+  }
+}

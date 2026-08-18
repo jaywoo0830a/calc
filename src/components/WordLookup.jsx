@@ -54,11 +54,23 @@ async function fetchDefinition(word) {
 
 export default function WordLookup() {
   const [state, setState] = useState(null); // { word, x, y, status, data } | null
+  const [aliases, setAliases] = useState([]); // 나만의 의미 (⭐)
   const currentRef = useRef(null);          // 현재 표시 중인 단어 (경쟁 방지)
   const fetchTimerRef = useRef(null);
   const audioRef = useRef(null);
 
   useEffect(() => { loadPersistentCache(); }, []);
+
+  // 카드가 떠 있을 때마다 나만의 의미 목록 로드 (실패는 조용히 빈 목록)
+  useEffect(() => {
+    const word = state?.word;
+    if (!word) { setAliases([]); return; }
+    let live = true;
+    api.listVocabAliases(word).then((list) => {
+      if (live) setAliases(list || []);
+    }).catch(() => { if (live) setAliases([]); });
+    return () => { live = false; };
+  }, [state?.word]);
 
   const dismiss = useCallback(() => {
     if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
@@ -74,21 +86,42 @@ export default function WordLookup() {
   const showWord = useCallback((word, x, y) => {
     if (currentRef.current?.word === word) return; // 이미 같은 단어 — 중복 표시 방지
     currentRef.current = { word, x, y };
-    const cached = cache.get(word);
-    if (cached) {
-      recordLookup(word, cached);
-      setState({ word, x, y, status: 'done', data: cached });
-      return;
-    }
-    setState({ word, x, y, status: 'loading', data: null });
-    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
-    fetchTimerRef.current = setTimeout(() => {
-      fetchDefinition(word).then((data) => {
-        if (currentRef.current?.word !== word) return; // 새 단어로 바뀜 — 폐기
-        recordLookup(word, data);
-        setState((prev) => (prev && prev.word === word ? { ...prev, status: 'done', data } : prev));
-      });
-    }, 60);
+    setAliases([]);
+
+    // 사전 카드 표시 (기존 경로 — 캐시/API)
+    const showDictionary = (cached, record) => {
+      if (cached) {
+        if (record) recordLookup(word, cached);
+        setState({ word, x, y, status: 'done', data: cached });
+        return;
+      }
+      setState({ word, x, y, status: 'loading', data: null });
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
+      fetchTimerRef.current = setTimeout(() => {
+        fetchDefinition(word).then((data) => {
+          if (currentRef.current?.word !== word) return; // 새 단어로 바뀜 — 폐기
+          recordLookup(word, data);
+          setState((prev) => (prev && prev.word === word ? { ...prev, status: 'done', data } : prev));
+        });
+      }, 60);
+    };
+
+    // ⭐ 나만의 의미가 정의돼 있으면 사전 API 없이 그것만 표시
+    api.listVocabAliases(word).then((list) => {
+      if (currentRef.current?.word !== word) return;
+      if (list && list.length > 0) {
+        setAliases(list);
+        recordLookup(word, { ok: true }); // 단어장 기록만
+        setState({ word, x, y, status: 'done', data: null });
+        return;
+      }
+      setAliases([]);
+      showDictionary(cache.get(word), true);
+    }).catch(() => {
+      // 서버 응답 없음(오프라인 등) — 기존 사전 경로로 폴백
+      if (currentRef.current?.word !== word) return;
+      showDictionary(cache.get(word), true);
+    });
   }, [recordLookup]);
 
   // 카드를 주어진 사각형 기준으로 열기 (위치 계산 + 중복 방지)
@@ -181,6 +214,16 @@ export default function WordLookup() {
         {status === 'done' && data && data.error && (
           <div className="word-lookup__empty">Couldn’t load the dictionary ({data.error}).</div>
         )}
+        {aliases.length > 0 && (
+          <div className="word-lookup__aliases">
+            <div className="word-lookup__aliases-title">⭐ My meaning</div>
+            <ol className="word-lookup__aliases-list">
+              {aliases.map((a, i) => (
+                <li key={i} className="word-lookup__alias">{a.alias}</li>
+              ))}
+            </ol>
+          </div>
+        )}
         {hasEntry && (
           <ul className="word-lookup__meanings">
             {data.meanings.map((m, i) => (
@@ -201,7 +244,9 @@ export default function WordLookup() {
         {hasEntry && data.origin && <div className="word-lookup__origin">Origin: {data.origin}</div>}
       </div>
 
-      <div className="word-lookup__foot">English–English · {PROVIDER_LABEL}</div>
+      <div className="word-lookup__foot">
+        {hasEntry ? `English–English · ${PROVIDER_LABEL}` : aliases.length > 0 ? '⭐ My meaning' : `English–English · ${PROVIDER_LABEL}`}
+      </div>
     </div>,
     portalTarget
   );

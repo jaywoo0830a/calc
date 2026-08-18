@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { marked } from 'marked';
 import { pushRecent, clearRecent, registerRecentNavigate } from '../lib/recentHistory.js';
+import { takePendingProblem } from '../lib/problemJump.js';
 import katex from 'katex';
 import JSZip from 'jszip';
 import hljs from 'highlight.js';
@@ -849,10 +850,21 @@ export default function Viewer() {
         const f = entry.zip.files[doc_path];
         if (f && !f.dir) { switchToZipDoc(id, doc_path, { jump: p }); return; }
       }
-      // 어느 ZIP에도 없는 문서 — 패널 닫고 안내
-      console.warn('[problem-jump] document not found in any open zip:', doc_path);
-      setMdToast("Couldn't find the document for this problem");
-      setProblemsOpen(false);
+      // 열린 ZIP에 없으면 서버에 저장된 아카이브에서 검색 — 최근 업로드 우선 (개정본 반영)
+      api.findArchivesByFile(doc_path).then((found) => {
+        if (found && found.length > 0) {
+          console.log('[problem-jump] server archive found:', found[0].name, doc_path);
+          switchToZipDoc(found[0].id, doc_path, { jump: p });
+          return;
+        }
+        // 어느 ZIP에도 없는 문서 — 패널 닫고 안내
+        console.warn('[problem-jump] document not found in any zip:', doc_path);
+        setMdToast("Couldn't find the document for this problem");
+        setProblemsOpen(false);
+      }).catch(() => {
+        setMdToast("Couldn't find the document for this problem");
+        setProblemsOpen(false);
+      });
       return;
     }
     const file = zip.files[doc_path];
@@ -1045,6 +1057,20 @@ export default function Viewer() {
   // 전역 🕘 버튼이 문서를 열도록 내비게이션 핸들러 등록
   useEffect(() => registerRecentNavigate(openRecent), [openRecent]);
 
+  // Problems 탭에서 넘어온 문제 → 마운트 후 자동 점프
+  // (열린 ZIP이 없어도 switchToZipDoc이 서버 아카이브에서 직접 로드한다)
+  // ⚠️ useRef 초기화로 한 번만 소비 — StrictMode의 이중 effect에서 pending이 날아가지 않게
+  const pendingProblemRef = useRef(takePendingProblem());
+  useEffect(() => {
+    if (!pendingProblemRef.current) return;
+    const t = setTimeout(() => {
+      const p = pendingProblemRef.current;
+      pendingProblemRef.current = null;
+      if (p) jumpToProblem(p);
+    }, 400); // 초기 렌더 안정 후 점프
+    return () => clearTimeout(t);
+  }, []);
+
   // Viewer를 떠나면 핸들러 해제 + 히스토리 정리
   useEffect(() => () => { registerRecentNavigate(null); clearRecent(); }, []);
 
@@ -1056,6 +1082,7 @@ export default function Viewer() {
           <span className="calculator__nav-tab calculator__nav-tab--active">Viewer</span>
           <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
           <Link to="/math" className="calculator__nav-tab">Math Space</Link>
+          <Link to="/problems" className="calculator__nav-tab">Problems</Link>
           <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
         </nav>
       )}

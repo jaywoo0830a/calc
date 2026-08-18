@@ -69,6 +69,7 @@ export default function Calculator() {
         <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
         <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
         <Link to="/math" className="calculator__nav-tab">Math Space</Link>
+        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
         <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
       <Display expression={calc.expression} result={calc.result} />

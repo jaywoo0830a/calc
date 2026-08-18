@@ -4,6 +4,11 @@
 // Block: vocab — 찾아본 단어장 페이지
 // ============================================================
 
+@keyframes vocabQuizIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .vocab {
   display: flex;
   flex-direction: column;
@@ -117,6 +122,107 @@
     display: flex;
     flex-direction: column;
     gap: $sp-2;
+  }
+
+  // ⭐ 나만의 의미 (사용자 매핑 — 1단어 → N개)
+  &__aliases {
+    padding: $sp-2 $sp-3;
+    background: rgba(92, 61, 46, 0.06);
+    border: $border-thin solid rgba(92, 61, 46, 0.18);
+    border-radius: $radius-md;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+  }
+
+  &__aliases-title {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-accent;
+  }
+
+  &__aliases-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+  }
+
+  &__alias {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+  }
+
+  &__alias-num {
+    color: $c-accent;
+    font-weight: $fw-semibold;
+    font-size: $fs-step--1;
+  }
+
+  &__alias-text {
+    color: $c-ink;
+    font-weight: $fw-semibold;
+    font-size: $fs-step-0;
+  }
+
+  &__alias-delete {
+    font-size: $fs-step--1;
+    padding: 0 $sp-1;
+    border-radius: $radius-sm;
+    color: $c-ink-faint;
+    opacity: $opacity-dim;
+    transition: opacity $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        opacity: $opacity-full;
+        background: $c-error-light;
+        color: $c-error;
+      }
+    }
+  }
+
+  &__alias-add {
+    display: flex;
+    gap: $sp-2;
+  }
+
+  &__alias-input {
+    flex: 1;
+    min-width: 0;
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    background: $c-page;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    outline: none;
+
+    &:focus {
+      border-color: $c-accent;
+      box-shadow: 0 0 0 2px $c-accent-light;
+    }
+  }
+
+  &__alias-btn {
+    padding: $sp-1 $sp-3;
+    border: none;
+    border-radius: $radius-sm;
+    background: $c-accent;
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    &:hover {
+      background: $c-accent-hover;
+    }
   }
 
   &__loading {

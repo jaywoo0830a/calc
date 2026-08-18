@@ -1,12 +1,13 @@
 import express from 'express';
 import multer from 'multer';
+import yauzl from 'yauzl';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { rm, mkdir, writeFile, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { problems, archives, archivesDir, vocab, annotations, bookmarks } from './db.js';
+import { problems, archives, archivesDir, vocab, vocabAliases, annotations, bookmarks } from './db.js';
 const app = express();
 app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
@@ -27,6 +28,23 @@ const uploadZip = multer({
 // ── XML entity decode ──────────────────────────────────────────────────────────
 const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
 const decodeXml = (s) => s.replace(/&(?:amp|lt|gt|quot|#39);/g, (m) => ENTITIES[m] || m);
+
+// ZIP 중앙 디렉토리만 읽어 내부 파일 경로 목록 추출 (1GB 대형 ZIP도 메모리 부담 없음)
+function extractZipPaths(zipPath) {
+  return new Promise((resolve, reject) => {
+    const paths = [];
+    yauzl.open(zipPath, { lazyEntries: true, autoClose: true }, (err, zip) => {
+      if (err) return reject(err);
+      zip.readEntry();
+      zip.on('entry', (entry) => {
+        if (!/\/$/.test(entry.fileName)) paths.push(entry.fileName);
+        zip.readEntry();
+      });
+      zip.on('end', () => resolve(paths));
+      zip.on('error', reject);
+    });
+  });
+}
 
 // ── pdftohtml XML → 시맨틱 HTML (제목 계층 재구성) ─────────────────────────────
 function xmlToSemanticHtml(xml) {
@@ -361,12 +379,15 @@ app.patch('/problems/:id', (req, res) => {
   }
 });
 
-// 특정 문서의 문제 전체 삭제 (재업로드/패치 후 정리용)
+// 특정 문서의 문제 전체 삭제 — doc 미지정 시 전체 삭제 (Problems 탭 Clear all)
 app.delete('/problems', (req, res) => {
   try {
     const { doc } = req.query;
-    if (!doc) return res.status(400).json({ error: 'doc query param required' });
-    problems.removeByDoc(doc);
+    if (doc) {
+      problems.removeByDoc(doc);
+    } else {
+      problems.removeAll();
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -398,9 +419,35 @@ app.post('/archives', uploadZip.single('file'), async (req, res) => {
   try {
     await rename(file.path, join(archivesDir, id + '.zip'));
     archives.create({ id, name: file.originalname, size: file.size });
+    // 내부 파일 목록 저장 — Problems 점프 시 어떤 아카이브에 문서가 있는지 검색용
+    try {
+      const paths = await extractZipPaths(join(archivesDir, id + '.zip'));
+      archives.setFileList(id, paths);
+    } catch { /* 파일 목록 추출 실패는 무시 (검색에만 영향) */ }
     res.json({ id, name: file.originalname, size: file.size, savedAt: new Date().toISOString() });
   } catch (e) {
     try { await rm(file.path, { force: true }); } catch {}
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 특정 파일을 담은 아카이브 검색 — 최근 업로드 순 (Problems 점프 지능 탐색)
+// 구버전 아카이브는 파일 목록이 없으므로 여기서 백필한다.
+app.get('/archives/find', async (req, res) => {
+  try {
+    const path = String(req.query.path || '').trim();
+    if (!path) return res.status(400).json({ error: 'path query param required' });
+    for (const a of archives.list()) {
+      if (archives.hasFileList(a.id)) continue;
+      const zp = join(archivesDir, a.id + '.zip');
+      if (!existsSync(zp)) continue;
+      try {
+        const paths = await extractZipPaths(zp);
+        archives.setFileList(a.id, paths);
+      } catch { /* 스캔 실패는 무시 */ }
+    }
+    res.json(archives.findByFile(path));
+  } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
@@ -451,7 +498,44 @@ app.delete('/vocab/:word', (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+// ── 나만의 의미 매핑 (1단어 → N개 별칭) ─────────────────────────────────
+app.get('/vocab/aliases', (req, res) => {
+  try {
+    res.json(vocabAliases.listAll());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
+app.get('/vocab/:word/aliases', (req, res) => {
+  try {
+    res.json(vocabAliases.listFor(String(req.params.word || '')));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/vocab/:word/aliases', (req, res) => {
+  try {
+    const word = String(req.params.word || '');
+    const alias = String((req.body || {}).alias || '').replace(/\s+/g, ' ').trim();
+    if (!word || !alias) return res.status(400).json({ error: 'word and alias are required' });
+    const saved = vocabAliases.add(word, alias);
+    if (!saved) return res.status(200).json({ ok: true, duplicate: true });
+    res.json(saved);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/vocab/:word/aliases/:alias', (req, res) => {
+  try {
+    vocabAliases.remove(String(req.params.word || ''), String(req.params.alias || ''));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 // 전체 비우기
 app.delete('/vocab', (req, res) => {
   try {
