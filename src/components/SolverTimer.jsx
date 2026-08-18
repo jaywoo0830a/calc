@@ -59,25 +59,38 @@ export default function SolverTimer() {
     return () => clearInterval(id);
   }, [quickRunning]);
 
-  // 30초 완료 → 정지 + 짧은 알림음 + 자동 0:30 복구 (오버레이 없음)
+  // 30초 완료 → 정지 + 짧은 알림음 + 0:00으로 리셋 (붉은 완료 상태, 오버레이 없음)
   useEffect(() => {
     if (quickRunning && quickRemaining <= 0) {
       quickDoneRef.current = true;
       setQuickRunning(false);
       setQuickDone(true);
-      setQuickRemaining(QUICK_MS);
+      setQuickRemaining(0);
       play('quick');
     }
   }, [quickRemaining, quickRunning, play]);
 
-  // ⚡ 30초 타이머: 클릭 = 시작/재시작 (결정 시간 측정용)
+  // ⚡ 30초 타이머 — 단순 3상태:
+  //   초기(0:30) → 누름 → 카운트다운
+  //   카운트다운 중 누름 → 정지 + 초기(0:30)로 초기화
+  //   0:00 완료(빨간 펄스) → 누름 → 초기(0:30)로
   const toggleQuick = useCallback(() => {
     unlock();
     quickDoneRef.current = false;
-    setQuickDone(false);
+    if (quickRunning) {
+      setQuickRunning(false);
+      setQuickDone(false);
+      setQuickRemaining(QUICK_MS);
+      return;
+    }
+    if (quickDone) {
+      setQuickDone(false);
+      setQuickRemaining(QUICK_MS);
+      return;
+    }
     setQuickRemaining(QUICK_MS);
     setQuickRunning(true);
-  }, [unlock]);
+  }, [unlock, quickRunning, quickDone]);
 
   // 본체 탭: 시작 / 일시정지 / (종료 후) 바로 재시작 — remaining은 이미 재충전됨
   const toggle = useCallback(() => {
@@ -148,8 +161,8 @@ export default function SolverTimer() {
         <button
           className="solver-timer__main"
           onClick={toggleQuick}
-          aria-label={quickDone ? '30 seconds up — click to restart' : quickRunning ? 'Restart 30-second timer' : 'Start 30-second timer'}
-          title={quickDone ? '30 seconds up — click to restart' : '⚡ 30 seconds — decide whether to solve this problem'}
+          aria-label={quickDone ? '30 seconds up — click to reset' : quickRunning ? 'Reset 30-second timer' : 'Start 30-second timer'}
+          title={quickDone ? '⚡ 30 seconds up — click to reset' : '⚡ 30 seconds — decide whether to solve this problem'}
         >
           <span className="solver-timer__icon" aria-hidden>⚡</span>
           <span className="solver-timer__time">{formatTime(quickRemaining)}</span>
