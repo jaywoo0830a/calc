@@ -404,9 +404,10 @@
     }
   }
 
-  // ---- DEG/RAD + 정밀도 ------------------------------------
+  // ---- DEG/RAD + 정밀도 + SI 접두사 ----------------------
   &__deg,
-  &__prec {
+  &__prec,
+  &__si {
     flex-shrink: 0;
     padding: $sp-1 $sp-2;
     border: $border-thin solid $c-rule;
@@ -467,6 +468,82 @@
     }
 
     &--active { color: $c-accent; font-weight: $fw-bold; }
+  }
+
+  // ---- SI 접두사 팔레트 (y..Y 전체 16개 + 자동 변환) --------
+  // 위치는 JS에서 viewport-fixed + 가운데 정렬 — 엣지에서 잘리지 않게
+  &__si-wrap {
+    position: relative;
+  }
+
+  &__si-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+  }
+
+  &__si-menu {
+    z-index: 50;
+    width: 22rem;
+    max-width: calc(100vw - 1rem);
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    box-shadow: $shadow-lg;
+    padding: $sp-2;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+  }
+
+  &__si-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: $sp-1;
+  }
+
+  &__si-opt {
+    width: 100%;
+    height: 2.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    background: $c-page;
+    color: $c-accent;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-accent;
+        color: $c-ink-inverse;
+      }
+    }
+  }
+
+  &__si-auto {
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    padding: $sp-1 $sp-2;
+    background: $c-page-dark;
+    color: $c-accent;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-accent;
+        color: $c-ink-inverse;
+      }
+    }
   }
 
   // ---- History panel --------------------------------------

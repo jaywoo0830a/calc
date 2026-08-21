@@ -22,6 +22,20 @@ function fmt(d, sig = 10) {
 const PI = new Decimal('3.1415926535897932384626433832795');
 const E  = new Decimal('2.7182818284590452353602874713527');
 
+// ── SI prefixes — micro, giga 같은 접두사 매핑 (전체 범위) ──────────────────
+export const SI_PREFIX_KEYS = [
+  { sym: 'y', exp: -24 }, { sym: 'z', exp: -21 }, { sym: 'a', exp: -18 },
+  { sym: 'f', exp: -15 }, { sym: 'p', exp: -12 }, { sym: 'n', exp: -9 },
+  { sym: 'µ', exp: -6 },  { sym: 'm', exp: -3 },
+  { sym: 'k', exp: 3 },   { sym: 'M', exp: 6 },   { sym: 'G', exp: 9 },
+  { sym: 'T', exp: 12 },  { sym: 'P', exp: 15 },  { sym: 'E', exp: 18 },
+  { sym: 'Z', exp: 21 },  { sym: 'Y', exp: 24 },
+];
+const SI_INPUT = Object.fromEntries(SI_PREFIX_KEYS.map((p) => [p.sym, p.exp]));
+// 자동 변환용 — 10^-24(y) ~ 10^24(Y), 3승 간격
+const SI_SYMBOLS = ['y', 'z', 'a', 'f', 'p', 'n', 'µ', 'm', '', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'];
+const SI_INDEX_OFFSET = 8; // SI_SYMBOLS[8] = '' (10^0)
+
 // ── Trig helper: deg→rad ─────────────────────────────────────────────────
 function toRad(d) { return d.times(PI).dividedBy(180); }
 
@@ -297,6 +311,51 @@ export function useCalculator() {
     update(out, getExpr(s.previous, s.operator, out));
   }, [update, getExpr]);
 
+  // ── SI 접두사 곱하기 (n/µ/m/k/M/G/T) — 숫자(또는 결과) 뒤에 누르면 10^±3n 배 ──
+  const inputPrefix = useCallback((sym) => {
+    const s = state.current;
+    if (!s.current) return; // 적용할 숫자가 있어야 동작
+    const exp = SI_INPUT[sym];
+    if (exp === undefined) return;
+    const label = `${s.current} ${sym}`; // 표시식용 (예: '5 µ')
+    const d = new Decimal(s.current).times(new Decimal(10).pow(exp));
+    const out = fmtD(d);
+    s.current = out;
+    // shouldReset는 유지 — 접두사 적용 후에도 = 연산이 이어질 수 있게
+    update(out, getExpr(s.previous, s.operator, label));
+  }, [update, getExpr, fmtD]);
+
+  // ── SI 변환 — 현재 값을 가장 적절한 접두사로 스케일해서 표시 ──
+  // 예: 0.000005 → '5 µ', 1234567890 → '1.23456789 G', 1500 → '1.5 k'
+  const toSI = useCallback(() => {
+    const s = state.current;
+    const src = s.current || s.previous;
+    if (!src) return;
+    try {
+      const d = new Decimal(src);
+      if (d.isZero()) {
+        s.current = '0';
+        s.shouldReset = true;
+        update('0', '\u00A0');
+        return;
+      }
+      let idx = Math.floor(d.e / 3); // 10^e → 3승 단위 인덱스
+      idx = Math.max(-SI_INDEX_OFFSET, Math.min(SI_INDEX_OFFSET, idx));
+      const scaled = d.dividedBy(new Decimal(10).pow(idx * 3));
+      const sym = SI_SYMBOLS[idx + SI_INDEX_OFFSET];
+      const num = fmtD(scaled);
+      const out = `${num}${sym ? ' ' + sym : ''}`;
+      addHistory(`${fmtD(d)} \u2192`, out);
+      s.current = num;
+      s.previous = '';
+      s.operator = null;
+      s.shouldReset = true;
+      update(out, '\u00A0');
+    } catch {
+      update('Error', '\u00A0');
+    }
+  }, [update, addHistory, fmtD]);
+
   const clearAll = useCallback(() => {
     const s = state.current;
     s.current = ''; s.previous = ''; s.operator = null; s.shouldReset = false;
@@ -355,7 +414,8 @@ export function useCalculator() {
     get operator() { return state.current.operator; },
     get shouldReset() { return state.current.shouldReset; },
     inputDigit, compute, inputOperator, clearAll, negate, backspace,
-    applyUnary, insertConstant, clearHistory, toggleSciMode,
+    applyUnary, insertConstant, inputPrefix, toSI,
+    clearHistory, toggleSciMode,
     setDisplayDigits, toggleDegMode, memClear, memRecall, memAdd,
   };
 }

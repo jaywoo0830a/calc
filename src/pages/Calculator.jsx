@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Display from '../components/Display.jsx';
 import Keypad from '../components/Keypad.jsx';
-import { useCalculator } from '../hooks/useCalculator.js';
+import { useCalculator, SI_PREFIX_KEYS } from '../hooks/useCalculator.js';
 import { useSound } from '../hooks/useSound.js';
 
 const UNARY_NAMES = { sin: 'sin', cos: 'cos', tan: 'tan', log: 'log', ln: 'ln', sqrt: '\u221A', square: 'sqr', factorial: '!' };
@@ -14,6 +14,9 @@ export default function Calculator() {
   const [showHistory, setShowHistory] = useState(false);
   const [invMode, setInvMode] = useState(false);   // 공학용 2nd(INV)
   const [precOpen, setPrecOpen] = useState(false); // 정밀도 메뉴
+  const [siOpen, setSiOpen] = useState(false);     // SI 접두사 팔레트
+  const [siTop, setSiTop] = useState(0);           // 팔레트 고정 위치 (버튼 아래)
+  const siBtnRef = useRef(null);
 
   const handleAction = useCallback((action, value) => {
     sound.unlock();
@@ -30,6 +33,10 @@ export default function Calculator() {
       case 'backspace': sound.play('func');   calc.backspace(); break;
       case 'unary':     sound.play('func');   calc.applyUnary(value, UNARY_NAMES[value] || value); break;
       case 'const':     sound.play('digit');  calc.insertConstant(value); break;
+      case 'prefix':    sound.play('func');
+        if (value === 'SI') calc.toSI();
+        else calc.inputPrefix(value);
+        break;
       case 'sciToggle': sound.play('func');   calc.toggleSciMode(); break;
       case 'degToggle': sound.play('func');   calc.toggleDegMode(); break;
       case 'toggleInv': sound.play('func');   setInvMode((p) => !p); break;
@@ -91,6 +98,40 @@ export default function Calculator() {
             title="Toggle DEG / RAD"
           >{calc.degMode ? 'DEG' : 'RAD'}</button>
         )}
+        <div className="calculator__si-wrap">
+          <button
+            ref={siBtnRef}
+            className="calculator__si"
+            onClick={() => {
+              const r = siBtnRef.current?.getBoundingClientRect();
+              if (r) setSiTop(Math.min(r.bottom + 6, window.innerHeight - 230));
+              setSiOpen((p) => !p);
+            }}
+            title="SI prefixes — multiply the value (µ, k, G, …) or auto-convert"
+          >SI</button>
+          {siOpen && (
+            <div
+              className="calculator__si-menu"
+              style={{ position: 'fixed', top: siTop, left: '50%', transform: 'translateX(-50%)' }}
+            >
+              <div className="calculator__si-grid">
+                {SI_PREFIX_KEYS.map((p) => (
+                  <button
+                    key={p.sym}
+                    className="calculator__si-opt"
+                    onClick={() => { setSiOpen(false); handleAction('prefix', p.sym); }}
+                    title={`×10^${p.exp} — ${p.sym}`}
+                  >{p.sym}</button>
+                ))}
+              </div>
+              <button
+                className="calculator__si-auto"
+                onClick={() => { setSiOpen(false); handleAction('prefix', 'SI'); }}
+                title="Convert to the most readable prefix"
+              >⇄ Auto — best prefix</button>
+            </div>
+          )}
+        </div>
         <div className="calculator__prec-wrap">
           <button className="calculator__prec" onClick={() => setPrecOpen((p) => !p)} title="Display precision">
             Digits {calc.displayDigits}
@@ -116,6 +157,7 @@ export default function Calculator() {
         </button>
       </div>
       {precOpen && <div className="calculator__prec-backdrop" onClick={() => setPrecOpen(false)} />}
+      {siOpen && <div className="calculator__si-backdrop" onClick={() => setSiOpen(false)} />}
       <Keypad onAction={handleAction} sciMode={calc.sciMode} invMode={invMode} />
       {showHistory && (
         <div className="calculator__history">
