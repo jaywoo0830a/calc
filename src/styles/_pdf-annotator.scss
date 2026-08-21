@@ -520,6 +520,11 @@
         transition: transform $transition-fast;
       }
 
+      // 호버하면 툴팁이 떠서 바로 ✓/✗/✏️를 누를 수 있게
+      &:hover .pdf-annotator__comment-tooltip {
+        display: flex;
+      }
+
       &:hover .pdf-annotator__comment-icon {
         transform: scale(1.18);
       }
@@ -605,6 +610,25 @@
 
     @media (hover: hover) {
       &:hover { opacity: 0.7; }
+    }
+  }
+
+  // 툴팁 안의 ✓/✗ — 코멘트 클릭 시 '한 번 더 풀기' (어두운 툴팁 배경이라 밝은 색)
+  &__comment-status-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.8rem;
+    line-height: 1;
+    padding: 0;
+    flex-shrink: 0;
+    font-weight: $fw-bold;
+
+    &--solved { color: #8fd19e; }
+    &--wrong { color: #f2a29b; }
+
+    @media (hover: hover) {
+      &:hover { opacity: 0.75; }
     }
   }
 
@@ -1251,13 +1275,14 @@
 // (제거됨 — TOC 항목이 하나씩 밀려나는 애니메이션이 원하지 않는 느낌을 줌)
 
 // ── 3. attr() typed: data-driven annotation colors ──────
-@supports (background-color: attr(data-color type(<color>), transparent)) {
+// (#{} 인터폴레이션 — Dart Sass가 type(<color>) 구문을 직접 파싱하지 못함)
+@supports #{'(background-color: attr(data-color type(<color>), transparent))'} {
   .pdf-annotator__mark--highlight {
-    background-color: attr(data-highlight-color type(<color>), rgba(255, 230, 100, 0.45));
+    background-color: #{'attr(data-highlight-color type(<color>), rgba(255, 230, 100, 0.45))'};
   }
 
   .pdf-annotator__mark--underline {
-    border-bottom-color: attr(data-underline-color type(<color>), #e74c3c);
+    border-bottom-color: #{'attr(data-underline-color type(<color>), #e74c3c)'};
   }
 
 }

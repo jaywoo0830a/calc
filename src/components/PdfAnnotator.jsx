@@ -737,12 +737,14 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     });
   }, [editingComment, editText, editStatus, filePath, annotations]);
 
-  // ── 코멘트 문제 상태 전환 (스캔 PDF — Problems 패널의 ✓/✗, 매 탭 = 시도 1회) ──
+  // ── 코멘트 문제 상태 전환 (스캔 PDF — 툴팁/Problems 패널의 ✓/✗, 매 탭 = 시도 1회) ──
   const updateCommentStatus = useCallback((a, status) => {
     const attempts = (a.attempts || 0) + 1; // 같은 상태 재클릭도 '한 번 더 풀었다' (텍스트 문제와 동일)
     const wrongCount = (a.wrong_count || 0) + (status === 'wrong' && a.status !== 'wrong' ? 1 : 0);
     saveAnnotation({ ...a, status, attempts, wrong_count: wrongCount }).then((saved) => {
       setAnnotations((prev) => prev.map((x) => (x.id === saved.id ? saved : x)));
+      const n = saved.attempts ?? attempts;
+      setToast(status === 'solved' ? `✓ Solved — attempt ${n}` : `✗ Wrong — attempt ${n}`);
     });
   }, []);
 
@@ -1304,6 +1306,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                     viewOpen={openCommentId === a.id}
                     onViewComment={setOpenCommentId}
                     onEditComment={startEditingComment}
+                    onToggleStatus={updateCommentStatus}
                   />
                 ))}
                 {/* 🔎 검색 매치 하이라이트 (정규화 좌표 → 캔버스 기준) */}
@@ -1501,7 +1504,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
  *  위치를 다시 계산해야 하므로 부모 리렌더마다 갱신한다. 값 비교로 불필요한
  *  setState는 막아 루프 없이 안정적으로 동작한다)
  */
-function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, onViewComment, onEditComment }) {
+function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, onViewComment, onEditComment, onToggleStatus }) {
   // Always find page element fresh from DOM — prop may be stale after page navigation
   const getPageEl = () => document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
   const [rect, setRect] = useState(null);
@@ -1575,6 +1578,22 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
         </span>
         <span className="pdf-annotator__comment-tooltip" onClick={handleTooltipClick}>
           <span className="pdf-annotator__comment-tooltip-text">{annotation.text}</span>
+          {!eraseMode && (
+            <>
+              <button
+                className="pdf-annotator__comment-status-btn pdf-annotator__comment-status-btn--solved"
+                onClick={(e) => { e.stopPropagation(); onToggleStatus(annotation, 'solved'); }}
+                aria-label="One more attempt — mark as solved"
+                title="✓ One more attempt — solved"
+              >✓</button>
+              <button
+                className="pdf-annotator__comment-status-btn pdf-annotator__comment-status-btn--wrong"
+                onClick={(e) => { e.stopPropagation(); onToggleStatus(annotation, 'wrong'); }}
+                aria-label="One more attempt — mark as wrong"
+                title="✗ One more attempt — wrong"
+              >✗</button>
+            </>
+          )}
           <button className="pdf-annotator__comment-edit" onClick={handleTooltipClick} aria-label="Edit comment">✏️</button>
         </span>
         <button
