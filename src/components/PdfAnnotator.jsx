@@ -656,8 +656,12 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       const pageRect = getPageCanvasRect(pageEl) || pageEl.getBoundingClientRect();
       const x = (e.clientX - pageRect.left) / pageRect.width;
       const y = (e.clientY - pageRect.top) / pageRect.height;
-      // px/py: 입력창을 클릭한 뷰포트 좌표에 고정 배치
-      setActiveComment({ pageNumber, x, y, px: e.clientX, py: e.clientY });
+      // px/py: 입력창을 클릭한 뷰포트 좌표에 고정 배치 (화면 밖으로 나가지 않게 클램프)
+      setActiveComment({
+        pageNumber, x, y,
+        px: Math.min(Math.max(e.clientX, 8), window.innerWidth - 240),
+        py: Math.min(Math.max(e.clientY, 8), window.innerHeight - 200),
+      });
       setCommentText('');
     }
   }, [tool]);
@@ -689,7 +693,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     setEditingComment({
       id: annotation.id,
       pageNumber: annotation.pageNumber,
-      px: r.left,
+      px: Math.min(Math.max(r.left, 8), window.innerWidth - 240),
       py: Math.min(Math.max(r.bottom + 8, 8), window.innerHeight - 220),
     });
     setEditText(annotation.text || '');
@@ -1395,21 +1399,38 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
   // Always find page element fresh from DOM — prop may be stale after page navigation
   const getPageEl = () => document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
   const [rect, setRect] = useState(null);
+  const [markerPos, setMarkerPos] = useState(null); // 엣지 보정된 코멘트 마커 위치 { left, top, edgeLeft, edgeRight, edgeTop }
   const prevRectRef = useRef(null);
 
   // Recalculate rect after every render — onRenderSuccess on <Page> ensures
   // we re-render once the PDF canvas is actually in the DOM.
   // Compare by value (not reference) to avoid infinite re-render loops.
+  // 페이지 엣지에 가까운 코멘트는 아이콘이 잘리지 않게 좌표를 보정하고,
+  // 툴팁이 페이지 밖으로 나가지 않도록 edge 플래그를 계산한다.
   useLayoutEffect(() => {
-    const next = annoRect(annotation, getPageEl());
+    const el = getPageEl();
+    const next = annoRect(annotation, el);
+    const pr = el ? el.getBoundingClientRect() : null;
+    const pageW = pr ? pr.width : 0;
+    const pageH = pr ? pr.height : 0;
+    const pos = next ? {
+      left: pageW ? Math.max(14, Math.min(next.left, pageW - 14)) : next.left,
+      top: pageH ? Math.max(14, Math.min(next.top, pageH - 14)) : next.top,
+      edgeLeft: next.left < 100,
+      edgeRight: pageW - next.left < 100,
+      edgeTop: next.top < 48,
+    } : null;
     const prev = prevRectRef.current;
-    if (next && prev &&
-        next.left === prev.left && next.top === prev.top &&
-        next.width === prev.width && next.height === prev.height) {
+    if (next && prev && prev.rect && prev.pos &&
+        next.left === prev.rect.left && next.top === prev.rect.top &&
+        next.width === prev.rect.width && next.height === prev.rect.height &&
+        pos.left === prev.pos.left && pos.top === prev.pos.top &&
+        pos.edgeLeft === prev.pos.edgeLeft && pos.edgeRight === prev.pos.edgeRight && pos.edgeTop === prev.pos.edgeTop) {
       return;
     }
-    prevRectRef.current = next;
-    if (next) setRect(next);
+    prevRectRef.current = next ? { rect: next, pos } : null;
+    setRect(next);
+    setMarkerPos(pos);
   });
 
   const handleDelete = eraseMode ? (e) => { e.stopPropagation(); onDelete(annotation.id); } : undefined;
@@ -1430,10 +1451,13 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
         data-annotation-id={annotation.id}
         className={'pdf-annotator__comment-marker' +
           (eraseMode ? ' pdf-annotator__comment-marker--erasable' : ' pdf-annotator__comment-marker--viewable') +
-          (viewOpen ? ' pdf-annotator__comment-marker--open' : '')}
+          (viewOpen ? ' pdf-annotator__comment-marker--open' : '') +
+          (markerPos?.edgeLeft ? ' pdf-annotator__comment-marker--edge-left' : '') +
+          (markerPos?.edgeRight ? ' pdf-annotator__comment-marker--edge-right' : '') +
+          (markerPos?.edgeTop ? ' pdf-annotator__comment-marker--edge-top' : '')}
         style={{
-          left: rect ? rect.left : `${annotation.rect.x * 100}%`,
-          top: rect ? rect.top : `${annotation.rect.y * 100}%`,
+          left: markerPos ? markerPos.left : rect ? rect.left : `${annotation.rect.x * 100}%`,
+          top: markerPos ? markerPos.top : rect ? rect.top : `${annotation.rect.y * 100}%`,
         }}
         title={annotation.text}
         onClick={handleCommentClick}

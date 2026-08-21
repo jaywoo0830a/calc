@@ -530,6 +530,23 @@
       display: flex;
     }
 
+    // 페이지 엣지에 가까울 때 툴팁이 잘리지 않도록 위치 보정
+    &--edge-left .pdf-annotator__comment-tooltip {
+      left: 0;
+      transform: none;
+    }
+
+    &--edge-right .pdf-annotator__comment-tooltip {
+      left: auto;
+      right: 0;
+      transform: none;
+    }
+
+    &--edge-top .pdf-annotator__comment-tooltip {
+      bottom: auto;
+      top: 120%;
+    }
+
     &--erasable {
       pointer-events: auto;
       cursor: pointer;
