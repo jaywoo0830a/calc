@@ -67,6 +67,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [tool, setTool] = useState(null); // null = read mode (default)
   const [activeComment, setActiveComment] = useState(null);
   const [commentText, setCommentText] = useState('');
+  const [commentStatus, setCommentStatus] = useState(''); // 새 코멘트의 문제 상태 '' | wrong | solved (스캔 PDF용)
   const [loadError, setLoadError] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,6 +80,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [openCommentId, setOpenCommentId] = useState(null); // READ 모드에서 내용을 연 코멘트 마커
   const [editingComment, setEditingComment] = useState(null); // 수정 중인 코멘트 { id, pageNumber, px, py }
   const [editText, setEditText] = useState(''); // 수정 중인 코멘트 텍스트
+  const [editStatus, setEditStatus] = useState(''); // 수정 중인 코멘트의 문제 상태
   const [problems, setProblems] = useState([]);      // 현재 문서의 푼/틀린 문제 (서버)
   const [problemsOpen, setProblemsOpen] = useState(false);
   const [annotationsOpen, setAnnotationsOpen] = useState(false); // 주석 모아보기 사이드바
@@ -663,12 +665,14 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         py: Math.min(Math.max(e.clientY, 8), window.innerHeight - 200),
       });
       setCommentText('');
+      setCommentStatus('');
     }
   }, [tool]);
 
   const submitComment = useCallback(() => {
     if (!activeComment || !commentText.trim()) {
       setActiveComment(null);
+      setCommentStatus('');
       return;
     }
     const annotation = {
@@ -677,6 +681,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       type: 'comment',
       color: '#ffc864',
       text: commentText.trim(),
+      status: commentStatus, // 스캔 PDF — ✗ Wrong / ✓ Solved 문제 코멘트
       rect: { x: activeComment.x, y: activeComment.y, w: 0.03, h: 0.03 },
     };
     saveAnnotation(annotation).then((saved) => {
@@ -684,7 +689,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     });
     setActiveComment(null);
     setCommentText('');
-  }, [activeComment, commentText, filePath]);
+    setCommentStatus('');
+  }, [activeComment, commentText, commentStatus, filePath]);
 
   // ── 기존 코멘트 수정 — 마커/툴팁을 다시 터치하면 그 위치에 입력창 ──
   const startEditingComment = useCallback((annotation, e) => {
@@ -697,6 +703,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       py: Math.min(Math.max(r.bottom + 8, 8), window.innerHeight - 220),
     });
     setEditText(annotation.text || '');
+    setEditStatus(annotation.status || '');
   }, []);
 
   const submitEditComment = useCallback(() => {
@@ -705,6 +712,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     const text = editText.replace(/\s+/g, ' ').trim();
     setEditingComment(null);
     setEditText('');
+    setEditStatus('');
     if (!text) return; // 내용이 비어 있으면 변경 없이 닫기
     const original = annotations.find((a) => a.id === editing.id);
     saveAnnotation({
@@ -714,11 +722,19 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       type: 'comment',
       color: original?.color || '#ffc864',
       text,
+      status: editStatus, // 스캔 PDF — ✗ Wrong / ✓ Solved 문제 코멘트
       rect: original?.rect || { x: 0.5, y: 0.5, w: 0.03, h: 0.03 },
     }).then((saved) => {
       setAnnotations((prev) => prev.map((a) => (a.id === saved.id ? saved : a)));
     });
-  }, [editingComment, editText, filePath, annotations]);
+  }, [editingComment, editText, editStatus, filePath, annotations]);
+
+  // ── 코멘트 문제 상태 전환 (스캔 PDF — Problems 패널의 ✓/✗) ──
+  const updateCommentStatus = useCallback((a, status) => {
+    saveAnnotation({ ...a, status }).then((saved) => {
+      setAnnotations((prev) => prev.map((x) => (x.id === saved.id ? saved : x)));
+    });
+  }, []);
 
   // ── Delete annotation ────────────────────────────────────
   const removeAnnotation = useCallback((id) => {
@@ -731,6 +747,12 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const pageAnnotations = useCallback((pageNumber) => {
     return annotations.filter((a) => a.pageNumber === pageNumber);
   }, [annotations]);
+
+  // 스캔 PDF용 — ✗/✓ 상태가 붙은 코멘트를 문제처럼 Problems 패널에 합쳐 보여준다
+  const commentProblems = useMemo(
+    () => annotations.filter((a) => a.type === 'comment' && (a.status === 'wrong' || a.status === 'solved')),
+    [annotations]
+  );
 
   // 주석 모아보기에서 클릭 → 해당 페이지로 이동 후 주석 플래시
   const jumpToAnnotation = useCallback((a) => {
@@ -968,7 +990,9 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                     title={`Go to page ${a.pageNumber}`}
                   >
                     <span className="pdf-annotator__note-icon">
-                      {a.type === 'comment' ? '💬' : a.type === 'underline' ? '⎁' : '🖍️'}
+                      {a.type === 'comment'
+                        ? (a.status === 'wrong' ? '✗' : a.status === 'solved' ? '✓' : '💬')
+                        : a.type === 'underline' ? '⎁' : '🖍️'}
                     </span>
                     <span className="pdf-annotator__note-body">
                       <span className="pdf-annotator__note-page">p.{a.pageNumber} · {a.type}</span>
@@ -994,12 +1018,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           <button className="pdf-annotator__toc-close" onClick={() => setProblemsOpen(false)}>×</button>
         </div>
         <div className="pdf-annotator__toc-list">
-          {problems.length === 0 ? (
+          {problems.length === 0 && commentProblems.length === 0 ? (
             <div className="pdf-annotator__toc-item" style={{ opacity: 0.5, cursor: 'default' }}>
               No problems in this document yet
             </div>
           ) : (
-            problems.map((p) => (
+            <>
+            {problems.map((p) => (
               <div key={p.id} className={'pdf-annotator__problem pdf-annotator__problem--' + p.status}>
                 <button className="pdf-annotator__problem-open" onClick={() => jumpToProblemPage(p)} title="Go to page">
                   <span className="pdf-annotator__problem-status">{p.status === 'solved' ? '✓' : '✗'}</span>
@@ -1028,7 +1053,41 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                   >🗑️</button>
                 </div>
               </div>
-            ))
+            ))}
+            {/* 스캔 PDF용 — ✗/✓ 상태가 붙은 코멘트를 문제처럼 표시 */}
+            {commentProblems.map((a) => (
+              <div key={'c' + a.id} className={'pdf-annotator__problem pdf-annotator__problem--' + a.status}>
+                <button
+                  className="pdf-annotator__problem-open"
+                  onClick={() => { jumpToAnnotation(a); setProblemsOpen(false); }}
+                  title="Go to page"
+                >
+                  <span className="pdf-annotator__problem-status">{a.status === 'solved' ? '✓' : '✗'}</span>
+                  <span className="pdf-annotator__problem-body">
+                    <span className="pdf-annotator__problem-src">p.{a.pageNumber} · comment</span>
+                    <span className="pdf-annotator__problem-text">{a.text}</span>
+                  </span>
+                </button>
+                <div className="pdf-annotator__problem-actions">
+                  <button
+                    className="pdf-annotator__problem-solve"
+                    onClick={() => updateCommentStatus(a, 'solved')}
+                    title="Mark as solved"
+                  >✓</button>
+                  <button
+                    className="pdf-annotator__problem-wrong"
+                    onClick={() => updateCommentStatus(a, 'wrong')}
+                    title="Mark as wrong"
+                  >✗</button>
+                  <button
+                    className="pdf-annotator__problem-delete"
+                    onClick={() => removeAnnotation(a.id)}
+                    title="Delete"
+                  >🗑️</button>
+                </div>
+              </div>
+            ))}
+            </>
           )}
         </div>
       </div>
@@ -1063,12 +1122,29 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             onChange={(e) => setCommentText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && e.ctrlKey) submitComment();
-              if (e.key === 'Escape') { setActiveComment(null); setCommentText(''); }
+              if (e.key === 'Escape') { setActiveComment(null); setCommentText(''); setCommentStatus(''); }
             }}
           />
+          <div className="pdf-annotator__status-chips">
+            <button
+              className={'pdf-annotator__status-chip' + (commentStatus === '' ? ' pdf-annotator__status-chip--active' : '')}
+              onClick={() => setCommentStatus('')}
+              title="Plain note"
+            >💬 Note</button>
+            <button
+              className={'pdf-annotator__status-chip pdf-annotator__status-chip--wrong' + (commentStatus === 'wrong' ? ' pdf-annotator__status-chip--active' : '')}
+              onClick={() => setCommentStatus(commentStatus === 'wrong' ? '' : 'wrong')}
+              title="Mark as a wrong problem"
+            >✗ Wrong</button>
+            <button
+              className={'pdf-annotator__status-chip pdf-annotator__status-chip--solved' + (commentStatus === 'solved' ? ' pdf-annotator__status-chip--active' : '')}
+              onClick={() => setCommentStatus(commentStatus === 'solved' ? '' : 'solved')}
+              title="Mark as a solved problem"
+            >✓ Solved</button>
+          </div>
           <div className="pdf-annotator__comment-actions">
             <button onClick={submitComment}>Save</button>
-            <button onClick={() => { setActiveComment(null); setCommentText(''); }}>Cancel</button>
+            <button onClick={() => { setActiveComment(null); setCommentText(''); setCommentStatus(''); }}>Cancel</button>
           </div>
         </div>
       )}
@@ -1091,12 +1167,29 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             onChange={(e) => setEditText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && e.ctrlKey) submitEditComment();
-              if (e.key === 'Escape') { setEditingComment(null); setEditText(''); }
+              if (e.key === 'Escape') { setEditingComment(null); setEditText(''); setEditStatus(''); }
             }}
           />
+          <div className="pdf-annotator__status-chips">
+            <button
+              className={'pdf-annotator__status-chip' + (editStatus === '' ? ' pdf-annotator__status-chip--active' : '')}
+              onClick={() => setEditStatus('')}
+              title="Plain note"
+            >💬 Note</button>
+            <button
+              className={'pdf-annotator__status-chip pdf-annotator__status-chip--wrong' + (editStatus === 'wrong' ? ' pdf-annotator__status-chip--active' : '')}
+              onClick={() => setEditStatus(editStatus === 'wrong' ? '' : 'wrong')}
+              title="Mark as a wrong problem"
+            >✗ Wrong</button>
+            <button
+              className={'pdf-annotator__status-chip pdf-annotator__status-chip--solved' + (editStatus === 'solved' ? ' pdf-annotator__status-chip--active' : '')}
+              onClick={() => setEditStatus(editStatus === 'solved' ? '' : 'solved')}
+              title="Mark as a solved problem"
+            >✓ Solved</button>
+          </div>
           <div className="pdf-annotator__comment-actions">
             <button onClick={submitEditComment}>Save</button>
-            <button onClick={() => { setEditingComment(null); setEditText(''); }}>Cancel</button>
+            <button onClick={() => { setEditingComment(null); setEditText(''); setEditStatus(''); }}>Cancel</button>
           </div>
         </div>
       )}
@@ -1452,6 +1545,8 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
         className={'pdf-annotator__comment-marker' +
           (eraseMode ? ' pdf-annotator__comment-marker--erasable' : ' pdf-annotator__comment-marker--viewable') +
           (viewOpen ? ' pdf-annotator__comment-marker--open' : '') +
+          (annotation.status === 'wrong' ? ' pdf-annotator__comment-marker--wrong' : '') +
+          (annotation.status === 'solved' ? ' pdf-annotator__comment-marker--solved' : '') +
           (markerPos?.edgeLeft ? ' pdf-annotator__comment-marker--edge-left' : '') +
           (markerPos?.edgeRight ? ' pdf-annotator__comment-marker--edge-right' : '') +
           (markerPos?.edgeTop ? ' pdf-annotator__comment-marker--edge-top' : '')}
@@ -1462,7 +1557,9 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
         title={annotation.text}
         onClick={handleCommentClick}
       >
-        <span className="pdf-annotator__comment-icon">💬</span>
+        <span className="pdf-annotator__comment-icon" aria-hidden>
+          {annotation.status === 'wrong' ? '✗' : annotation.status === 'solved' ? '✓' : '💬'}
+        </span>
         <span className="pdf-annotator__comment-tooltip" onClick={handleTooltipClick}>
           <span className="pdf-annotator__comment-tooltip-text">{annotation.text}</span>
           <button className="pdf-annotator__comment-edit" onClick={handleTooltipClick} aria-label="Edit comment">✏️</button>

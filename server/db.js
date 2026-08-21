@@ -105,6 +105,14 @@ db.exec(`
   }
 }
 
+// ── 마이그레이션: annotations.status 추가 (스캔 PDF용 문제 코멘트) ──────
+{
+  const cols = db.prepare('PRAGMA table_info(annotations)').all();
+  if (cols.length > 0 && !cols.some((c) => c.name === 'status')) {
+    db.exec("ALTER TABLE annotations ADD COLUMN status TEXT NOT NULL DEFAULT ''");
+  }
+}
+
 // ── 레거시 정리 (호환성 불필요) ──────────────────────────────────────────
 // 문제는 반드시 ref(마크다운 JSON 좌표 또는 PDF 페이지 번호)를 가져야 점프 가능.
 // 옛 방식(좌표 미저장, ref='')으로 생긴 문제는 어차피 점프할 수 없으므로
@@ -320,27 +328,28 @@ export const annotations = {
       color: r.color,
       style: r.style,
       text: r.text,
+      status: r.status || '',
       rect: JSON.parse(r.rect || '{}'),
     }));
   },
-  upsert({ id, filePath, pageNumber, type, color, style, text, rect }) {
+  upsert({ id, filePath, pageNumber, type, color, style, text, rect, status }) {
     const now = new Date().toISOString();
     const exists = db.prepare('SELECT id FROM annotations WHERE id = ?').get(id);
-    const data = { id, filePath, pageNumber, type, color, style, text, rect: JSON.stringify(rect || {}) };
+    const data = { id, filePath, pageNumber, type, color, style, text, rect: JSON.stringify(rect || {}), status: String(status || '') };
     if (exists) {
       db.prepare(`
         UPDATE annotations
         SET file_path = @filePath, page_number = @pageNumber, type = @type,
-            color = @color, style = @style, text = @text, rect = @rect, updated_at = @now
+            color = @color, style = @style, text = @text, rect = @rect, status = @status, updated_at = @now
         WHERE id = @id
       `).run({ ...data, now });
     } else {
       db.prepare(`
-        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, created_at, updated_at)
-        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @now, @now)
+        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, status, created_at, updated_at)
+        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @status, @now, @now)
       `).run({ ...data, now });
     }
-    return { id, filePath, pageNumber, type, color, style, text, rect };
+    return { id, filePath, pageNumber, type, color, style, text, rect, status: String(status || '') };
   },
   remove(id) {
     db.prepare('DELETE FROM annotations WHERE id = ?').run(id);

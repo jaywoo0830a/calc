@@ -547,6 +547,10 @@
       top: 120%;
     }
 
+    // 문제 상태(스캔 PDF) 코멘트 — ✗/✓ 글리프 색상
+    &--wrong .pdf-annotator__comment-icon { color: $c-error; }
+    &--solved .pdf-annotator__comment-icon { color: $c-equals; }
+
     &--erasable {
       pointer-events: auto;
       cursor: pointer;
@@ -686,6 +690,38 @@
           opacity: 0.85;
         }
       }
+    }
+  }
+
+  // ---- 코멘트 문제 상태 선택 칩 (스캔 PDF — 💬 Note / ✗ Wrong / ✓ Solved) ----
+  &__status-chips {
+    display: flex;
+    gap: $sp-1;
+    margin-top: $sp-1;
+  }
+
+  &__status-chip {
+    padding: 0.2rem $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    background: $c-page;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    color: $c-ink-soft;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &--wrong { color: $c-error; }
+    &--solved { color: $c-equals; }
+
+    &--active {
+      border-color: currentColor;
+      background: $c-page-dark;
+      font-weight: $fw-semibold;
+    }
+
+    @media (hover: hover) {
+      &:hover { background: $c-page-dark; }
     }
   }
 
