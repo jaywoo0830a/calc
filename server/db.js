@@ -108,8 +108,16 @@ db.exec(`
 // ── 마이그레이션: annotations.status 추가 (스캔 PDF용 문제 코멘트) ──────
 {
   const cols = db.prepare('PRAGMA table_info(annotations)').all();
-  if (cols.length > 0 && !cols.some((c) => c.name === 'status')) {
-    db.exec("ALTER TABLE annotations ADD COLUMN status TEXT NOT NULL DEFAULT ''");
+  if (cols.length > 0) {
+    if (!cols.some((c) => c.name === 'status')) {
+      db.exec("ALTER TABLE annotations ADD COLUMN status TEXT NOT NULL DEFAULT ''");
+    }
+    if (!cols.some((c) => c.name === 'attempts')) {
+      db.exec('ALTER TABLE annotations ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!cols.some((c) => c.name === 'wrong_count')) {
+      db.exec('ALTER TABLE annotations ADD COLUMN wrong_count INTEGER NOT NULL DEFAULT 0');
+    }
   }
 }
 
@@ -329,27 +337,41 @@ export const annotations = {
       style: r.style,
       text: r.text,
       status: r.status || '',
+      attempts: Number(r.attempts) || 0,
+      wrong_count: Number(r.wrong_count) || 0,
       rect: JSON.parse(r.rect || '{}'),
     }));
   },
-  upsert({ id, filePath, pageNumber, type, color, style, text, rect, status }) {
+  upsert({ id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count }) {
     const now = new Date().toISOString();
     const exists = db.prepare('SELECT id FROM annotations WHERE id = ?').get(id);
-    const data = { id, filePath, pageNumber, type, color, style, text, rect: JSON.stringify(rect || {}), status: String(status || '') };
+    const data = {
+      id, filePath, pageNumber, type, color, style, text,
+      rect: JSON.stringify(rect || {}),
+      status: String(status || ''),
+      attempts: Number(attempts) || 0,
+      wrong_count: Number(wrong_count) || 0,
+    };
     if (exists) {
       db.prepare(`
         UPDATE annotations
         SET file_path = @filePath, page_number = @pageNumber, type = @type,
-            color = @color, style = @style, text = @text, rect = @rect, status = @status, updated_at = @now
+            color = @color, style = @style, text = @text, rect = @rect,
+            status = @status, attempts = @attempts, wrong_count = @wrong_count, updated_at = @now
         WHERE id = @id
       `).run({ ...data, now });
     } else {
       db.prepare(`
-        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, status, created_at, updated_at)
-        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @status, @now, @now)
+        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, status, attempts, wrong_count, created_at, updated_at)
+        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @status, @attempts, @wrong_count, @now, @now)
       `).run({ ...data, now });
     }
-    return { id, filePath, pageNumber, type, color, style, text, rect, status: String(status || '') };
+    return {
+      id, filePath, pageNumber, type, color, style, text, rect,
+      status: String(status || ''),
+      attempts: Number(attempts) || 0,
+      wrong_count: Number(wrong_count) || 0,
+    };
   },
   remove(id) {
     db.prepare('DELETE FROM annotations WHERE id = ?').run(id);

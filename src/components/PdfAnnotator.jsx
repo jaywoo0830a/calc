@@ -682,6 +682,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       color: '#ffc864',
       text: commentText.trim(),
       status: commentStatus, // 스캔 PDF — ✗ Wrong / ✓ Solved 문제 코멘트
+      attempts: commentStatus ? 1 : 0, // 문제로 등록하면 1회 시도로 시작
+      wrong_count: commentStatus === 'wrong' ? 1 : 0,
       rect: { x: activeComment.x, y: activeComment.y, w: 0.03, h: 0.03 },
     };
     saveAnnotation(annotation).then((saved) => {
@@ -715,6 +717,10 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     setEditStatus('');
     if (!text) return; // 내용이 비어 있으면 변경 없이 닫기
     const original = annotations.find((a) => a.id === editing.id);
+    // 상태가 바뀌면 한 번 더 풀었다고 간주 → attempts +1 (텍스트 문제와 동일)
+    const statusChanged = editStatus !== (original?.status || '');
+    const attempts = (original?.attempts || 0) + (statusChanged ? 1 : 0);
+    const wrongCount = (original?.wrong_count || 0) + (editStatus === 'wrong' && (original?.status || '') !== 'wrong' ? 1 : 0);
     saveAnnotation({
       id: editing.id,
       filePath,
@@ -723,15 +729,19 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       color: original?.color || '#ffc864',
       text,
       status: editStatus, // 스캔 PDF — ✗ Wrong / ✓ Solved 문제 코멘트
+      attempts,
+      wrong_count: wrongCount,
       rect: original?.rect || { x: 0.5, y: 0.5, w: 0.03, h: 0.03 },
     }).then((saved) => {
       setAnnotations((prev) => prev.map((a) => (a.id === saved.id ? saved : a)));
     });
   }, [editingComment, editText, editStatus, filePath, annotations]);
 
-  // ── 코멘트 문제 상태 전환 (스캔 PDF — Problems 패널의 ✓/✗) ──
+  // ── 코멘트 문제 상태 전환 (스캔 PDF — Problems 패널의 ✓/✗, 매 탭 = 시도 1회) ──
   const updateCommentStatus = useCallback((a, status) => {
-    saveAnnotation({ ...a, status }).then((saved) => {
+    const attempts = (a.attempts || 0) + 1; // 같은 상태 재클릭도 '한 번 더 풀었다' (텍스트 문제와 동일)
+    const wrongCount = (a.wrong_count || 0) + (status === 'wrong' && a.status !== 'wrong' ? 1 : 0);
+    saveAnnotation({ ...a, status, attempts, wrong_count: wrongCount }).then((saved) => {
       setAnnotations((prev) => prev.map((x) => (x.id === saved.id ? saved : x)));
     });
   }, []);
@@ -1064,7 +1074,10 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                 >
                   <span className="pdf-annotator__problem-status">{a.status === 'solved' ? '✓' : '✗'}</span>
                   <span className="pdf-annotator__problem-body">
-                    <span className="pdf-annotator__problem-src">p.{a.pageNumber} · comment</span>
+                    <span className="pdf-annotator__problem-src">
+                      p.{a.pageNumber} · comment
+                      {(a.attempts || 0) > 0 && ` · ${a.attempts} attempt${a.attempts === 1 ? '' : 's'} · ${a.wrong_count || 0} wrong`}
+                    </span>
                     <span className="pdf-annotator__problem-text">{a.text}</span>
                   </span>
                 </button>

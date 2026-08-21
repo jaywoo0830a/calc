@@ -583,7 +583,7 @@ app.get('/annotations', (req, res) => {
 
 app.post('/annotations', (req, res) => {
   try {
-    const { id, filePath, pageNumber, type, color, style, text, rect, status } = req.body || {};
+    const { id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count } = req.body || {};
     if (!id || !filePath) return res.status(400).json({ error: 'id and filePath required' });
     res.json(annotations.upsert({
       id: String(id).slice(0, 120),
@@ -591,9 +591,11 @@ app.post('/annotations', (req, res) => {
       pageNumber: Number(pageNumber) || 1,
       type: String(type || 'highlight').slice(0, 20),
       color: String(color || '').slice(0, 40),
-      style: String(style || '').slice(0, 20),
+      style: String(style || '').slice(0,20),
       text: String(text || '').slice(0, 2000),
       status: String(status || '').slice(0, 20),
+      attempts: Number(attempts) || 0,
+      wrong_count: Number(wrong_count) || 0,
       rect,
     }));
   } catch (e) {
