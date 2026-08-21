@@ -77,6 +77,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [bookmarks, setBookmarks] = useState([]);  // { id, filePath, pageNumber, title?, createdAt }
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [openCommentId, setOpenCommentId] = useState(null); // READ 모드에서 내용을 연 코멘트 마커
+  const [editingComment, setEditingComment] = useState(null); // 수정 중인 코멘트 { id, pageNumber, px, py }
+  const [editText, setEditText] = useState(''); // 수정 중인 코멘트 텍스트
   const [problems, setProblems] = useState([]);      // 현재 문서의 푼/틀린 문제 (서버)
   const [problemsOpen, setProblemsOpen] = useState(false);
   const [annotationsOpen, setAnnotationsOpen] = useState(false); // 주석 모아보기 사이드바
@@ -326,6 +328,9 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     setSelTrigger(null);
     savedSelectionRef.current = null;
     lastDetectedText.current = '';
+    setEditingComment(null);
+    setEditText('');
+    setOpenCommentId(null);
   }, [currentPage]);
 
   // ── Load annotations from IndexedDB ─────────────────────
@@ -409,6 +414,9 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     setFlashPage(null);
     setSearchOpen(false);
     setSearchHits(new Map());
+    setEditingComment(null);
+    setEditText('');
+    setOpenCommentId(null);
     autoFsRef.current = false; // 새 문서 → 다시 자동 풀스크린 유도
     return () => {
       // 이전 PDF 문서/페이지 참조 해제 (메모리 누수 방지)
@@ -673,6 +681,40 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     setActiveComment(null);
     setCommentText('');
   }, [activeComment, commentText, filePath]);
+
+  // ── 기존 코멘트 수정 — 마커/툴팁을 다시 터치하면 그 위치에 입력창 ──
+  const startEditingComment = useCallback((annotation, e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setOpenCommentId(null);
+    setEditingComment({
+      id: annotation.id,
+      pageNumber: annotation.pageNumber,
+      px: r.left,
+      py: Math.min(Math.max(r.bottom + 8, 8), window.innerHeight - 220),
+    });
+    setEditText(annotation.text || '');
+  }, []);
+
+  const submitEditComment = useCallback(() => {
+    const editing = editingComment;
+    if (!editing) return;
+    const text = editText.replace(/\s+/g, ' ').trim();
+    setEditingComment(null);
+    setEditText('');
+    if (!text) return; // 내용이 비어 있으면 변경 없이 닫기
+    const original = annotations.find((a) => a.id === editing.id);
+    saveAnnotation({
+      id: editing.id,
+      filePath,
+      pageNumber: editing.pageNumber,
+      type: 'comment',
+      color: original?.color || '#ffc864',
+      text,
+      rect: original?.rect || { x: 0.5, y: 0.5, w: 0.03, h: 0.03 },
+    }).then((saved) => {
+      setAnnotations((prev) => prev.map((a) => (a.id === saved.id ? saved : a)));
+    });
+  }, [editingComment, editText, filePath, annotations]);
 
   // ── Delete annotation ────────────────────────────────────
   const removeAnnotation = useCallback((id) => {
@@ -1027,6 +1069,34 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         </div>
       )}
 
+      {/* Comment edit overlay — 기존 코멘트를 다시 터치하면 그 위치에서 수정 */}
+      {editingComment && (
+        <div
+          className="pdf-annotator__comment-input"
+          style={{
+            position: 'fixed',
+            left: editingComment.px,
+            top: editingComment.py,
+          }}
+        >
+          <textarea
+            autoFocus
+            rows={3}
+            placeholder="Enter a comment…"
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && e.ctrlKey) submitEditComment();
+              if (e.key === 'Escape') { setEditingComment(null); setEditText(''); }
+            }}
+          />
+          <div className="pdf-annotator__comment-actions">
+            <button onClick={submitEditComment}>Save</button>
+            <button onClick={() => { setEditingComment(null); setEditText(''); }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       {/* PDF Document */}
       <div
         ref={documentRef}
@@ -1123,6 +1193,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                     eraseMode={tool === 'erase'}
                     viewOpen={openCommentId === a.id}
                     onViewComment={setOpenCommentId}
+                    onEditComment={startEditingComment}
                   />
                 ))}
                 {/* 🔎 검색 매치 하이라이트 (정규화 좌표 → 캔버스 기준) */}
@@ -1320,7 +1391,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
  *  위치를 다시 계산해야 하므로 부모 리렌더마다 갱신한다. 값 비교로 불필요한
  *  setState는 막아 루프 없이 안정적으로 동작한다)
  */
-function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, onViewComment }) {
+function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, onViewComment, onEditComment }) {
   // Always find page element fresh from DOM — prop may be stale after page navigation
   const getPageEl = () => document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
   const [rect, setRect] = useState(null);
@@ -1342,10 +1413,16 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
   });
 
   const handleDelete = eraseMode ? (e) => { e.stopPropagation(); onDelete(annotation.id); } : undefined;
-  // READ 모드: 클릭하면 내용 툴팁 열기/닫기 (지우개 모드와 구분)
+  // READ 모드: 첫 터치 = 툴팁 열기, 열린 상태에서 다시 터치 = 수정 입력창
   const handleCommentClick = eraseMode
     ? handleDelete
-    : (e) => { e.stopPropagation(); onViewComment(viewOpen ? null : annotation.id); };
+    : (e) => {
+        e.stopPropagation();
+        if (viewOpen) onEditComment(annotation, e);
+        else onViewComment(annotation.id);
+      };
+  // 툴팁 본문/✏️를 터치해도 바로 수정 (지우개 모드 제외)
+  const handleTooltipClick = eraseMode ? undefined : (e) => { e.stopPropagation(); onEditComment(annotation, e); };
 
   if (annotation.type === 'comment') {
     return (
@@ -1362,7 +1439,10 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
         onClick={handleCommentClick}
       >
         <span className="pdf-annotator__comment-icon">💬</span>
-        <span className="pdf-annotator__comment-tooltip">{annotation.text}</span>
+        <span className="pdf-annotator__comment-tooltip" onClick={handleTooltipClick}>
+          <span className="pdf-annotator__comment-tooltip-text">{annotation.text}</span>
+          <button className="pdf-annotator__comment-edit" onClick={handleTooltipClick} aria-label="Edit comment">✏️</button>
+        </span>
         <button
           className="pdf-annotator__delete-btn"
           onClick={(e) => { e.stopPropagation(); onDelete(annotation.id); }}

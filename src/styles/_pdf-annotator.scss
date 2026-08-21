@@ -527,7 +527,7 @@
 
     // 클릭으로 연 툴팁 (READ 모드)
     &--open .pdf-annotator__comment-tooltip {
-      display: block;
+      display: flex;
     }
 
     &--erasable {
@@ -535,7 +535,7 @@
       cursor: pointer;
 
       &:hover .pdf-annotator__comment-tooltip {
-        display: block;
+        display: flex;
       }
     }
   }
@@ -558,11 +558,33 @@
     font-size: $fs-step--2;
     white-space: nowrap;
     max-width: 16rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
     box-shadow: $shadow-lg;
     font-family: $ff;
     z-index: 20;
+    cursor: pointer;
+    align-items: center;
+    gap: $sp-1;
+  }
+
+  &__comment-tooltip-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 11rem;
+  }
+
+  &__comment-edit {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 0.75rem;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+
+    @media (hover: hover) {
+      &:hover { opacity: 0.7; }
+    }
   }
 
   // ---- Delete button on annotations -----------------------
