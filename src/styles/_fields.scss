@@ -23,6 +23,22 @@
     &::-webkit-scrollbar { display: none; }
   }
 
+  // 도구와 오버레이 사이 구분선 (한 줄 병합)
+  &__chip-sep {
+    width: $border-thin;
+    height: 1.4rem;
+    background: $c-rule;
+    flex-shrink: 0;
+  }
+
+  // ---- 컨트롤 패널 (칩 + Arrange) ----------------------------
+  &__panel {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+    flex-shrink: 0;
+  }
+
   // ---- 모드 스위치 (Canvas | Plates) -------------------------
   &__mode-switch {
     display: inline-flex;
@@ -283,12 +299,49 @@
       font-weight: $fw-bold;
     }
   }
+}
 
-  // ---- 설명 캡션 --------------------------------------------
-  &__caption {
-    font-size: $fs-step--2;
-    color: $c-ink-faint;
-    line-height: 1.5;
-    flex-shrink: 0;
+// ---- 넓은 화면(≥1024px, #root가 90rem으로 확장되는 시점): 컨트롤을 우측 패널로, 캔버스는 전체 높이 ------
+@media (min-width: $bp-lg) {
+  .fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 17rem;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    column-gap: $sp-3;
+    row-gap: $sp-2;
+  }
+
+  .fields > .calculator__nav {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .fields__panel {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+    overflow-y: auto;
+  }
+
+  .fields__chips {
+    flex-direction: column;
+    align-items: stretch;
+    overflow: visible;
+  }
+
+  .fields__chip-sep {
+    width: auto;
+    height: $border-thin;
+    margin: $sp-1 0;
+  }
+
+  .fields__stage {
+    grid-column: 1;
+    grid-row: 2 / span 2;
+  }
+
+  .fields__status {
+    grid-column: 2;
+    grid-row: 3;
   }
 }

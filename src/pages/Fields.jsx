@@ -492,7 +492,7 @@ export default function Fields() {
     if (!stage || !canvas) return;
     const fit = () => {
       const r = stage.getBoundingClientRect();
-      const side = Math.max(160, Math.floor(Math.min(r.width, r.height) - 8));
+      const side = Math.max(160, Math.floor(Math.min(r.width, r.height) - 4));
       sizeRef.current = { w: side, h: side, scale: side / (2 * WORLD_HALF) };
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       canvas.width = Math.round(side * dpr);
@@ -668,7 +668,8 @@ export default function Fields() {
         <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
 
-      <div className="fields__chips" role="group" aria-label="Mode and tools">
+      <div className="fields__panel">
+        <div className="fields__chips" role="group" aria-label="Mode, tools and overlays">
         <span className="fields__mode-switch" role="group" aria-label="Field mode">
           <button
             className={'fields__mode-btn' + (mode === 'charges' ? ' fields__mode-btn--active' : '')}
@@ -688,9 +689,7 @@ export default function Fields() {
           className={'fields__chip' + (probeMode ? ' fields__chip--active' : '')}
           onClick={() => { setProbeMode((m) => !m); setProbe(null); setPicker(null); }}
         >◉ Probe</button>
-      </div>
-
-      <div className="fields__chips" role="group" aria-label="Overlays">
+        <span className="fields__chip-sep" aria-hidden="true" />
         {OVERLAY_TOGGLES.map(([k, label]) => (
           <button
             key={k}
@@ -721,6 +720,7 @@ export default function Fields() {
           </div>
         </div>
       )}
+      </div>
 
       <div className="fields__stage" ref={stageRef}>
         <div className="fields__canvas-wrap">
@@ -796,14 +796,10 @@ export default function Fields() {
           <span className="fields__status-note">
             {probeMode
               ? 'Probe mode: tap a point to measure V & E there — press ◉ Probe again to return to placing charges'
-              : 'Tap anywhere to place a charge, then set its sign & size — drag to move'}
+              : 'E = kQ/r² · V = kQ/r · F = kQ₁Q₂/r² — k = 1 (relative units). Tap anywhere to place a charge, drag to move'}
           </span>
         )}
       </div>
-
-      <p className="fields__caption">
-        E = kQ/r² · V = kQ/r · F = kQ₁Q₂/r² — k = 1 (relative units). Field lines go from + to − charges; equipotentials are perpendicular to field lines.
-      </p>
     </main>
   );
 }
