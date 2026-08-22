@@ -74,6 +74,7 @@ export default function Problems() {
         <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
         <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
         <Link to="/math" className="calculator__nav-tab">Math Space</Link>
+        <Link to="/fields" className="calculator__nav-tab">Fields</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Problems</span>
         <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>

@@ -1,0 +1,294 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: fields — 전기장 시각화 (SAT 정전기학 직관용)
+// ============================================================
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: $sp-2;
+
+  // ---- 칩 행 (프리셋 / 오버레이 토글) ----------------------
+  &__chips {
+    display: flex;
+    align-items: center;
+    gap: $sp-1;
+    flex-shrink: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  // ---- 모드 스위치 (Canvas | Plates) -------------------------
+  &__mode-switch {
+    display: inline-flex;
+    flex-shrink: 0;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-lg;
+    overflow: hidden;
+    background: $c-page;
+  }
+
+  &__mode-btn {
+    padding: $sp-2 $sp-4;
+    border: none;
+    background: transparent;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all $transition-fast;
+
+    & + & {
+      border-left: $border-thin solid $c-rule;
+    }
+
+    @media (hover: hover) {
+      &:hover:not(&--active) {
+        background: $c-page-dark;
+      }
+    }
+
+    &--active {
+      background: $c-accent;
+      color: $c-ink-inverse;
+    }
+  }
+
+  &__chip {
+    padding: $sp-2 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-lg;
+    background: $c-page;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+        color: $c-ink;
+      }
+    }
+
+    &--active {
+      background: $c-accent;
+      color: $c-ink-inverse;
+      border-color: $c-accent;
+    }
+  }
+
+  // ---- 캔버스 스테이지 --------------------------------------
+  &__stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__canvas-wrap {
+    position: relative;
+  }
+
+  &__canvas {
+    display: block;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-xl;
+    background: $c-page;
+    box-shadow: $shadow-sm;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  // ---- 배치 팝오버 (부호/전하량 선택) -------------------------
+  &__picker {
+    position: absolute;
+    transform: translate(-50%, calc(-100% - 14px));
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+    padding: $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-lg;
+    background: $c-page;
+    box-shadow: $shadow-md;
+    z-index: $z-overlay;
+    line-height: normal;
+
+    &--below {
+      transform: translate(-50%, 16px);
+    }
+  }
+
+  &__picker-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: $sp-1;
+  }
+
+  &__picker-label {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-weight: $fw-semibold;
+    min-width: 2.1rem;
+    text-align: left;
+  }
+
+  &__picker-done {
+    padding: $sp-1 $sp-3;
+    border: $border-thin solid $c-accent;
+    border-radius: $radius-md;
+    background: $c-accent;
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-accent-hover;
+      }
+    }
+  }
+
+  // ---- Arrange 패널 (x, y, q 입력) ---------------------------
+  &__arrange {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+    padding: $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-lg;
+    background: $c-page;
+    flex-shrink: 0;
+  }
+
+  &__arrange-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $sp-2;
+    flex-wrap: wrap;
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+  }
+
+  &__arrange-input {
+    width: 100%;
+    min-height: 4.5rem;
+    resize: vertical;
+    padding: $sp-2 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink;
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-size: $fs-step--1;
+    line-height: 1.6;
+
+    &:focus {
+      outline: none;
+      border-color: $c-accent;
+    }
+  }
+
+  &__arrange-error {
+    color: $c-error;
+    font-size: $fs-step--1;
+  }
+
+  &__arrange-actions {
+    display: flex;
+    gap: $sp-2;
+  }
+
+  // ---- 상태 바 (프로브/선택 정보 + 컨트롤) -------------------
+  &__status {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    flex-wrap: wrap;
+    min-height: 2.5rem;
+    padding: $sp-2 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-lg;
+    background: $c-page;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    flex-shrink: 0;
+  }
+
+  &__status-note {
+    color: $c-ink-soft;
+  }
+
+  &__qctrl {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: $sp-1;
+  }
+
+  &__qmag {
+    min-width: 1.75rem;
+    text-align: center;
+    font-weight: $fw-bold;
+    color: $c-accent;
+  }
+
+  &__qbtn {
+    min-width: 2rem;
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+      }
+    }
+
+    &--del {
+      color: $c-error;
+      border-color: $c-error;
+      background: $c-error-light;
+    }
+
+    &--sign {
+      background: $c-accent-light;
+      border-color: $c-accent;
+      color: $c-accent;
+      font-weight: $fw-bold;
+    }
+  }
+
+  // ---- 설명 캡션 --------------------------------------------
+  &__caption {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    line-height: 1.5;
+    flex-shrink: 0;
+  }
+}

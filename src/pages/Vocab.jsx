@@ -157,6 +157,7 @@ export default function Vocab() {
         <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
         <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
         <Link to="/math" className="calculator__nav-tab">Math Space</Link>
+        <Link to="/fields" className="calculator__nav-tab">Fields</Link>
         <Link to="/problems" className="calculator__nav-tab">Problems</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Vocab</span>
       </nav>
