@@ -287,10 +287,17 @@ export default function Fields() {
     ctx.setLineDash([]);
   }
 
+  // 후광(종이색)을 먼저 깔고 진한 화살표를 그려 "선 위 레이어"처럼 보이게
+  function drawLayeredArrow(ctx, x, y, ang, len, width, color) {
+    drawArrow(ctx, x, y, ang, len + 2, width + 3.5, 'rgba(255,254,247,0.85)');
+    drawArrow(ctx, x, y, ang, len, width, color);
+  }
+
   function drawFieldLines(ctx, mode, rc, toPx, scale) {
     ctx.lineWidth = 1.3;
     if (mode === 'plates') {
-      ctx.strokeStyle = 'rgba(92,61,46,0.7)';
+      // ── 1) 선 레이어: 반투명 회색 ──
+      ctx.strokeStyle = 'rgba(107,96,80,0.35)';
       for (let y = -4.5; y <= 4.5; y += 0.5) {
         const [ax, ay] = toPx(-PLATE_X + 0.07, y);
         const [bx, by] = toPx(PLATE_X - 0.07, y);
@@ -298,14 +305,19 @@ export default function Fields() {
         ctx.moveTo(ax, ay);
         ctx.lineTo(bx, by);
         ctx.stroke();
+      }
+      // ── 2) 화살표 레이어: 선 위에 진하게 ──
+      for (let y = -4.5; y <= 4.5; y += 0.5) {
         for (let x = -1.4; x < PLATE_X - 0.4; x += 0.8) {
           const [px, py] = toPx(x, y);
-          drawArrow(ctx, px, py, 0, Math.max(8, 0.2 * scale), 1.8, 'rgba(92,61,46,0.95)');
+          drawLayeredArrow(ctx, px, py, 0, Math.max(8, 0.2 * scale), 1.8, 'rgba(44,36,22,0.95)');
         }
       }
       return;
     }
-    ctx.strokeStyle = 'rgba(92,61,46,0.78)';
+    // ── 1) 선 레이어: 모든 장선을 반투명 회색으로 ──
+    ctx.strokeStyle = 'rgba(107,96,80,0.35)';
+    const arrowHeads = []; // { x, y, ang } — 화살표 레이어에서 일괄 그림
     for (const c of rc) {
       const n = fieldLineCount(c.q); // 장선 수 ∝ |q| (플럭스 직관)
       const r0 = 0.27;
@@ -322,7 +334,7 @@ export default function Fields() {
           ctx.lineTo(px, py);
         }
         ctx.stroke();
-        // ~0.85 세계 단위마다 방향 화살촉 — 방향은 trace가 아니라 물리적 E
+        // ~0.85 세계 단위마다 화살촉 위치 수집 (방향은 물리적 E)
         let acc = 0.5;
         for (let i = 1; i < pts.length; i++) {
           acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
@@ -333,12 +345,15 @@ export default function Fields() {
             const e = fieldAt(rc, pts[i].x, pts[i].y);
             const mE = Math.hypot(e.ex, e.ey);
             if (mE < 1e-6) continue;
-            const a2 = Math.atan2(e.ey, e.ex);
-            const [px, py] = toPx(pts[i].x, pts[i].y);
-            drawArrow(ctx, px, py, a2, Math.max(8, 0.2 * scale), 1.8, 'rgba(92,61,46,0.95)');
+            arrowHeads.push({ x: pts[i].x, y: pts[i].y, ang: Math.atan2(e.ey, e.ex) });
           }
         }
       }
+    }
+    // ── 2) 화살표 레이어: 모든 선 위에 진한 먹색 + 종이색 후광 ──
+    for (const a of arrowHeads) {
+      const [px, py] = toPx(a.x, a.y);
+      drawLayeredArrow(ctx, px, py, a.ang, Math.max(8, 0.2 * scale), 1.8, 'rgba(44,36,22,0.95)');
     }
   }
 
