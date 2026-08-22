@@ -183,55 +183,7 @@
   }
 
   // ---- Arrange 패널 (x, y, q 입력) ---------------------------
-  &__arrange {
-    display: flex;
-    flex-direction: column;
-    gap: $sp-2;
-    padding: $sp-3;
-    border: $border-thin solid $c-rule;
-    border-radius: $radius-lg;
-    background: $c-page;
-    flex-shrink: 0;
-  }
-
-  &__arrange-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: $sp-2;
-    flex-wrap: wrap;
-    font-size: $fs-step--1;
-    color: $c-ink-soft;
-  }
-
-  &__arrange-input {
-    width: 100%;
-    min-height: 4.5rem;
-    resize: vertical;
-    padding: $sp-2 $sp-3;
-    border: $border-thin solid $c-rule;
-    border-radius: $radius-md;
-    background: $c-page;
-    color: $c-ink;
-    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
-    font-size: $fs-step--1;
-    line-height: 1.6;
-
-    &:focus {
-      outline: none;
-      border-color: $c-accent;
-    }
-  }
-
-  &__arrange-error {
-    color: $c-error;
-    font-size: $fs-step--1;
-  }
-
-  &__arrange-actions {
-    display: flex;
-    gap: $sp-2;
-  }
+  // (Arrange 기능 제거 — 2026-08-22)
 
   // ---- 상태 바 (프로브/선택 정보 + 컨트롤) -------------------
   &__status {
@@ -251,13 +203,6 @@
 
   &__status-note {
     color: $c-ink-soft;
-  }
-
-  &__qctrl {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: $sp-1;
   }
 
   &__qmag {
@@ -327,6 +272,15 @@
     flex-direction: column;
     align-items: stretch;
     overflow: visible;
+  }
+
+  .fields__mode-switch {
+    width: 100%;
+  }
+
+  .fields__mode-btn {
+    flex: 1;
+    text-align: center;
   }
 
   .fields__chip-sep {

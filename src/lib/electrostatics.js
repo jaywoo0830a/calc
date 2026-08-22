@@ -17,6 +17,31 @@ export function plateField(x, plateX = 2, v0 = 4) {
 }
 
 /**
+ * 장면 합성장: plates 모드 = 평행판 장 + 점전하 장 (중첩 원리).
+ */
+export function sceneField(mode, charges, x, y, skipId = null, plateX = 2, v0 = 4) {
+  if (mode === 'plates') {
+    const p = plateField(x, plateX, v0);
+    const f = fieldAt(charges, x, y, skipId);
+    return { ex: p.ex + f.ex, ey: p.ey + f.ey, v: p.v + f.v };
+  }
+  return fieldAt(charges, x, y, skipId);
+}
+
+/**
+ * id 전하가 받는 알짜힘 (장면 장 포함): F = q·E_total.
+ * plates 모드에서는 균일장에 의한 힘도 포함.
+ */
+export function forceOnChargeScene(mode, charges, id, plateX = 2, v0 = 4) {
+  const c = charges.find((ch) => ch.id === id);
+  if (!c) return { fx: 0, fy: 0, f: 0 };
+  const e = sceneField(mode, charges, c.x, c.y, id, plateX, v0);
+  const fx = c.q * e.ex;
+  const fy = c.q * e.ey;
+  return { fx, fy, f: Math.hypot(fx, fy) };
+}
+
+/**
  * 전하가 내는 장선 수 — |q|에 비례 (플럭스 직관: 1q = 8선, 2q = 16선, …).
  */
 export function fieldLineCount(q) {
@@ -80,7 +105,16 @@ export function traceFieldLine(charges, x0, y0, dir, opts = {}) {
     bound = 6,
     minE = 1e-4,
     excludeId = null,
+    ext = null, // 외부장 (x,y) => {ex,ey} — 예: 평행판 균일장
   } = opts;
+  const totalE = (x, y) => {
+    const f = fieldAt(charges, x, y);
+    if (ext) {
+      const e = ext(x, y);
+      return { ex: f.ex + e.ex, ey: f.ey + e.ey };
+    }
+    return f;
+  };
   const pts = [];
   let x = x0;
   let y = y0;
@@ -101,12 +135,12 @@ export function traceFieldLine(charges, x0, y0, dir, opts = {}) {
       }
     }
     if (hit) break;
-    const e1 = fieldAt(charges, x, y);
+    const e1 = totalE(x, y);
     const m1 = Math.hypot(e1.ex, e1.ey);
     if (m1 < minE) break;
     const ux = e1.ex / m1;
     const uy = e1.ey / m1;
-    const e2 = fieldAt(charges, x + dir * ux * step * 0.5, y + dir * uy * step * 0.5);
+    const e2 = totalE(x + dir * ux * step * 0.5, y + dir * uy * step * 0.5);
     const m2 = Math.hypot(e2.ex, e2.ey);
     if (m2 < minE) break;
     const sx = dir * (e2.ex / m2) * step;
@@ -123,7 +157,7 @@ export function traceFieldLine(charges, x0, y0, dir, opts = {}) {
  * (n+1)² 모서리 전위 그리드 (등전위선 marching squares용).
  * x, y 모두 [-bound, bound].
  */
-export function potentialCorners(charges, n, bound) {
+export function potentialCorners(charges, n, bound, extV = null) {
   const v = new Float32Array((n + 1) * (n + 1));
   const step = (2 * bound) / n;
   const minR = step * 0.3; // 전하 특이점 하한 클램프 — 전하 주변 가짜 고리 방지
@@ -134,7 +168,7 @@ export function potentialCorners(charges, n, bound) {
     const y = -bound + j * step;
     for (let i = 0; i <= n; i++) {
       const x = -bound + i * step;
-      v[j * (n + 1) + i] = fieldAt(charges, x, y, null, minR).v;
+      v[j * (n + 1) + i] = fieldAt(charges, x, y, null, minR).v + (extV ? extV(x, y) : 0);
     }
   }
   return { v, n, step, x0: -bound, y0: -bound };

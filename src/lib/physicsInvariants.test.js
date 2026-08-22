@@ -11,6 +11,8 @@ import {
   K,
   fieldAt,
   forceOnCharge,
+  forceOnChargeScene,
+  sceneField,
   traceFieldLine,
   potentialCorners,
   contourPaths,
@@ -368,4 +370,64 @@ test('불변식: 장선 수가 전하량에 비례 (플럭스 직관)', () => {
   assert.ok(fieldLineCount(2) === 2 * fieldLineCount(1));
   assert.ok(fieldLineCount(4) === 4 * fieldLineCount(1));
   approx(fieldLineCount(0.5), 8, 0, '최소 8선');
+});
+
+// ── 15. 평행판 + 점전하 중첩 (Plates 모드에 전하 배치) ─────────────
+test('불변식: 평행판 + 점전하 합성장 = 중첩 원리', () => {
+  const cs = [{ id: 'a', x: 0, y: 1, q: 1 }];
+  const PX = 2;
+  const V0 = 4;
+  for (const [x, y] of [[0.5, 0.3], [-1.2, 0.9], [0.9, -1.1]]) {
+    const s = sceneField('plates', cs, x, y, null, PX, V0);
+    const p = plateField(x, PX, V0);
+    const f = fieldAt(cs, x, y);
+    approx(s.ex, p.ex + f.ex, 1e-12, 'Ex 합성');
+    approx(s.ey, p.ey + f.ey, 1e-12, 'Ey 합성');
+    approx(s.v, p.v + f.v, 1e-12, 'V 합성');
+  }
+});
+
+test('불변식: 균일장 안 전하의 힘 F = qE (전하 하나)', () => {
+  const cs = [{ id: 'a', x: 0.3, y: 0.5, q: 2 }];
+  const fa = forceOnChargeScene('plates', cs, 'a', 2, 4);
+  approx(fa.fx, 2 * 1, 1e-12, 'F = q·E = 2');
+  approx(fa.fy, 0, 1e-12);
+  const neg = [{ id: 'b', x: -0.7, y: 0.2, q: -3 }];
+  const fb = forceOnChargeScene('plates', neg, 'b', 2, 4);
+  approx(fb.fx, -3 * 1, 1e-12, 'F = q·E = −3 (음전하는 반대)');
+});
+
+test('불변식: 균일장 안 두 전하는 서로의 힘 + qE 합성', () => {
+  const cs = [
+    { id: 'a', x: -1, y: 0, q: 1 },
+    { id: 'b', x: 1, y: 0, q: 1 },
+  ];
+  const fa = forceOnChargeScene('plates', cs, 'a', 2, 4);
+  approx(fa.fx, 1 * (1 - 0.25), 1e-12, 'Fx = q·(E_plate − E_b) = 0.75'); // b는 밀어냄(왼쪽)
+  approx(fa.fy, 0, 1e-12);
+  const fb = forceOnChargeScene('plates', cs, 'b', 2, 4);
+  approx(fb.fx, 1 * (1 + 0.25), 1e-12, 'F = q·(E_plate + E_a) = 1.25');
+});
+
+test('불변식: 균일장 속 +전하 장선은 오른쪽으로 휘어짐', () => {
+  const ext = () => ({ ex: 1, ey: 0 });
+  const pts = traceFieldLine([{ id: 'a', x: 0, y: 0, q: 1 }], 0.27, 0.15, 1, { excludeId: 'a', ext });
+  const end = pts[pts.length - 1];
+  assert.ok(end.x > 3, `먼 지점에서 장은 균일장(+x)에 수렴 — x=${end.x.toFixed(2)}`);
+});
+
+test('불변식: 선형 외부 전위의 등전위선은 수직선 (extV)', () => {
+  // V_ext = 2 − x (평행판) → V=1 등전위선은 x=1
+  const grid = potentialCorners([], 120, 5.4, (x) => 2 - x);
+  for (const path of contourPaths(grid, 1)) {
+    for (let k = 0; k < path.length; k += 2) {
+      approx(path[k], 1, 0.02, `V=1 → x≈1 (x=${path[k].toFixed(3)})`);
+    }
+  }
+  // V=3 → x=−1
+  for (const path of contourPaths(grid, 3)) {
+    for (let k = 0; k < path.length; k += 2) {
+      approx(path[k], -1, 0.02, 'V=3 → x≈−1');
+    }
+  }
 });

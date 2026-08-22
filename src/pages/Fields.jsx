@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fieldAt, forceOnCharge, plateField, fieldLineCount, potentialCorners, contourPaths, traceFieldLine } from '../lib/electrostatics.js';
-import { MAX_Q, chargesToLines, parseChargeLines } from '../lib/chargeConfig.js';
+import { fieldAt, forceOnChargeScene, sceneField, plateField, fieldLineCount, potentialCorners, contourPaths, traceFieldLine } from '../lib/electrostatics.js';
 import { screenOffset } from '../lib/canvasMath.js';
 
 // ── 상수 ────────────────────────────────────────────────────────
@@ -9,6 +8,7 @@ const WORLD_HALF = 5.6;  // 캔버스 세계 좌표 범위 (±)
 const PLATE_X = 2;       // 평행판 위치 x = ±2
 const PLATE_V0 = 4;      // +판 V = 4 → 판 사이 E = ΔV/d = 4/4 = 1
 const MS_N = 150;        // 등전위선 marching-squares 해상도
+const MAX_Q = 4;         // 전하량 상한
 
 const COLORS = {
   paper: '#fffef7',
@@ -27,12 +27,6 @@ const OVERLAY_TOGGLES = [
   ['heatmap', 'Potential (color)'],
   ['arrows', 'E direction'],
 ];
-
-// 평행판 모드: 판 사이 E = (1,0), V = 2 − x (선형), 판 밖 E = 0·V 일정
-function sceneField(mode, charges, x, y, skipId = null) {
-  if (mode === 'plates') return plateField(x, PLATE_X, PLATE_V0);
-  return fieldAt(charges, x, y, skipId);
-}
 
 // 화살표 그리기 (x, y = 꼬리 픽셀, worldAng = 세계 좌표(y↑) 각도)
 // ⚠️ 내부에서 화면 좌표(y↓)로 변환 — 세계 각도를 그대로 쓰면 수직 방향이 반전됨
@@ -67,17 +61,17 @@ export default function Fields() {
   const dragRef = useRef(null); // { id, ox, oy } | { id:null, x, y }
   const drawRef = useRef(null);
 
-  const [charges, setCharges] = useState([]);
   const [mode, setMode] = useState('charges');
+  // 모드별 독립 장면 — Canvas/Plates 각자 전하 배치를 보존
+  const [scenes, setScenes] = useState({ charges: [], plates: [] });
+  const charges = scenes[mode];
+  const updateCharges = (fn) => setScenes((s) => ({ ...s, [mode]: fn(s[mode]) }));
   const [overlays, setOverlays] = useState({ lines: true, equipot: true, heatmap: true, arrows: false });
   const [selectedId, setSelectedId] = useState(null);
   const [probe, setProbe] = useState(null);
   const [probeMode, setProbeMode] = useState(false);
   const [picker, setPicker] = useState(null); // { id } — 배치 직후 부호/전하량 팝오버
   const [resizeTick, setResizeTick] = useState(0);
-  const [arrangeOpen, setArrangeOpen] = useState(false);
-  const [arrangeText, setArrangeText] = useState('');
-  const [arrangeError, setArrangeError] = useState(null);
   const lastQRef = useRef(1); // 새 전하 기본값 (마지막으로 정한 부호·전하량)
 
   const sceneRef = useRef({ charges, mode, overlays, selectedId, probe, drag: null });
@@ -90,7 +84,7 @@ export default function Fields() {
   const status = useMemo(() => {
     const sel = charges.find((c) => c.id === selectedId) || null;
     if (sel) {
-      const { f } = forceOnCharge(charges, sel.id);
+      const { f } = forceOnChargeScene(mode, charges, sel.id, PLATE_X, PLATE_V0);
       return { type: 'charge', q: sel.q, force: f };
     }
     if (mode === 'plates' && !probe) return { type: 'plates' };
@@ -169,7 +163,7 @@ export default function Fields() {
     ctx.stroke();
 
     // 전하
-    drawCharges(ctx, rc, toPx, scale, s.selectedId);
+    drawCharges(ctx, rc, toPx, scale, s.selectedId, s.mode);
 
     // 빈 상태 안내
     if (s.mode === 'charges' && !rc.length) {
@@ -211,10 +205,14 @@ export default function Fields() {
         const py = (j + 0.5) * cell;
         const wx = (px - w / 2) / scale;
         const wy = (h / 2 - py) / scale;
-        const f = sceneField(mode, rc, wx, wy);
-        // 평행판 모드는 판 사이만 색칠 (판 밖은 표시용으로 중립)
-        const vdisp = mode === 'plates' && Math.abs(wx) > PLATE_X ? 0 : f.v;
-        const t = Math.max(-1, Math.min(1, vdisp / vclip));
+        const f = fieldAt(rc, wx, wy);
+        let v = f.v;
+        if (mode === 'plates') {
+          const p = plateField(wx, PLATE_X, PLATE_V0);
+          // 판 밖 일정 V는 표시용 중립 (판 사이 선형 + 점전하 V만 색칠)
+          v += Math.abs(wx) <= PLATE_X ? p.v : 0;
+        }
+        const t = Math.max(-1, Math.min(1, v / vclip));
         let r = 255;
         let g = 254;
         let b = 247;
@@ -247,7 +245,8 @@ export default function Fields() {
     ctx.strokeStyle = 'rgba(107,96,80,0.75)';
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 3]);
-    if (mode === 'plates') {
+    if (mode === 'plates' && !rc.length) {
+      // 균일장: 수직 등전위선 (V = 0.5…3.5)
       for (let v = 0.5; v < PLATE_V0; v += 0.5) {
         const x = PLATE_V0 / 2 - v; // V = 2 − x → x = 2 − V
         const [ax, ay] = toPx(x, 5.3);
@@ -260,9 +259,10 @@ export default function Fields() {
       ctx.setLineDash([]);
       return;
     }
-    if (!rc.length) { ctx.setLineDash([]); return; }
     const maxQ = Math.max(1, ...rc.map((c) => Math.abs(c.q)));
-    const grid = potentialCorners(rc, MS_N, 5.4);
+    // plates + 전하: 판 전위(선형)와 점전하 전위의 합성
+    const extV = mode === 'plates' ? (x) => plateField(x, PLATE_X, PLATE_V0).v : null;
+    const grid = potentialCorners(rc, MS_N, 5.4, extV);
     let mn = Infinity;
     let mx = -Infinity;
     for (const val of grid.v) {
@@ -295,9 +295,15 @@ export default function Fields() {
 
   function drawFieldLines(ctx, mode, rc, toPx, scale) {
     ctx.lineWidth = 1.3;
+    // plates 모드에서는 판 장과 합성된 장에서 전하 장선을 추적
+    const extE = mode === 'plates' ? (x, y) => plateField(x, PLATE_X, PLATE_V0) : null;
+
+    // ── 1) 선 레이어: 반투명 회색 ──
+    ctx.strokeStyle = 'rgba(107,96,80,0.35)';
+    const arrowHeads = []; // { x, y, ang } — 화살표 레이어에서 일괄 그림
+
     if (mode === 'plates') {
-      // ── 1) 선 레이어: 반투명 회색 ──
-      ctx.strokeStyle = 'rgba(107,96,80,0.35)';
+      // 균일장 선 (판 사이 수평선)
       for (let y = -4.5; y <= 4.5; y += 0.5) {
         const [ax, ay] = toPx(-PLATE_X + 0.07, y);
         const [bx, by] = toPx(PLATE_X - 0.07, y);
@@ -305,26 +311,20 @@ export default function Fields() {
         ctx.moveTo(ax, ay);
         ctx.lineTo(bx, by);
         ctx.stroke();
-      }
-      // ── 2) 화살표 레이어: 선 위에 진하게 ──
-      for (let y = -4.5; y <= 4.5; y += 0.5) {
         for (let x = -1.4; x < PLATE_X - 0.4; x += 0.8) {
-          const [px, py] = toPx(x, y);
-          drawLayeredArrow(ctx, px, py, 0, Math.max(8, 0.2 * scale), 1.8, 'rgba(44,36,22,0.95)');
+          arrowHeads.push({ x, y, ang: 0 });
         }
       }
-      return;
     }
-    // ── 1) 선 레이어: 모든 장선을 반투명 회색으로 ──
-    ctx.strokeStyle = 'rgba(107,96,80,0.35)';
-    const arrowHeads = []; // { x, y, ang } — 화살표 레이어에서 일괄 그림
+
+    // 전하 장선 (합성장에서 추적)
     for (const c of rc) {
       const n = fieldLineCount(c.q); // 장선 수 ∝ |q| (플럭스 직관)
       const r0 = 0.27;
       const dir = Math.sign(c.q);
       for (let k = 0; k < n; k++) {
         const ang = ((k + 0.5) / n) * Math.PI * 2;
-        const pts = traceFieldLine(rc, c.x + r0 * Math.cos(ang), c.y + r0 * Math.sin(ang), dir, { excludeId: c.id });
+        const pts = traceFieldLine(rc, c.x + r0 * Math.cos(ang), c.y + r0 * Math.sin(ang), dir, { excludeId: c.id, ext: extE });
         if (pts.length < 2) continue;
         const [sx, sy] = toPx(pts[0].x, pts[0].y);
         ctx.beginPath();
@@ -334,18 +334,23 @@ export default function Fields() {
           ctx.lineTo(px, py);
         }
         ctx.stroke();
-        // ~0.85 세계 단위마다 화살촉 위치 수집 (방향은 물리적 E)
+        // ~0.85 세계 단위마다 화살촉 위치 수집 (방향은 물리적 합성 E)
         let acc = 0.5;
         for (let i = 1; i < pts.length; i++) {
           acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
           if (acc >= 0.85) {
             acc = 0;
-            // − 전하 시드는 E와 반대 방향으로 trace되므로 trace 각도를 쓰면
-            // − 전하에서 발산하는 것처럼 보임 → E 방향으로 계산
             const e = fieldAt(rc, pts[i].x, pts[i].y);
-            const mE = Math.hypot(e.ex, e.ey);
+            let ex = e.ex;
+            let ey = e.ey;
+            if (extE) {
+              const ee = extE(pts[i].x, pts[i].y);
+              ex += ee.ex;
+              ey += ee.ey;
+            }
+            const mE = Math.hypot(ex, ey);
             if (mE < 1e-6) continue;
-            arrowHeads.push({ x: pts[i].x, y: pts[i].y, ang: Math.atan2(e.ey, e.ex) });
+            arrowHeads.push({ x: pts[i].x, y: pts[i].y, ang: Math.atan2(ey, ex) });
           }
         }
       }
@@ -401,14 +406,14 @@ export default function Fields() {
     drawPlate(PLATE_X, COLORS.neg, '−');
   }
 
-  function drawCharges(ctx, rc, toPx, scale, selectedId) {
+  function drawCharges(ctx, rc, toPx, scale, selectedId, mode) {
     for (const c of rc) {
       const [px, py] = toPx(c.x, c.y);
       const r = (0.2 + 0.06 * Math.abs(c.q)) * scale;
       const color = c.q > 0 ? COLORS.pos : COLORS.neg;
-      // 선택된 전하: 다른 전하로부터 받는 힘 화살표
+      // 선택된 전하: 받는 알짜힘 화살표 (plates 모드에서는 균일장 포함)
       if (c.id === selectedId) {
-        const { fx, fy, f: fm } = forceOnCharge(rc, c.id); // F = q·E (음전하는 E 반대)
+        const { fx, fy, f: fm } = forceOnChargeScene(mode, rc, c.id, PLATE_X, PLATE_V0);
         if (fm > 1e-3) {
           const ang = Math.atan2(fy, fx); // 세계 각도 — drawArrow가 화면(y↓)으로 변환
           const len = Math.min(1.5, 0.4 + 0.9 * Math.min(1, fm / 1.2)) * scale;
@@ -561,7 +566,7 @@ export default function Fields() {
       sceneRef.current.drag = null;
       if (p) {
         // 드래그 확정 → 이동 반영, 팝오버 닫기
-        setCharges((cs) => cs.map((c) => (c.id === p.id ? { ...c, x: p.x, y: p.y } : c)));
+        updateCharges((cs) => cs.map((c) => (c.id === p.id ? { ...c, x: p.x, y: p.y } : c)));
         setPicker(null);
       } else {
         // 전하 위 가벼운 탭 → 부호/전하량 편집 팝오버
@@ -575,10 +580,9 @@ export default function Fields() {
       setSelectedId(null);
       setPicker(null);
     } else {
-      // 기본: 빈 곳 탭 → 그 자리에 전하 배치 (마지막 부호·전하량 유지)
+      // 기본: 빈 곳 탭 → 그 자리에 전하 배치 (plates 모드에서는 균일장 안에 배치)
       const id = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-      setCharges((cs) => [...cs, { id, x: d.x, y: d.y, q: lastQRef.current }]);
-      setMode('charges');
+      updateCharges((cs) => [...cs, { id, x: d.x, y: d.y, q: lastQRef.current }]);
       setSelectedId(id);
       setProbe(null);
       setPicker({ id });
@@ -588,48 +592,18 @@ export default function Fields() {
 
   // ── 액션 ──────────────────────────────────────────────────────
   const switchMode = (m) => {
-    if (m === 'plates') {
-      setCharges([]);
-      setMode('plates');
-      setSelectedId(null);
-      setProbe(null);
-      setPicker(null);
-    } else {
-      setMode('charges');
-    }
-  };
-
-  const clearAll = () => {
-    setCharges([]);
-    setMode('charges');
+    if (m === mode) return;
+    setMode(m); // 장면은 모드별로 보존됨
     setSelectedId(null);
     setProbe(null);
     setPicker(null);
   };
 
-  const openArrange = () => {
-    setArrangeText(mode === 'charges' ? chargesToLines(charges) : '');
-    setArrangeError(null);
-    setArrangeOpen(true);
-  };
-
-  const syncArrangeText = () => {
-    setArrangeText(mode === 'charges' ? chargesToLines(charges) : '');
-  };
-
-  const applyArrange = () => {
-    try {
-      const cs = parseChargeLines(arrangeText);
-      setCharges(cs);
-      setMode('charges');
-      setSelectedId(null);
-      setProbe(null);
-      setPicker(null);
-      setArrangeError(null);
-      setArrangeOpen(false);
-    } catch (err) {
-      setArrangeError(err.message);
-    }
+  const clearAll = () => {
+    updateCharges(() => []); // 현재 모드의 장면만 비움
+    setSelectedId(null);
+    setProbe(null);
+    setPicker(null);
   };
 
   const toggleOverlay = (k) => setOverlays((o) => ({ ...o, [k]: !o[k] }));
@@ -639,7 +613,7 @@ export default function Fields() {
     if (!c) return;
     const q = Math.max(1, Math.min(MAX_Q, Math.abs(c.q) + d)) * Math.sign(c.q);
     lastQRef.current = q;
-    setCharges((cs) => cs.map((ch) => (ch.id === id ? { ...ch, q } : ch)));
+    updateCharges((cs) => cs.map((ch) => (ch.id === id ? { ...ch, q } : ch)));
   };
 
   const setSignOf = (id, sign) => {
@@ -647,11 +621,11 @@ export default function Fields() {
     if (!c) return;
     const q = Math.abs(c.q) * sign;
     lastQRef.current = q;
-    setCharges((cs) => cs.map((ch) => (ch.id === id ? { ...ch, q } : ch)));
+    updateCharges((cs) => cs.map((ch) => (ch.id === id ? { ...ch, q } : ch)));
   };
 
   const deleteCharge = (id) => {
-    setCharges((cs) => cs.filter((ch) => ch.id !== id));
+    updateCharges((cs) => cs.filter((ch) => ch.id !== id));
     setSelectedId((s) => (s === id ? null : s));
     setPicker((p) => (p && p.id === id ? null : p));
   };
@@ -682,10 +656,6 @@ export default function Fields() {
         </span>
         <button className="fields__chip" onClick={clearAll}>Clear</button>
         <button
-          className={'fields__chip' + (arrangeOpen ? ' fields__chip--active' : '')}
-          onClick={() => (arrangeOpen ? setArrangeOpen(false) : openArrange())}
-        >⚙ Arrange</button>
-        <button
           className={'fields__chip' + (probeMode ? ' fields__chip--active' : '')}
           onClick={() => { setProbeMode((m) => !m); setProbe(null); setPicker(null); }}
         >◉ Probe</button>
@@ -698,28 +668,6 @@ export default function Fields() {
           >{label}</button>
         ))}
       </div>
-
-      {arrangeOpen && (
-        <div className="fields__arrange">
-          <div className="fields__arrange-head">
-            <span>Charges — one per line: x, y, q (q = +/−1…4, defaults to +1)</span>
-            <button className="fields__qbtn" onClick={syncArrangeText}>↻ Sync current</button>
-          </div>
-          <textarea
-            className="fields__arrange-input"
-            value={arrangeText}
-            onChange={(e) => { setArrangeText(e.target.value); setArrangeError(null); }}
-            placeholder={'e.g.\n-1.5, 0, 1\n1.5, 0, -1\n0, 1.5, 2'}
-            rows={4}
-            spellCheck={false}
-          />
-          {arrangeError && <div className="fields__arrange-error">{arrangeError}</div>}
-          <div className="fields__arrange-actions">
-            <button className="fields__chip" onClick={applyArrange}>Apply</button>
-            <button className="fields__qbtn" onClick={() => setArrangeOpen(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
       </div>
 
       <div className="fields__stage" ref={stageRef}>
@@ -769,19 +717,7 @@ export default function Fields() {
 
       <div className="fields__status">
         {status.type === 'charge' && (
-          <>
-            <span>Charge q = {status.q > 0 ? '+' : '−'}{Math.abs(status.q)} · force |F| = {status.force.toFixed(2)} (relative units)</span>
-            {!picker && (
-              <span className="fields__qctrl">
-                <button className="fields__qbtn" onClick={() => setSignOf(selectedId, 1)} aria-label="Positive">+</button>
-                <button className="fields__qbtn" onClick={() => setSignOf(selectedId, -1)} aria-label="Negative">−</button>
-                <button className="fields__qbtn" onClick={() => changeMag(selectedId, -1)} aria-label="Decrease magnitude">−</button>
-                <span className="fields__qmag">{Math.abs(status.q)}q</span>
-                <button className="fields__qbtn" onClick={() => changeMag(selectedId, 1)} aria-label="Increase magnitude">+</button>
-                <button className="fields__qbtn fields__qbtn--del" onClick={() => deleteCharge(selectedId)}>Delete</button>
-              </span>
-            )}
-          </>
+          <span>Charge q = {status.q > 0 ? '+' : '−'}{Math.abs(status.q)} · force |F| = {status.force.toFixed(2)} (relative units) — tap it to edit sign/size</span>
         )}
         {status.type === 'plates' && (
           <span>Parallel plates: uniform E = 1 between plates · ΔV = Ed = 4 · V decreases linearly from + to − plate</span>
