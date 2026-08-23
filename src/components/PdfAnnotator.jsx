@@ -4,11 +4,13 @@ import { getRangeSelectState, subscribeRangeSelect } from '../lib/rangeSelectSta
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
 import { api } from '../lib/api.js';
+import { fitImageRect } from '../lib/imageRect.js';
 import ClearGate from './ClearGate.jsx';
 import { useClearGate } from '../hooks/useClearGate.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import PdfSearchPanel from './PdfSearchPanel.jsx';
+import ImageLightbox from './ImageLightbox.jsx';
 
 // ── PDF.js worker: CDN (most reliable for Vite production builds) ──
 // Uses the exact pdfjs-dist version bundled with react-pdf
@@ -723,13 +725,17 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     }
     try {
       const { dataUrl, aspect } = await compressImageFile(file);
+      // 세로 사진이 페이지를 벗어나 잘리지 않도록 처음부터 페이지 안으로 맞춘다
+      const pageEl = pageRefs.current[pending.pageNumber] || document.querySelector(`[data-page="${pending.pageNumber}"]`);
+      const canvasRect = getPageCanvasRect(pageEl);
+      const pageAspect = canvasRect ? canvasRect.height / canvasRect.width : 1.4;
       const annotation = {
         filePath,
         pageNumber: pending.pageNumber,
         type: 'image',
         dataUrl,
         aspect,
-        rect: { x: pending.x, y: pending.y, w: 0.4, h: 0.4 / aspect },
+        rect: fitImageRect({ x: pending.x, y: pending.y, w: 0.4 }, aspect, pageAspect),
       };
       const saved = await saveAnnotation(annotation);
       setAnnotations((prev) => [...prev, saved]);
@@ -1745,6 +1751,7 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
  */
 function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
   const [open, setOpen] = useState(false);           // 기본 접힘 — 탭하면 펼침
+  const [lightbox, setLightbox] = useState(false);   // 🖼️ 전체화면 뷰어 (Amazon-style)
   const [pos, setPos] = useState(null);
   const elRef = useRef(null);
   const dragRef = useRef(null);                      // { mode, px, py, dx, dy, rect, canvasRect, box }
@@ -1832,17 +1839,13 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
       node.style.left = (d.left + d.dx) + 'px';
       node.style.top = (d.top + d.dy) + 'px';
     }
-    const final = d.mode === 'move'
-      ? {
-          ...d.rect,
-          x: Math.min(Math.max(d.rect.x + d.dx / d.canvasRect.width, 0.05 - d.rect.w), 0.95),
-          y: Math.min(Math.max(d.rect.y + d.dy / d.canvasRect.height, -0.5), 1.5),
-        }
-      : {
-          ...d.rect,
-          w: Math.min(Math.max(d.rect.w + d.dx / d.canvasRect.width, 0.12), 1),
-        };
-    onSave(annotation.id, { rect: final });
+    // 페이지 밖으로 나가지 않도록 fit — contain:paint가 페이지 경계 밖을 잘라내므로
+    // x/y/w 모두 페이지 안으로 클램프하고 h는 aspect로 재계산한다
+    const pageAspect = d.canvasRect.height / d.canvasRect.width;
+    const raw = d.mode === 'move'
+      ? { ...d.rect, x: d.rect.x + d.dx / d.canvasRect.width, y: d.rect.y + d.dy / d.canvasRect.height }
+      : { ...d.rect, w: Math.min(Math.max(d.rect.w + d.dx / d.canvasRect.width, 0.12), 1) };
+    onSave(annotation.id, { rect: fitImageRect(raw, annotation.aspect, pageAspect) });
   };
 
   // ── 접힘 상태: 작은 🖼️ 배지 — 탭하면 펼침, 드래그로 이동 ──
@@ -1860,6 +1863,17 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
         onClick={() => {
           if (eraseMode) { onDelete(annotation.id); return; }
           if (movedRef.current) return; // 드래그 후 클릭으로 열리지 않게
+          // 펼치기 전에 페이지 안으로 맞춤 — 예전에 저장된 범위 밖 주석도 잘리지 않는다
+          const el = document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
+          const canvasRect = getPageCanvasRect(el);
+          if (canvasRect) {
+            const pageAspect = canvasRect.height / canvasRect.width;
+            const fitted = fitImageRect(annotation.rect, annotation.aspect, pageAspect);
+            const r = annotation.rect;
+            if (Math.abs(fitted.x - r.x) > 1e-4 || Math.abs(fitted.y - r.y) > 1e-4 || Math.abs(fitted.w - r.w) > 1e-4 || Math.abs(fitted.h - r.h) > 1e-4) {
+              onSave(annotation.id, { rect: fitted });
+            }
+          }
           setOpen(true);
         }}
         title={eraseMode ? 'Delete image' : 'Tap to view image'}
@@ -1880,7 +1894,12 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
       onPointerMove={onMove}
       onPointerUp={onUp}
       onPointerCancel={onUp}
-      onClick={eraseMode ? () => onDelete(annotation.id) : undefined}
+      onClick={(e) => {
+        if (eraseMode) { onDelete(annotation.id); return; }
+        if (movedRef.current) return;               // 드래그 후 클릭 무시
+        if (e.target.closest('.pdf-annotator__image-note-handle')) return; // 리사이즈 핸들 제외
+        setLightbox(true);                          // 이미지 클릭 → 전체화면 뷰어
+      }}
     >
       <img src={annotation.dataUrl} alt="" draggable={false} />
       {!eraseMode && (
@@ -1892,6 +1911,14 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
       )}
       {!eraseMode && (
         <button
+          className="pdf-annotator__image-note-expand"
+          onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
+          title="View fullscreen"
+          aria-label="View fullscreen"
+        >⛶</button>
+      )}
+      {!eraseMode && (
+        <button
           className="pdf-annotator__image-note-close"
           onClick={(e) => { e.stopPropagation(); setOpen(false); }}
           title="Collapse image"
@@ -1899,6 +1926,12 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
         >✕</button>
       )}
       {eraseMode && <span className="pdf-annotator__image-note-erase">🗑️</span>}
+      {lightbox && (
+        <ImageLightbox
+          dataUrl={annotation.dataUrl}
+          onClose={() => setLightbox(false)}
+        />
+      )}
     </div>
   );
 }
