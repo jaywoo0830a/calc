@@ -12,12 +12,14 @@ import {
   defineAlias,
   substituteDim,
   formatSubstitution,
+  activeAliases,
 } from '../lib/units.js';
 
 // ── Units — 물리량 단위 분해·병합 치트시트 ───────────────────────
 // · 심볼(또는 접두사+심볼) 입력 → 기저 단위로 분해: "N" → 1 kg·m·s⁻²
 // · 식 입력 → 이름 붙은 단위로 병합: "kg·m/s²" → 1 N (10⁵ dyn)
-// · 사용자 별칭(alias): speed = m/s 라고 정의하면 s²/m → s/speed 로 치환 표시
+// · 사용자 별칭(alias): speed = m/s 라고 정의하고 활성화하면 s²/m → s/speed 로 치환 표시
+// · 별칭은 기본 비활성화 — 원하는 것만 켜서 적용한다.
 // · 아래 치트시트에서 클릭하면 바로 분해해 본다.
 
 const EXAMPLES = ['N', 'kW·h', 'MPa', 'kg·m/s²', 'J/s', 'eV'];
@@ -29,7 +31,8 @@ const ALIAS_STORE = 'units_aliases';
 function loadAliases() {
   try {
     const raw = JSON.parse(localStorage.getItem(ALIAS_STORE) || '[]');
-    return Array.isArray(raw) ? raw : [];
+    // 구버전 저장분 마이그레이션 — enabled가 없으면 기본 비활성화
+    return Array.isArray(raw) ? raw.map((a) => ({ ...a, enabled: !!a.enabled })) : [];
   } catch { return []; }
 }
 
@@ -38,11 +41,14 @@ export function buildUnitView(query, aliases = []) {
   const q = String(query || '').trim();
   if (!q) return { mode: 'idle' };
 
+  // 조회/파싱은 모든 별칭 허용(명시적으로 입력한 경우), 치환은 활성화된 것만
+  const enabled = activeAliases(aliases);
+
   const unit = lookupUnit(q, aliases);
   if (unit) {
     const total = unit.factor;
     const alternates = mergeUnits(unit.dim, total);
-    const { terms, remainder } = substituteDim(unit.dim, aliases);
+    const { terms, remainder } = substituteDim(unit.dim, enabled);
     const substitution = terms.length ? formatSubstitution(terms, remainder) : '';
     return { mode: 'decompose', query: q, unit, total, alternates, substitution };
   }
@@ -50,7 +56,7 @@ export function buildUnitView(query, aliases = []) {
   try {
     const { factor, dim } = parseUnitExpr(q, aliases);
     const matches = mergeUnits(dim, factor);
-    const { terms, remainder } = substituteDim(dim, aliases);
+    const { terms, remainder } = substituteDim(dim, enabled);
     const substitution = terms.length ? formatSubstitution(terms, remainder) : '';
     return { mode: 'merge', query: q, factor, dim, matches, substitution };
   } catch (e) {
@@ -85,6 +91,9 @@ export default function Units() {
   };
 
   const removeAlias = (sym) => setAliases((prev) => prev.filter((a) => a.sym !== sym));
+
+  const toggleAlias = (sym) =>
+    setAliases((prev) => prev.map((a) => (a.sym === sym ? { ...a, enabled: !a.enabled } : a)));
 
   return (
     <main className="units">
@@ -143,7 +152,8 @@ export default function Units() {
               )}
               {view.substitution && view.unit.kind !== 'alias' && (
                 <p className="units__sub">
-                  = {view.substitution} <em className="units__via">(with aliases)</em>
+                  <span className="units__alias-sub">= {view.substitution}</span>{' '}
+                  <em className="units__via">(with aliases)</em>
                 </p>
               )}
               <p className="units__name">
@@ -175,7 +185,8 @@ export default function Units() {
               </p>
               {view.substitution && view.substitution !== view.query.trim() && (
                 <p className="units__sub">
-                  = {view.substitution} <em className="units__via">(with aliases)</em>
+                  <span className="units__alias-sub">= {view.substitution}</span>{' '}
+                  <em className="units__via">(with aliases)</em>
                 </p>
               )}
               {view.matches.length > 0 ? (
@@ -205,8 +216,9 @@ export default function Units() {
 
       <div className="units__panel">
         <p className="units__hint">
-          Aliases — define your own symbols (e.g., <strong>speed = m/s</strong>). Decompositions then reuse them,
-          so <strong>s²/m</strong> reads as <strong>s/speed</strong>.
+          Aliases — define your own symbols (e.g., <strong>speed = m/s</strong>). New aliases are
+          <strong> off</strong>; toggle them <strong>on</strong> to apply, so <strong>s²/m</strong> reads as{' '}
+          <strong>s/speed</strong>.
         </p>
         <div className="units__alias-form">
           <input
@@ -232,7 +244,16 @@ export default function Units() {
         {aliases.length > 0 && (
           <div className="units__rows">
             {aliases.map((a) => (
-              <div key={a.sym} className="units__row">
+              <div key={a.sym} className={'units__row' + (a.enabled ? '' : ' units__row--off')}>
+                <button
+                  className={'units__alias-toggle' + (a.enabled ? ' units__alias-toggle--on' : '')}
+                  onClick={() => toggleAlias(a.sym)}
+                  title={a.enabled ? `Disable ${a.sym}` : `Enable ${a.sym}`}
+                  aria-label={`Toggle alias ${a.sym}`}
+                  aria-pressed={!!a.enabled}
+                >
+                  {a.enabled ? '✓' : '—'}
+                </button>
                 <span
                   className="units__row-val units__row-val--click"
                   role="button"

@@ -287,6 +287,7 @@ export function prefixedValue(value, sym) {
 
 // ── 사용자 별칭(alias) ───────────────────────────────────────
 // 예: speed = m/s. 별칭은 정의 시점에 기저 차원으로 전개해 저장한다.
+// 새 별칭은 기본적으로 비활성화(enabled=false) — 사용자가 켠 것만 치환에 쓰인다.
 export function defineAlias(sym, expr, aliases = []) {
   const name = String(sym || '').trim();
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
@@ -295,7 +296,13 @@ export function defineAlias(sym, expr, aliases = []) {
   if (lookupUnit(name)) throw new Error(`'${name}' is already a defined unit`);
   if (aliases.some((a) => a.sym === name)) throw new Error(`alias '${name}' already exists`);
   const { factor, dim } = parseUnitExpr(expr, aliases);
-  return { sym: name, expr: String(expr).trim(), dim, factor };
+  return { sym: name, expr: String(expr).trim(), dim, factor, enabled: false };
+}
+
+// 활성화된 별칭만 추출 — enabled가 없는(구버전 저장) 별칭은 비활성 취급
+export function activeAliases(aliases = []) {
+  if (!Array.isArray(aliases)) return [];
+  return aliases.filter((a) => !!a.enabled);
 }
 
 // ── 별칭 치환: 기저 차원을 별칭의 곱으로 인수분해 ────────────────

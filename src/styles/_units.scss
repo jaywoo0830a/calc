@@ -160,6 +160,18 @@
     color: $c-ink-faint;
   }
 
+  // 별칭 치환 표시 — 굵게 + 강조 배경으로 눈에 띄게
+  &__alias-sub {
+    display: inline-block;
+    font-family: $ff;
+    font-weight: $fw-bold;
+    font-size: $fs-step-0;
+    color: $c-accent;
+    background: $c-accent-light;
+    border-radius: $radius-sm;
+    padding: 0.0625rem $sp-2;
+  }
+
   // ---- 별칭(alias) 정의 폼 -----------------------------------
   &__alias-form {
     display: flex;
@@ -231,6 +243,54 @@
     }
   }
 
+  // 별칭 활성화 토글 (기본 비활성)
+  &__alias-toggle {
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    background: $c-page-dark;
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+    font-weight: $fw-bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        border-color: $c-accent;
+        color: $c-accent;
+      }
+    }
+
+    &--on {
+      background: $c-equals;
+      border-color: $c-equals;
+      color: $c-ink-inverse;
+
+      @media (hover: hover) {
+        &:hover {
+          background: $c-equals-hover;
+          border-color: $c-equals-hover;
+          color: $c-ink-inverse;
+        }
+      }
+    }
+  }
+
+  // 비활성 별칭 행 — 흐리게
+  &__row--off {
+    opacity: 0.55;
+
+    .units__row-val {
+      color: $c-ink-soft;
+    }
+  }
+
   // ---- 병합/대체 단위 목록 -----------------------------------
   &__group {
     display: flex;
@@ -276,6 +336,7 @@
     &--click {
       cursor: pointer;
       border-bottom: 1px dashed transparent;
+      flex: 1;
 
       @media (hover: hover) {
         &:hover {

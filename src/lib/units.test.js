@@ -18,6 +18,7 @@ import {
   defineAlias,
   substituteDim,
   formatSubstitution,
+  activeAliases,
 } from './units.js';
 
 const approx = (a, b, tol = 1e-9, msg) =>
@@ -373,6 +374,25 @@ test('alias: defineAlias — 유효한 정의와 연쇄 정의', () => {
   assert.equal(a.factor, 1);
   const acc = defineAlias('accel', 'speed/s', [a]);
   assert.deepEqual(acc.dim, { m: 1, s: -2 });
+});
+
+test('alias: 새 별칭은 기본적으로 비활성화(enabled=false)된다', () => {
+  const a = defineAlias('speed', 'm/s');
+  assert.equal(a.enabled, false);
+});
+
+test('activeAliases: 활성화된 별칭만 남긴다', () => {
+  assert.deepEqual(
+    activeAliases([
+      { sym: 'speed', dim: { m: 1, s: -1 }, enabled: true },
+      { sym: 'force', dim: { kg: 1, m: 1, s: -2 }, enabled: false },
+    ]).map((a) => a.sym),
+    ['speed']
+  );
+  // enabled가 없는(구버전 저장) 별칭은 비활성으로 취급
+  assert.deepEqual(activeAliases([{ sym: 'old', dim: { m: 1 }, enabled: undefined }]), []);
+  assert.deepEqual(activeAliases([]), []);
+  assert.deepEqual(activeAliases(null), []);
 });
 
 test('alias: defineAlias — 이름·식 오류와 충돌을 거부한다', () => {
