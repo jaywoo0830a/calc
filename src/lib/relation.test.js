@@ -99,6 +99,28 @@ test('findZeros: 근 없음 → 빈 배열', () => {
   assert.deepEqual(findZeros(() => 3, -1, 1), []);
 });
 
+test('findZeros: 상수 0 함수는 근 하나만 (제로-런 시작점)', () => {
+  const roots = findZeros(() => 0, -2, 2);
+  assert.equal(roots.length, 1);
+  approx(roots[0], -2, 1e-6);
+});
+
+test('findZeros: 일부 구간만 0인 함수 — 런 시작점 + 부호 변화 근', () => {
+  const f = (x) => (x < 0 ? 0 : x - 1);
+  const roots = findZeros(f, -2, 2);
+  assert.equal(roots.length, 2);
+  approx(roots[0], -2, 1e-6);
+  approx(roots[1], 1, 1e-5);
+});
+
+test('analyzeRange: 상수 함수 → 임계점/변곡점 없음, 단조 구간 하나', () => {
+  const r = analyzeRange(() => 5, () => 0, () => 0, -2, 2);
+  assert.deepEqual(r.critical, []);
+  assert.deepEqual(r.inflections, []);
+  assert.equal(r.intervals.length, 1);
+  assert.equal(r.intervals[0].sign, 'zero');
+});
+
 // ── classifyCritical ─────────────────────────────────────────
 test('classifyCritical: fpp 부호 → 극값 종류', () => {
   assert.equal(classifyCritical(1), 'min');

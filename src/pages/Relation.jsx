@@ -257,14 +257,15 @@ export default function Relation() {
           </div>
           {(range.critical.length > 0 || range.inflections.length > 0) && (
             <div className="relation__landmarks">
-              {range.critical.map((c, i) => (
+              {range.critical.slice(0, 12).map((c, i) => (
                 <span key={'c' + i} className="relation__chip">
                   {c.kind === 'min' ? '▼ min' : c.kind === 'max' ? '▲ max' : '— flat'} at A = {fmt(c.x)}
                 </span>
               ))}
-              {range.inflections.map((x, i) => (
+              {range.inflections.slice(0, 12).map((x, i) => (
                 <span key={'i' + i} className="relation__chip">∿ inflection at A = {fmt(x)}</span>
               ))}
+              {range.critical.length > 12 && <span className="relation__chip">…{range.critical.length - 12} more</span>}
             </div>
           )}
         </div>

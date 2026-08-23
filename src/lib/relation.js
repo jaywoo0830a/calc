@@ -99,28 +99,34 @@ export function findZeros(fn, a, b, n = 1000) {
   };
 
   let prev = fn(a);
-  if (Math.abs(prev) < TOL) pushRoot(a);
+  let inZeroRun = Number.isFinite(prev) && Math.abs(prev) < TOL;
+  if (inZeroRun) pushRoot(a);
 
   for (let i = 1; i <= n; i++) {
     const x = i === n ? b : a + i * h;
     const cur = fn(x);
     if (!Number.isFinite(cur)) { prev = cur; continue; }
+
     if (Math.abs(cur) < TOL) {
-      pushRoot(x);
-    } else if (Number.isFinite(prev) && prev * cur < 0) {
-      // 부호 변화 → 이분법
-      let lo = i === 1 ? a : a + (i - 1) * h, hi = x;
-      let flo = fn(lo);
-      for (let k = 0; k < 60; k++) {
-        const mid = (lo + hi) / 2;
-        const fm = fn(mid);
-        if (flo * fm <= 0) hi = mid; else { lo = mid; flo = fm; }
+      // 0이 연속되는 구간(제로-런)은 시작점만 근으로 기록 — 상수 0 함수 폭주 방지
+      if (!inZeroRun) pushRoot(x);
+      inZeroRun = true;
+    } else {
+      inZeroRun = false;
+      if (Number.isFinite(prev) && Math.abs(prev) >= TOL && prev * cur < 0) {
+        // 부호 변화 → 이분법
+        let lo = i === 1 ? a : a + (i - 1) * h, hi = x;
+        let flo = fn(lo);
+        for (let k = 0; k < 60; k++) {
+          const mid = (lo + hi) / 2;
+          const fm = fn(mid);
+          if (flo * fm <= 0) hi = mid; else { lo = mid; flo = fm; }
+        }
+        pushRoot((lo + hi) / 2);
       }
-      pushRoot((lo + hi) / 2);
     }
     prev = cur;
   }
-  if (Math.abs(fn(b)) < TOL) pushRoot(b);
   return roots;
 }
 
