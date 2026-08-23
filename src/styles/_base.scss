@@ -90,9 +90,8 @@ body {
     min-width: 0;
   }
 
-  // ── Tablet: 넉넉한 여백 + 최대 너비 증가 ─────────────────
+  // ── Tablet: 넉넉한 여백 + 전체 폭 활용 ─────────────────
   @media (min-width: $bp-sm) {
-    max-width: $max-width-md;
     padding: $sp-4 $sp-5;
   }
 

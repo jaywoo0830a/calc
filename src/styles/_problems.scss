@@ -10,14 +10,12 @@
   align-items: center; // 와이드 화면에서 중앙 정렬
   height: 100%;
   min-height: 0;
-  padding: $sp-3;
   gap: $sp-3;
 
   &__head,
   &__empty,
   &__list {
-    width: 100%;
-    max-width: 52rem;
+    width: 100%;   // 태블릿까지는 가용 폭 전부 사용 (데스크톱 상한은 하단 미디어)
   }
 
   &__head {
@@ -216,5 +214,14 @@
 
   &__delete:hover {
     background: $c-error-light;
+  }
+}
+
+// ── 데스크톱에서만 콘텐츠 폭 제한 (태블릿은 전체 폭 활용) ────────
+@media (min-width: $bp-lg) {
+  .problems__head,
+  .problems__empty,
+  .problems__list {
+    max-width: $page-width;
   }
 }

@@ -10,9 +10,7 @@
   height: 100%;
   min-height: 0;
   overflow-y: auto;
-  padding: $sp-2;
-  width: 100%;
-  max-width: 44rem;
+  width: 100%;   // 태블릿까지는 가용 폭 전부 사용 (데스크톱 상한은 하단 미디어)
   margin: 0 auto;
   gap: $sp-3;
 
@@ -262,7 +260,6 @@
 // ── 태블릿 이상: 여유 패딩 ────────────────────────────────────
 @media (min-width: $bp-sm) {
   .relation {
-    padding: $sp-4;
     gap: $sp-4;
 
     &__panel {
@@ -276,5 +273,12 @@
     &__input {
       font-size: $fs-step-2;
     }
+  }
+}
+
+// ── 데스크톱에서만 콘텐츠 폭 제한 (태블릿은 전체 폭 활용) ────────
+@media (min-width: $bp-lg) {
+  .relation {
+    max-width: $page-width;
   }
 }

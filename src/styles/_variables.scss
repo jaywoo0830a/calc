@@ -123,6 +123,7 @@ $max-width-sm:    100%;        // mobile: full-width
 $max-width-md:    42rem;       // tablet: 672px
 $max-width-lg:    90rem;       // desktop: 1440px (near full-width)
 $max-width:       26.25rem;    // 420px (legacy, replaced by responsive)
+$page-width:      56rem;       // 표준 페이지 콘텐츠 최대 너비 (데스크톱에서만 적용)
 $sidebar-width:   16.25rem;    // 260px
 $sidebar-toggle:  1.75rem;     //  28px
 $toggle-width:    1.25rem;     //  20px  (스와이프 트리거)
