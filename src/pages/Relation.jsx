@@ -50,7 +50,7 @@ function CurveChart({ f, a, b, aCur, color }) {
   const poly = pts.pts.map(([x, y], i) => `${i ? 'L' : 'M'}${px(x).toFixed(1)},${py(y).toFixed(1)}`).join(' ');
   const cy = Number.isFinite(f(aCur)) ? py(f(aCur)) : null;
   return (
-    <svg className="relation__chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img">
+    <svg className="relation__chart" viewBox={`0 0 ${W} ${H}`} role="img">
       <line x1={PX} y1={py(0)} x2={W - PX} y2={py(0)} className="relation__axis" />
       <path d={poly} className="relation__curve" style={{ stroke: color }} />
       {cy != null && <circle cx={px(aCur)} cy={cy} r={3.5} className="relation__dot" />}
@@ -272,10 +272,16 @@ export default function Relation() {
       )}
 
       <div className="relation__panel">
-        <p className="relation__section">{varB}({varA})</p>
-        <CurveChart f={compiled.f} a={lo} b={hi} aCur={cur} color="#5c3d2e" />
-        <p className="relation__section">d{varB}/d{varA}</p>
-        <CurveChart f={compiled.fp} a={lo} b={hi} aCur={cur} color="#3d5a80" />
+        <div className="relation__charts">
+          <div className="relation__chart-cell">
+            <p className="relation__section">{varB}({varA})</p>
+            <CurveChart f={compiled.f} a={lo} b={hi} aCur={cur} color="#5c3d2e" />
+          </div>
+          <div className="relation__chart-cell">
+            <p className="relation__section">d{varB}/d{varA}</p>
+            <CurveChart f={compiled.fp} a={lo} b={hi} aCur={cur} color="#3d5a80" />
+          </div>
+        </div>
       </div>
     </main>
   );

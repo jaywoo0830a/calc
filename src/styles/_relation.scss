@@ -229,12 +229,29 @@
 
   // ---- 차트 ---------------------------------------------------
   &__chart {
+    // SVG viewBox(360:130) 비율을 그대로 유지 — 고정 높이+none 스케일은
+    // 곡선이 납작해지고 점(원)이 타원으로 찌그러지는 원인
     width: 100%;
-    height: 9rem;
+    height: auto;
+    aspect-ratio: 360 / 130;
     background: $c-page-dark;
     border: $border-thin solid $c-rule-light;
     border-radius: $radius-md;
     display: block;
+  }
+
+  &__charts {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-3;
+  }
+
+  &__chart-cell {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+    min-width: 0;
+    flex: 1 1 0;
   }
 
   &__axis {
@@ -273,6 +290,14 @@
     &__input {
       font-size: $fs-step-2;
     }
+  }
+}
+
+// ── 태블릿 이상: 두 차트를 나란히 (각각 비율 유지) ────────────────
+@media (min-width: $bp-md) {
+  .relation__charts {
+    flex-direction: row;
+    align-items: flex-start;
   }
 }
 
