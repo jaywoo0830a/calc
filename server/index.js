@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { problems, archives, archivesDir, vocab, vocabAliases, annotations, bookmarks } from './db.js';
 import { CONFIG } from './config.js';
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '3mb' })); // 이미지 주석(dataURL) 수용을 위한 한도
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 
 // ZIP 아카이브 업로드 — 디스크 스토리지 (메모리 부담 없이 100MB까지)
@@ -583,7 +583,7 @@ app.get('/annotations', (req, res) => {
 
 app.post('/annotations', (req, res) => {
   try {
-    const { id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count } = req.body || {};
+    const { id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count, dataUrl, aspect } = req.body || {};
     if (!id || !filePath) return res.status(400).json({ error: 'id and filePath required' });
     res.json(annotations.upsert({
       id: String(id).slice(0, 120),
@@ -597,6 +597,8 @@ app.post('/annotations', (req, res) => {
       attempts: Number(attempts) || 0,
       wrong_count: Number(wrong_count) || 0,
       rect,
+      dataUrl: String(dataUrl || '').slice(0, 600000), // 🖼️ 압축된 이미지 dataURL
+      aspect: Number(aspect) || 0,
     }));
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -34,6 +34,7 @@ const TOOLS = {
   highlight: { label: '🖍️ Highlight', icon: '🖍️' },
   underline: { label: '⎁ Underline', icon: '⎁' },
   comment:   { label: '💬 Comment', icon: '💬' },
+  image:     { label: '🖼️ Image', icon: '🖼️' },
 };
 function getPageCanvasRect(pageEl) {
   if (!pageEl) return null;
@@ -51,14 +52,44 @@ function annoRect(a, pageEl) {
   if (!pageEl) return null;
   const canvasRect = getPageCanvasRect(pageEl);
   if (!canvasRect) return null;
-  const wrapperRect = pageEl.getBoundingClientRect();
-  // Position within page-wrapper = canvas offset + normalized coords × canvas size
+  const wrapperRect = pageEl.getBoundingClientRect();  // Position within page-wrapper = canvas offset + normalized coords × canvas size
   return {
     left: (canvasRect.left - wrapperRect.left) + a.rect.x * canvasRect.width,
     top: (canvasRect.top - wrapperRect.top) + a.rect.y * canvasRect.height,
     width: a.rect.w * canvasRect.width,
     height: a.rect.h * canvasRect.height,
   };
+}
+
+// ── 🖼️ 이미지 압축 — 최대 1000px, JPEG 0.82 (PNG는 무손실 유지) ──
+function compressImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('bad image'));
+      img.onload = () => {
+        const MAX = 1000;
+        const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = file.type === 'image/png'
+          ? canvas.toDataURL('image/png')
+          : canvas.toDataURL('image/jpeg', 0.82);
+        resolve({ dataUrl, aspect: w / h });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function PdfAnnotator({ url, filePath, initialPage, initialScrollTop }) {
@@ -89,6 +120,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [annotationFocus, setAnnotationFocus] = useState(null);  // 점프한 주석 { id, pageNumber } — 렌더 후 플래시
   const [toast, setToast] = useState(null);        // 잠깐 표시되는 등록 피드백
   const [flashPage, setFlashPage] = useState(null); // 문제 점프 시 페이지 플래시
+  const imageInputRef = useRef(null);              // 🖼️ 이미지 업로드용 숨김 input
+  const pendingImageRef = useRef(null);            // 이미지 배치 위치 { pageNumber, x, y }
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -666,8 +699,54 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       });
       setCommentText('');
       setCommentStatus('');
+    } else if (tool === 'image') {
+      const pageEl = pageRefs.current[pageNumber];
+      if (!pageEl) return;
+      const pageRect = getPageCanvasRect(pageEl) || pageEl.getBoundingClientRect();
+      const x = (e.clientX - pageRect.left) / pageRect.width;
+      const y = (e.clientY - pageRect.top) / pageRect.height;
+      pendingImageRef.current = { pageNumber, x, y };
+      imageInputRef.current?.click(); // 사진 선택/촬영
     }
   }, [tool]);
+
+  // ── 🖼️ 이미지 주석 — 파일 압축 후 해당 위치에 배치 ──────────
+  const handleImageSelected = useCallback(async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    const pending = pendingImageRef.current;
+    pendingImageRef.current = null;
+    setTool(null); // 1회 배치 후 Read 모드로 복귀
+    if (!file || !pending || !file.type.startsWith('image/')) {
+      setToast('Please choose an image file');
+      return;
+    }
+    try {
+      const { dataUrl, aspect } = await compressImageFile(file);
+      const annotation = {
+        filePath,
+        pageNumber: pending.pageNumber,
+        type: 'image',
+        dataUrl,
+        aspect,
+        rect: { x: pending.x, y: pending.y, w: 0.4, h: 0.4 / aspect },
+      };
+      const saved = await saveAnnotation(annotation);
+      setAnnotations((prev) => [...prev, saved]);
+      setToast('🖼️ Image added — drag to move, corner to resize');
+    } catch {
+      setToast('Could not read that image');
+    }
+  }, [filePath]);
+
+  // 이미지 이동/크기 변경 저장
+  const updateImageRect = useCallback((id, patch) => {
+    const original = annotations.find((a) => a.id === id);
+    if (!original) return;
+    saveAnnotation({ ...original, ...patch }).then((saved) => {
+      setAnnotations((prev) => prev.map((a) => (a.id === saved.id ? saved : a)));
+    });
+  }, [annotations]);
 
   const submitComment = useCallback(() => {
     if (!activeComment || !commentText.trim()) {
@@ -888,6 +967,14 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           >
             ▴
           </button>
+          {/* 🖼️ 이미지 주석 업로드 (숨김) */}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={handleImageSelected}
+          />
         </div>
       </div>
       )}
@@ -1004,11 +1091,15 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                     <span className="pdf-annotator__note-icon">
                       {a.type === 'comment'
                         ? (a.status === 'wrong' ? '✗' : a.status === 'solved' ? '✓' : '💬')
-                        : a.type === 'underline' ? '⎁' : '🖍️'}
+                        : a.type === 'image' ? '🖼️' : a.type === 'underline' ? '⎁' : '🖍️'}
                     </span>
                     <span className="pdf-annotator__note-body">
                       <span className="pdf-annotator__note-page">p.{a.pageNumber} · {a.type}</span>
-                      {a.text && <span className="pdf-annotator__note-text">{a.text}</span>}
+                      {a.type === 'image' ? (
+                        <img className="pdf-annotator__note-thumb" src={a.dataUrl} alt="" />
+                      ) : (
+                        a.text && <span className="pdf-annotator__note-text">{a.text}</span>
+                      )}
                     </span>
                   </button>
                   <button
@@ -1296,7 +1387,16 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                   onRenderSuccess={() => setPageRenderTick(t => t + 1)}
                 />
                 {/* Annotation overlay */}
-                {annos.map((a) => (
+                {annos.map((a) => a.type === 'image' ? (
+                  <ImageOverlay
+                    key={a.id}
+                    annotation={a}
+                    pageEl={pageRefs.current[pageNumber]}
+                    onSave={updateImageRect}
+                    onDelete={removeAnnotation}
+                    eraseMode={tool === 'erase'}
+                  />
+                ) : (
                   <AnnotationOverlay
                     key={a.id}
                     annotation={a}
@@ -1634,6 +1734,145 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
       >
         ×
       </button>
+    </div>
+  );
+}
+
+/**
+ * 🖼️ 이미지 주석 오버레이 — 드래그 이동 + 우하단 핸들 리사이즈, 지우개 모드에서 삭제
+ */
+function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
+  const [open, setOpen] = useState(false);           // 기본 접힘 — 탭하면 펼침
+  const [dragRect, setDragRect] = useState(null);   // 드래그 중 로컬 rect
+  const [pos, setPos] = useState(null);
+  const dragRef = useRef(null);
+  const dragRectRef = useRef(null);                  // 포인터업 시점의 최신 rect (리렌더 타이밍 무관)
+  const movedRef = useRef(false);                    // 탭(열기) vs 드래그(이동) 구분
+  const prevPosRef = useRef(null);                  // 무한 리렌더 방지용 값 비교
+  const rect = dragRect || annotation.rect;
+
+  // 캔버스 기준 정규화 좌표 → 픽셀 (AnnotationOverlay와 동일한 재계산 전략)
+  useLayoutEffect(() => {
+    const el = document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
+    const canvasRect = getPageCanvasRect(el);
+    if (!canvasRect) { setPos(null); return; }
+    const wrapperRect = el.getBoundingClientRect();
+    const w = rect.w * canvasRect.width;
+    const h = annotation.aspect ? w / annotation.aspect : (rect.h || rect.w) * canvasRect.height;
+    const next = {
+      left: (canvasRect.left - wrapperRect.left) + rect.x * canvasRect.width,
+      top: (canvasRect.top - wrapperRect.top) + rect.y * canvasRect.height,
+      width: w,
+      height: h,
+    };
+    const prev = prevPosRef.current;
+    if (prev && prev.left === next.left && prev.top === next.top && prev.width === next.width && prev.height === next.height) {
+      return;
+    }
+    prevPosRef.current = next;
+    setPos(next);
+  });
+
+  if (!pos || !annotation.dataUrl) return null;
+
+  const startDrag = (e, mode) => {
+    if (eraseMode) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const el = document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
+    const canvasRect = getPageCanvasRect(el);
+    if (!canvasRect) return;
+    dragRef.current = { mode, px: e.clientX, py: e.clientY, rect: { ...rect }, canvasRect };
+    dragRectRef.current = null;
+    movedRef.current = false;
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* 합성 이벤트 등에서 무시 */ }
+  };
+
+  const onMove = (e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = (e.clientX - d.px) / d.canvasRect.width;
+    const dy = (e.clientY - d.py) / d.canvasRect.height;
+    if (Math.abs(dx) > 1e-4 || Math.abs(dy) > 1e-4) movedRef.current = true;
+    if (d.mode === 'move') {
+      const next = {
+        ...d.rect,
+        x: Math.min(Math.max(d.rect.x + dx, 0.05 - d.rect.w), 0.95),
+        y: Math.min(Math.max(d.rect.y + dy, -0.5), 1.5),
+      };
+      dragRectRef.current = next;
+      setDragRect(next);
+    } else {
+      const nw = Math.min(Math.max(d.rect.w + dx, 0.12), 1);
+      const next = { ...d.rect, w: nw };
+      dragRectRef.current = next;
+      setDragRect(next);
+    }
+  };
+
+  const onUp = () => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    const final = dragRectRef.current;
+    dragRectRef.current = null;
+    if (final) {
+      onSave(annotation.id, { rect: final });
+    }
+    setDragRect(null);
+  };
+
+  // ── 접힘 상태: 작은 🖼️ 배지 — 탭하면 펼침, 드래그로 이동 ──
+  if (!open) {
+    return (
+      <div
+        data-annotation-id={annotation.id}
+        className={'pdf-annotator__image-stub' + (eraseMode ? ' pdf-annotator__image-stub--erasable' : '')}
+        style={{ left: pos.left, top: pos.top }}
+        onPointerDown={(e) => startDrag(e, 'move')}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+        onClick={() => {
+          if (eraseMode) { onDelete(annotation.id); return; }
+          if (movedRef.current) return; // 드래그 후 클릭으로 열리지 않게
+          setOpen(true);
+        }}
+        title={eraseMode ? 'Delete image' : 'Tap to view image'}
+      >
+        🖼️
+        {eraseMode && <span className="pdf-annotator__image-note-erase">🗑️</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-annotation-id={annotation.id}
+      className={'pdf-annotator__image-note' + (eraseMode ? ' pdf-annotator__image-note--erasable' : '')}
+      style={{ left: pos.left, top: pos.top, width: pos.width, height: pos.height }}
+      onPointerDown={(e) => startDrag(e, 'move')}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+      onClick={eraseMode ? () => onDelete(annotation.id) : undefined}
+    >
+      <img src={annotation.dataUrl} alt="" draggable={false} />
+      {!eraseMode && (
+        <span
+          className="pdf-annotator__image-note-handle"
+          title="Drag to resize"
+          onPointerDown={(e) => startDrag(e, 'resize')}
+        />
+      )}
+      {!eraseMode && (
+        <button
+          className="pdf-annotator__image-note-close"
+          onClick={(e) => { e.stopPropagation(); setOpen(false); }}
+          title="Collapse image"
+          aria-label="Collapse image"
+        >✕</button>
+      )}
+      {eraseMode && <span className="pdf-annotator__image-note-erase">🗑️</span>}
     </div>
   );
 }

@@ -118,6 +118,13 @@ db.exec(`
     if (!cols.some((c) => c.name === 'wrong_count')) {
       db.exec('ALTER TABLE annotations ADD COLUMN wrong_count INTEGER NOT NULL DEFAULT 0');
     }
+    // 🖼️ 이미지 주석 — dataURL + 종횡비
+    if (!cols.some((c) => c.name === 'data_url')) {
+      db.exec("ALTER TABLE annotations ADD COLUMN data_url TEXT NOT NULL DEFAULT ''");
+    }
+    if (!cols.some((c) => c.name === 'aspect')) {
+      db.exec('ALTER TABLE annotations ADD COLUMN aspect REAL NOT NULL DEFAULT 0');
+    }
   }
 }
 
@@ -340,9 +347,11 @@ export const annotations = {
       attempts: Number(r.attempts) || 0,
       wrong_count: Number(r.wrong_count) || 0,
       rect: JSON.parse(r.rect || '{}'),
+      dataUrl: r.data_url || '',
+      aspect: Number(r.aspect) || 0,
     }));
   },
-  upsert({ id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count }) {
+  upsert({ id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count, dataUrl, aspect }) {
     const now = new Date().toISOString();
     const exists = db.prepare('SELECT id FROM annotations WHERE id = ?').get(id);
     const data = {
@@ -351,19 +360,22 @@ export const annotations = {
       status: String(status || ''),
       attempts: Number(attempts) || 0,
       wrong_count: Number(wrong_count) || 0,
+      dataUrl: String(dataUrl || ''),
+      aspect: Number(aspect) || 0,
     };
     if (exists) {
       db.prepare(`
         UPDATE annotations
         SET file_path = @filePath, page_number = @pageNumber, type = @type,
             color = @color, style = @style, text = @text, rect = @rect,
-            status = @status, attempts = @attempts, wrong_count = @wrong_count, updated_at = @now
+            status = @status, attempts = @attempts, wrong_count = @wrong_count,
+            data_url = @dataUrl, aspect = @aspect, updated_at = @now
         WHERE id = @id
       `).run({ ...data, now });
     } else {
       db.prepare(`
-        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, status, attempts, wrong_count, created_at, updated_at)
-        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @status, @attempts, @wrong_count, @now, @now)
+        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, status, attempts, wrong_count, data_url, aspect, created_at, updated_at)
+        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @status, @attempts, @wrong_count, @dataUrl, @aspect, @now, @now)
       `).run({ ...data, now });
     }
     return {
@@ -371,6 +383,8 @@ export const annotations = {
       status: String(status || ''),
       attempts: Number(attempts) || 0,
       wrong_count: Number(wrong_count) || 0,
+      dataUrl: String(dataUrl || ''),
+      aspect: Number(aspect) || 0,
     };
   },
   remove(id) {
