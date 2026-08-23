@@ -79,6 +79,7 @@
 
   // ---- Display — like a paper readout ----------------------
   &__display {
+    position: relative;
     background: $c-page;
     border: $border-thin solid $c-rule;
     border-radius: $radius-xl;
@@ -123,6 +124,21 @@
     &::-webkit-scrollbar {
       display: none;
     }
+  }
+
+  // 임시 변수 T 표시 칩
+  &__display-temp {
+    position: absolute;
+    top: $sp-2;
+    left: $sp-3;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-accent;
+    background: $c-accent-light;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    padding: 0.0625rem $sp-2;
+    letter-spacing: $ls-wide;
   }
 
   // ---- Keypad area (wraps sci panel + basic grid) ---------
@@ -213,6 +229,13 @@
 
     // -- zero key
     &--zero {
+      grid-column: span 2;
+      aspect-ratio: auto;
+      border-radius: $radius-lg;
+    }
+
+    // -- wide key (→T / T 임시 변수 행)
+    &--wide {
       grid-column: span 2;
       aspect-ratio: auto;
       border-radius: $radius-lg;
@@ -346,8 +369,7 @@
     flex-shrink: 0;
   }
 
-  &__sci-toggle,
-  &__hist-toggle {
+  &__sci-toggle {
     flex: 1;
     padding: $sp-1 $sp-2;
     border: $border-thin solid $c-rule;
@@ -546,103 +568,6 @@
     }
   }
 
-  // ---- History panel --------------------------------------
-  &__history {
-    position: relative;
-    z-index: 1;
-    margin-top: $sp-2;
-    border: $border-thin solid $c-rule;
-    border-radius: $radius-md;
-    background: $c-page;
-    overflow: hidden;
-    flex-shrink: 0;
-    max-height: 12rem;
-    display: flex;
-    flex-direction: column;
-  }
-
-  &__history-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: $sp-2 $sp-3;
-    font-size: $fs-step--2;
-    font-weight: $fw-semibold;
-    color: $c-ink-soft;
-    border-bottom: $border-thin solid $c-rule-light;
-    flex-shrink: 0;
-  }
-
-  &__history-clear {
-    padding: $sp-1 $sp-2;
-    border: none;
-    border-radius: $radius-sm;
-    font-family: $ff;
-    font-size: $fs-step--2;
-    color: $c-error;
-    background: $c-error-light;
-    cursor: pointer;
-    transition: all $transition-fast;
-
-    @media (hover: hover) {
-      &:hover {
-        background: $c-error-soft;
-      }
-    }
-  }
-
-  &__history-list {
-    overflow-y: auto;
-    flex: 1;
-  }
-
-  &__history-empty {
-    padding: $sp-5;
-    text-align: center;
-    font-size: $fs-step--1;
-    font-style: italic;
-    color: $c-ink-faint;
-  }
-
-  &__history-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: $sp-2 $sp-3;
-    border-bottom: $border-thin solid $c-rule-light;
-    cursor: pointer;
-    transition: background $transition-fast;
-
-    &:last-child {
-      border-bottom: none;
-    }
-
-    @media (hover: hover) {
-      &:hover {
-        background: $c-page-dark;
-      }
-    }
-  }
-
-  &__history-expr {
-    font-size: $fs-step--2;
-    color: $c-ink-soft;
-    font-style: italic;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-    margin-right: $sp-3;
-  }
-
-  &__history-result {
-    font-size: $fs-step-0;
-    font-weight: $fw-bold;
-    color: $c-ink;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
   // ---- Footer ----------------------------------------------
   &__footer {
     display: flex;
@@ -774,25 +699,15 @@
 
     // ---- Toolbar -------------------------------------------
     &__toolbar { gap: $sp-2; margin-bottom: $sp-3; }
-    &__sci-toggle,
-    &__hist-toggle { font-size: $fs-step--1; padding: $sp-2 $sp-3; }
-
-    // ---- History -------------------------------------------
-    &__history { margin-top: $sp-3; max-height: 14rem; }
-    &__history-header { font-size: $fs-step--1; padding: $sp-2 $sp-3; }
-    &__history-item { padding: $sp-2 $sp-3; }
-    &__history-expr { font-size: $fs-step--1; }
-    &__history-result { font-size: $fs-step-0; }
+    &__sci-toggle { font-size: $fs-step--1; padding: $sp-2 $sp-3; }
 
     // ---- Footer --------------------------------------------
     &__footer { margin-top: $sp-3; }
     &__info { font-size: $fs-step--2; }
     &__mute { font-size: $fs-step--2; padding: $sp-2 $sp-4; }
 
-    // SCI + Hist: no scrolling needed on tablet
-    &--sci,
-    &--hist { overflow-y: visible; }
-    &__history { max-height: 14rem; }
+    // SCI: no scrolling needed on tablet
+    &--sci { overflow-y: visible; }
   }
 }
 
@@ -809,9 +724,7 @@
 
 // ── Short screen: allow scrolling ───────────────────────────
 @media (max-height: 700px) {
-  .calculator--sci,
-  .calculator--hist {
+  .calculator--sci {
     overflow-y: auto;
   }
-  .calculator__history { max-height: 6rem; }
 }

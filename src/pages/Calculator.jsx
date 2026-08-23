@@ -11,7 +11,6 @@ export default function Calculator() {
   const calc = useCalculator();
   const sound = useSound();
   const [muted, setMuted] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [invMode, setInvMode] = useState(false);   // 공학용 2nd(INV)
   const [precOpen, setPrecOpen] = useState(false); // 정밀도 메뉴
   const [siOpen, setSiOpen] = useState(false);     // SI 접두사 팔레트
@@ -46,6 +45,11 @@ export default function Calculator() {
         else if (value === 'recall') calc.memRecall();
         else if (value === 'add') calc.memAdd();
         break;
+      case 'temp':
+        sound.play('func');
+        if (value === 'store') calc.tempStore();
+        else calc.tempRecall();
+        break;
     }
   }, [sound, calc]);
 
@@ -70,7 +74,7 @@ export default function Calculator() {
   }, [sound, calc]);
 
   return (
-    <main className={'calculator' + (calc.sciMode ? ' calculator--sci' : '') + (showHistory ? ' calculator--hist' : '')} onKeyDown={handleKeyDown} tabIndex={-1}>
+    <main className={'calculator' + (calc.sciMode ? ' calculator--sci' : '')} onKeyDown={handleKeyDown} tabIndex={-1}>
       <nav className="calculator__nav">
         <span className="calculator__nav-tab calculator__nav-tab--active">Calc</span>
         <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
@@ -80,7 +84,7 @@ export default function Calculator() {
         <Link to="/problems" className="calculator__nav-tab">Problems</Link>
         <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
-      <Display expression={calc.expression} result={calc.result} />
+      <Display expression={calc.expression} result={calc.result} temp={calc.temp} />
       <div className="calculator__toolbar">
         <div className="calculator__mode-switch" role="group" aria-label="Calculator mode">
           <button
@@ -149,51 +153,10 @@ export default function Calculator() {
             </div>
           )}
         </div>
-        <button
-          className={'calculator__hist-toggle' + (showHistory ? ' calculator__hist-toggle--active' : '')}
-          onClick={() => setShowHistory((p) => !p)}
-          aria-label="Toggle history"
-        >
-          📋 Hist{calc.history.length > 0 ? ` (${calc.history.length})` : ''}
-        </button>
       </div>
       {precOpen && <div className="calculator__prec-backdrop" onClick={() => setPrecOpen(false)} />}
       {siOpen && <div className="calculator__si-backdrop" onClick={() => setSiOpen(false)} />}
       <Keypad onAction={handleAction} sciMode={calc.sciMode} invMode={invMode} />
-      {showHistory && (
-        <div className="calculator__history">
-          <div className="calculator__history-header">
-            <span>📋 Calculation History</span>
-            {calc.history.length > 0 && (
-              <button className="calculator__history-clear" onClick={calc.clearHistory}>Clear</button>
-            )}
-          </div>
-          <div className="calculator__history-list">
-            {calc.history.length === 0 ? (
-              <div className="calculator__history-empty">No calculations yet</div>
-            ) : (
-              calc.history.map((h) => (
-                <div
-                  key={h.id}
-                  className="calculator__history-item"
-                  onClick={() => {
-                    const digits = h.result.replace(/[^0-9.]/g, '');
-                    if (digits) {
-                      calc.clearAll();
-                      // insert result as current value
-                      for (const ch of digits) calc.inputDigit(ch);
-                    }
-                  }}
-                  title="Click to reuse result"
-                >
-                  <span className="calculator__history-expr">{h.expression}</span>
-                  <span className="calculator__history-result">{h.result}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
       <footer className="calculator__footer">
         <p className="calculator__info">32-digit precision &middot; truncated (PHP BCMATH style)</p>
         <button className={'calculator__mute' + (muted ? ' calculator__mute--muted' : '')} onClick={toggleMute} aria-label="Toggle sound">

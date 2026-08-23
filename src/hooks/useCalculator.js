@@ -149,7 +149,7 @@ function decimalAcos(x) {
 
 export function useCalculator() {
   const [display, setDisplay] = useState({ expression: '\u00A0', result: '0' });
-  const [history, setHistory] = useState([]);
+  const [temp, setTemp] = useState(null);              // 임시 변수 T (문자열 또는 null)
   const [sciMode, setSciMode] = useState(false);       // false=일반 모드, true=공학용 모드
   const [degMode, setDegMode] = useState(true);        // true=DEG, false=RAD
   const [mem, setMem] = useState(null);                // 메모리 값 (문자열 또는 null)
@@ -179,13 +179,6 @@ export function useCalculator() {
     if (prev) return fmtD(new Decimal(prev));
     return '\u00A0';
   }, [fmtD]);
-
-  const addHistory = useCallback((expr, res) => {
-    setHistory((prev) => {
-      const next = [{ id: Date.now(), expression: expr, result: res }, ...prev];
-      return next.slice(0, 50); // keep last 50
-    });
-  }, []);
 
   const inputDigit = useCallback((value) => {
     const s = state.current;
@@ -220,8 +213,6 @@ export function useCalculator() {
           break;
       }
       const out = fmtD(result);
-      const exprStr = `${fmtD(a)} ${OP_SYMBOL[s.operator]} ${fmtD(b)} =`;
-      addHistory(exprStr, out);
       s.current = out;
       s.previous = '';
       s.operator = null;
@@ -230,7 +221,7 @@ export function useCalculator() {
     } catch {
       update('Error', '\u00A0');
     }
-  }, [update, addHistory]);
+  }, [update]);
 
   const inputOperator = useCallback((op) => {
     const s = state.current;
@@ -290,7 +281,6 @@ export function useCalculator() {
         default: return;
       }
       const out = fmtD(result);
-      addHistory(`${fnName}(${fmtD(d)}) =`, out);
       s.current = out;
       s.previous = '';
       s.operator = null;
@@ -299,7 +289,7 @@ export function useCalculator() {
     } catch (e) {
       update('Error', '\u00A0');
     }
-  }, [update, addHistory, fmtD, degMode]);
+  }, [update, fmtD, degMode]);
 
   // ── Insert constant ─────────────────────────────────────────────────────
   const insertConstant = useCallback((constant) => {
@@ -345,7 +335,6 @@ export function useCalculator() {
       const sym = SI_SYMBOLS[idx + SI_INDEX_OFFSET];
       const num = fmtD(scaled);
       const out = `${num}${sym ? ' ' + sym : ''}`;
-      addHistory(`${fmtD(d)} \u2192`, out);
       s.current = num;
       s.previous = '';
       s.operator = null;
@@ -354,7 +343,7 @@ export function useCalculator() {
     } catch {
       update('Error', '\u00A0');
     }
-  }, [update, addHistory, fmtD]);
+  }, [update, fmtD]);
 
   const clearAll = useCallback(() => {
     const s = state.current;
@@ -382,10 +371,24 @@ export function useCalculator() {
     }
   }, [update, getExpr]);
 
-  const clearHistory = useCallback(() => setHistory([]), []);
-
   const toggleSciMode = useCallback(() => setSciMode((p) => !p), []);
   const toggleDegMode = useCallback(() => setDegMode((p) => !p), []);
+
+  // ── 임시 변수 T (→T 저장 / T 불러오기) ────────────────────
+  // 메모리(M+)와 달리 덮어쓰기 방식 — 스크래치 계산에 최적
+  const tempStore = useCallback(() => {
+    const s = state.current;
+    const val = s.current || s.previous;
+    if (!val) return;
+    setTemp(fmtD(new Decimal(val)));
+  }, [fmtD]);
+  const tempRecall = useCallback(() => {
+    if (temp == null) return;
+    const s = state.current;
+    s.current = temp;
+    s.shouldReset = false;
+    update(temp, getExpr(s.previous, s.operator, temp));
+  }, [temp, update, getExpr]);
 
   // ── 메모리 (MC / MR / M+) ──────────────────────────────────
   const memClear = useCallback(() => setMem(null), []);
@@ -405,7 +408,7 @@ export function useCalculator() {
   return {
     expression: display.expression,
     result: display.result,
-    history,
+    temp,
     sciMode,
     degMode,
     displayDigits,
@@ -415,7 +418,8 @@ export function useCalculator() {
     get shouldReset() { return state.current.shouldReset; },
     inputDigit, compute, inputOperator, clearAll, negate, backspace,
     applyUnary, insertConstant, inputPrefix, toSI,
-    clearHistory, toggleSciMode,
+    toggleSciMode,
     setDisplayDigits, toggleDegMode, memClear, memRecall, memAdd,
+    tempStore, tempRecall,
   };
 }

@@ -24,6 +24,12 @@ const BUTTONS = [
   ['equals',  '=', 'eq'],
 ];
 
+// 임시 변수 T — 일반 모드에서만 기본 키패드 맨 아래 행에 표시
+const TEMP_BUTTONS = [
+  ['temp', '→T', 'func', 'store'],
+  ['temp', 'T', 'func', 'recall'],
+];
+
 // ── 공학용 키패드 ─────────────────────────────────────────────
 // INV(2nd)를 켜면 sin/cos/tan/log/ln 키가 역함수로 바뀐다.
 const ENG_KEYS = [
@@ -32,6 +38,7 @@ const ENG_KEYS = [
   ['operator', 'pow'], ['unary', '10x'], ['unary', 'ex'], ['unary', 'factorial'],
   ['unary', 'inv'], ['unary', 'abs'], ['const', 'pi'], ['const', 'e'],
   ['toggleInv', 'inv'], ['mem', 'clear'], ['mem', 'recall'], ['mem', 'add'],
+  ['temp', 'store'], ['temp', 'recall'],
 ];
 
 const ENG_LABEL = {
@@ -49,12 +56,16 @@ export default function Keypad({ onAction, sciMode, invMode }) {
       {sciMode && (
         <div className="calculator__keypad calculator__keypad--eng">
           {ENG_KEYS.map(([action, key], i) => {
-            let label, value = key, mod = 'sci';
+            let label, value = key;
+            let cls = 'calculator__btn calculator__btn--sci';
             if (action === 'toggleInv') {
               label = invMode ? '2nd' : 'INV';
-              mod += invMode ? ' sci--active' : '';
+              if (invMode) cls += ' calculator__btn--sci--active';
             } else if (action === 'mem') {
               label = key === 'clear' ? 'MC' : key === 'recall' ? 'MR' : 'M+';
+            } else if (action === 'temp') {
+              label = key === 'store' ? '→T' : 'T';
+              cls += ' calculator__btn--wide';
             } else {
               const inv = invMode && INV_FN[key];
               label = ENG_LABEL[key] || key;
@@ -63,7 +74,7 @@ export default function Keypad({ onAction, sciMode, invMode }) {
             return (
               <div
                 key={'eng-' + i}
-                className={`calculator__btn calculator__btn--${mod}`}
+                className={cls}
                 role="button"
                 tabIndex={0}
                 onClick={() => onAction(action, value)}
@@ -81,10 +92,10 @@ export default function Keypad({ onAction, sciMode, invMode }) {
         </div>
       )}
       <div className={'calculator__keypad' + (sciMode ? ' calculator__keypad--basic' : '')}>
-        {BUTTONS.map(([action, label, mod, value], i) => (
+        {(sciMode ? BUTTONS : [...BUTTONS, ...TEMP_BUTTONS]).map(([action, label, mod, value], i) => (
           <div
             key={i}
-            className={`calculator__btn calculator__btn--${mod}`}
+            className={`calculator__btn calculator__btn--${mod}${action === 'temp' ? ' calculator__btn--wide' : ''}`}
             role="button"
             tabIndex={0}
             onClick={() => onAction(action, value ?? label)}
