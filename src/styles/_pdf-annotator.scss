@@ -682,6 +682,11 @@
     &--erasable {
       border-color: $c-error;
     }
+
+    // Erase 모드에서 덮이는 🗑️ — 🖼️ 이모지와 같은 크기로 통일
+    .pdf-annotator__image-note-erase {
+      font-size: 0.9375rem;
+    }
   }
 
   &__image-note {
