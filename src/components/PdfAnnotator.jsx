@@ -1740,28 +1740,29 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
 
 /**
  * 🖼️ 이미지 주석 오버레이 — 드래그 이동 + 우하단 핸들 리사이즈, 지우개 모드에서 삭제
+ * 드래그 중에는 React 상태를 거치지 않고 DOM을 직접 조작해 지연을 없앤다.
+ * (서버 동기화는 포인터를 놓는 순간 1회만 수행)
  */
 function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
   const [open, setOpen] = useState(false);           // 기본 접힘 — 탭하면 펼침
-  const [dragRect, setDragRect] = useState(null);   // 드래그 중 로컬 rect
   const [pos, setPos] = useState(null);
-  const dragRef = useRef(null);
-  const dragRectRef = useRef(null);                  // 포인터업 시점의 최신 rect (리렌더 타이밍 무관)
+  const elRef = useRef(null);
+  const dragRef = useRef(null);                      // { mode, px, py, dx, dy, rect, canvasRect, box }
   const movedRef = useRef(false);                    // 탭(열기) vs 드래그(이동) 구분
   const prevPosRef = useRef(null);                  // 무한 리렌더 방지용 값 비교
-  const rect = dragRect || annotation.rect;
 
   // 캔버스 기준 정규화 좌표 → 픽셀 (AnnotationOverlay와 동일한 재계산 전략)
   useLayoutEffect(() => {
+    if (dragRef.current) return; // 드래그 중에는 imperative 스타일 유지
     const el = document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
     const canvasRect = getPageCanvasRect(el);
     if (!canvasRect) { setPos(null); return; }
     const wrapperRect = el.getBoundingClientRect();
-    const w = rect.w * canvasRect.width;
-    const h = annotation.aspect ? w / annotation.aspect : (rect.h || rect.w) * canvasRect.height;
+    const w = annotation.rect.w * canvasRect.width;
+    const h = annotation.aspect ? w / annotation.aspect : (annotation.rect.h || annotation.rect.w) * canvasRect.height;
     const next = {
-      left: (canvasRect.left - wrapperRect.left) + rect.x * canvasRect.width,
-      top: (canvasRect.top - wrapperRect.top) + rect.y * canvasRect.height,
+      left: (canvasRect.left - wrapperRect.left) + annotation.rect.x * canvasRect.width,
+      top: (canvasRect.top - wrapperRect.top) + annotation.rect.y * canvasRect.height,
       width: w,
       height: h,
     };
@@ -1782,49 +1783,59 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
     const el = document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
     const canvasRect = getPageCanvasRect(el);
     if (!canvasRect) return;
-    dragRef.current = { mode, px: e.clientX, py: e.clientY, rect: { ...rect }, canvasRect };
-    dragRectRef.current = null;
+    const box = elRef.current ? elRef.current.getBoundingClientRect() : null;
+    dragRef.current = {
+      mode, px: e.clientX, py: e.clientY, dx: 0, dy: 0,
+      rect: { ...annotation.rect }, canvasRect,
+      left: box ? box.left : pos.left,
+      top: box ? box.top : pos.top,
+      width: box ? box.width : pos.width,
+      height: box ? box.height : pos.height,
+    };
     movedRef.current = false;
     try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* 합성 이벤트 등에서 무시 */ }
   };
 
   const onMove = (e) => {
     const d = dragRef.current;
-    if (!d) return;
-    const dx = (e.clientX - d.px) / d.canvasRect.width;
-    const dy = (e.clientY - d.py) / d.canvasRect.height;
-    if (Math.abs(dx) > 1e-4 || Math.abs(dy) > 1e-4) movedRef.current = true;
+    const node = elRef.current;
+    if (!d || !node) return;
+    d.dx = e.clientX - d.px;
+    d.dy = e.clientY - d.py;
+    if (Math.abs(d.dx) > 1 || Math.abs(d.dy) > 1) movedRef.current = true;
     if (d.mode === 'move') {
-      const next = {
-        ...d.rect,
-        x: Math.min(Math.max(d.rect.x + dx, 0.05 - d.rect.w), 0.95),
-        y: Math.min(Math.max(d.rect.y + dy, -0.5), 1.5),
-      };
-      dragRectRef.current = next;
-      setDragRect(next);
+      node.style.left = (d.left + d.dx) + 'px';
+      node.style.top = (d.top + d.dy) + 'px';
     } else {
-      const nw = Math.min(Math.max(d.rect.w + dx, 0.12), 1);
-      const next = { ...d.rect, w: nw };
-      dragRectRef.current = next;
-      setDragRect(next);
+      const w = Math.min(Math.max(d.width + d.dx, d.canvasRect.width * 0.12), d.canvasRect.width);
+      node.style.width = w + 'px';
+      node.style.height = (w / (annotation.aspect || 1)) + 'px';
     }
   };
 
   const onUp = () => {
-    if (!dragRef.current) return;
+    const d = dragRef.current;
+    if (!d) return;
     dragRef.current = null;
-    const final = dragRectRef.current;
-    dragRectRef.current = null;
-    if (final) {
-      onSave(annotation.id, { rect: final });
-    }
-    setDragRect(null);
+    if (!movedRef.current) return; // 움직이지 않으면 저장 생략 (탭 = 열기)
+    const final = d.mode === 'move'
+      ? {
+          ...d.rect,
+          x: Math.min(Math.max(d.rect.x + d.dx / d.canvasRect.width, 0.05 - d.rect.w), 0.95),
+          y: Math.min(Math.max(d.rect.y + d.dy / d.canvasRect.height, -0.5), 1.5),
+        }
+      : {
+          ...d.rect,
+          w: Math.min(Math.max(d.rect.w + d.dx / d.canvasRect.width, 0.12), 1),
+        };
+    onSave(annotation.id, { rect: final });
   };
 
   // ── 접힘 상태: 작은 🖼️ 배지 — 탭하면 펼침, 드래그로 이동 ──
   if (!open) {
     return (
       <div
+        ref={elRef}
         data-annotation-id={annotation.id}
         className={'pdf-annotator__image-stub' + (eraseMode ? ' pdf-annotator__image-stub--erasable' : '')}
         style={{ left: pos.left, top: pos.top }}
@@ -1847,6 +1858,7 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
 
   return (
     <div
+      ref={elRef}
       data-annotation-id={annotation.id}
       className={'pdf-annotator__image-note' + (eraseMode ? ' pdf-annotator__image-note--erasable' : '')}
       style={{ left: pos.left, top: pos.top, width: pos.width, height: pos.height }}
