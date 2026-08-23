@@ -38,6 +38,8 @@ const TOOLS = {
   comment:   { label: '💬 Comment', icon: '💬' },
   image:     { label: '🖼️ Image', icon: '🖼️' },
 };
+
+const MAX_IMAGE_MB = 10; // 🖼️ 이미지 업로드 상한
 function getPageCanvasRect(pageEl) {
   if (!pageEl) return null;
   // The react-pdf Page wrapper maintains the correct PDF aspect ratio
@@ -63,7 +65,7 @@ function annoRect(a, pageEl) {
   };
 }
 
-// ── 🖼️ 이미지 압축 — 최대 1000px, JPEG 0.82 (PNG는 무손실 유지) ──
+// ── 🖼️ 이미지 압축 — 2MB 이하는 1000px, 그 이상은 1600px (JPEG 0.82, PNG 무손실) ──
 function compressImageFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -72,7 +74,7 @@ function compressImageFile(file) {
       const img = new Image();
       img.onerror = () => reject(new Error('bad image'));
       img.onload = () => {
-        const MAX = 1000;
+        const MAX = file.size > 2 * 1024 * 1024 ? 1600 : 1000;
         const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
         const w = Math.max(1, Math.round(img.naturalWidth * scale));
         const h = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -721,6 +723,10 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     setTool(null); // 1회 배치 후 Read 모드로 복귀
     if (!file || !pending || !file.type.startsWith('image/')) {
       setToast('Please choose an image file');
+      return;
+    }
+    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+      setToast(`Image too large — ${MAX_IMAGE_MB}MB max`);
       return;
     }
     try {
