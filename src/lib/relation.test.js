@@ -4,7 +4,7 @@
 // ============================================================
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzePoint, findZeros, classifyCritical, analyzeRange } from './relation.js';
+import { analyzePoint, findZeros, classifyCritical, analyzeRange, validateVarName } from './relation.js';
 
 const approx = (a, b, tol = 1e-6, msg) =>
   assert.ok(Math.abs(a - b) <= tol, `${msg || ''} |a−b| = ${Math.abs(a - b)} (a=${a}, b=${b})`);
@@ -154,4 +154,43 @@ test('analyzeRange: sin → 극대·극소·변곡점', () => {
 test('analyzeRange: 뒤집힌 구간 [b,a]는 정규화되어 동일한 결과', () => {
   const r = analyzeRange(sq, twoA, two, 2, -2);
   assert.deepEqual(r.intervals.map((i) => i.sign), ['negative', 'positive']);
+});
+
+// ── 변수 이름(레이블) 주입 — 멘탈 매핑 최소화 ───────────────
+test('analyzePoint: 기본 레이블은 A/B', () => {
+  const r = analyzePoint({ a: 10, b: 20, slope: 4 });
+  assert.match(r.sentence, /B increases as A grows/);
+});
+
+test('analyzePoint: 사용자 이름 v/t가 문장에 반영된다', () => {
+  const r = analyzePoint({ a: 10, b: 20, slope: 4 }, { varA: 'v', varB: 't' });
+  assert.match(r.sentence, /t increases as v grows/);
+  assert.match(r.sentence, /a 1% rise in v moves t by 200%/);
+  assert.doesNotMatch(r.sentence, /\bA\b|\bB\b/);
+});
+
+test('analyzePoint: 반비례 문장에 이름 반영', () => {
+  const r = analyzePoint({ a: 2, b: 4, slope: -2 }, { varA: 'v', varB: 't' });
+  assert.match(r.sentence, /t is inversely proportional to v/);
+});
+
+test('analyzePoint: 정지점·영점 문장에 이름 반영', () => {
+  const z = analyzePoint({ a: 5, b: 7, slope: 0 }, { varA: 'v', varB: 't' });
+  assert.match(z.sentence, /t is stationary/);
+  const zero = analyzePoint({ a: 5, b: 0, slope: 2 }, { varA: 'v', varB: 't' });
+  assert.match(zero.sentence, /t passes through zero/);
+});
+
+// ── validateVarName ────────────────────────────────────────
+test('validateVarName: 식별자 규칙', () => {
+  assert.equal(validateVarName('v'), true);
+  assert.equal(validateVarName('t'), true);
+  assert.equal(validateVarName('A'), true);
+  assert.equal(validateVarName('v2'), true);
+  assert.equal(validateVarName('_x'), true);
+  assert.equal(validateVarName('2v'), false);
+  assert.equal(validateVarName(''), false);
+  assert.equal(validateVarName('a b'), false);
+  assert.equal(validateVarName('x-y'), false);
+  assert.equal(validateVarName(null), false);
 });

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { parse } from 'mathjs';
-import { analyzePoint, analyzeRange } from '../lib/relation.js';
+import { analyzePoint, analyzeRange, validateVarName } from '../lib/relation.js';
 import {
   parseUnitExpr,
   formatDim,
@@ -60,6 +60,8 @@ function CurveChart({ f, a, b, aCur, color }) {
 
 export default function Relation() {
   const [expr, setExpr] = useState('A^2');
+  const [varA, setVarA] = useState('A');
+  const [varB, setVarB] = useState('B');
   const [aMin, setAMin] = useState(-2);
   const [aMax, setAMax] = useState(2);
   const [aCur, setACur] = useState(0.5);
@@ -70,12 +72,19 @@ export default function Relation() {
   const lo = Math.min(aMin, aMax), hi = Math.max(aMin, aMax);
   const cur = Math.min(hi, Math.max(lo, aCur));
 
+  const nameError = useMemo(() => {
+    if (!validateVarName(varA)) return `Variable name '${varA}' is invalid — use letters, digits, _ (starting with a letter or _).`;
+    if (!validateVarName(varB)) return `Variable name '${varB}' is invalid — use letters, digits, _ (starting with a letter or _).`;
+    if (varA === varB) return 'Variable names must differ.';
+    return null;
+  }, [varA, varB]);
+
   // B(A) 및 수치 도함수
   const compiled = useMemo(() => {
     try {
       const node = parse(expr);
       const f = (x) => {
-        try { return node.evaluate({ A: x }); } catch { return NaN; }
+        try { return node.evaluate({ [varA]: x }); } catch { return NaN; }
       };
       const h1 = (x) => 1e-5 * Math.max(1, Math.abs(x));
       const fp = (x) => {
@@ -90,7 +99,7 @@ export default function Relation() {
     } catch (e) {
       return { f: () => NaN, fp: () => NaN, fpp: () => NaN, error: e.message };
     }
-  }, [expr]);
+  }, [expr, varA]);
 
   const point = useMemo(() => {
     const { f, fp, fpp } = compiled;
@@ -98,8 +107,8 @@ export default function Relation() {
     const slope = fp(cur);
     const curvature = fpp(cur);
     if (!Number.isFinite(b) || !Number.isFinite(slope) || !Number.isFinite(curvature)) return null;
-    return analyzePoint({ a: cur, b, slope, curvature });
-  }, [compiled, cur]);
+    return analyzePoint({ a: cur, b, slope, curvature }, { varA, varB });
+  }, [compiled, cur, varA, varB]);
 
   const range = useMemo(() => {
     try {
@@ -150,8 +159,16 @@ export default function Relation() {
       <div className="relation__panel">
         <div className="relation__form">
           <label className="relation__field">
-            <span>B(A) =</span>
+            <span>{varB}({varA}) =</span>
             <input className="relation__input" type="text" spellCheck={false} value={expr} onChange={(e) => setExpr(e.target.value)} />
+          </label>
+          <label className="relation__field">
+            <span>Variables</span>
+            <span className="relation__domain">
+              <input className="relation__unit" type="text" value={varA} onChange={(e) => setVarA(e.target.value)} title={`Input variable — appears in the expression as ${varA || '?'}`} />
+              <em>→</em>
+              <input className="relation__unit" type="text" value={varB} onChange={(e) => setVarB(e.target.value)} title="Output variable" />
+            </span>
           </label>
           <label className="relation__field">
             <span>Domain</span>
@@ -164,20 +181,22 @@ export default function Relation() {
           <label className="relation__field">
             <span>Units</span>
             <span className="relation__domain">
-              <input className="relation__unit" type="text" placeholder="[A] e.g. m" value={unitA} onChange={(e) => setUnitA(e.target.value)} />
+              <input className="relation__unit" type="text" placeholder={`[${varA}] e.g. m`} value={unitA} onChange={(e) => setUnitA(e.target.value)} />
               <em>→</em>
-              <input className="relation__unit" type="text" placeholder="[B] e.g. m/s" value={unitB} onChange={(e) => setUnitB(e.target.value)} />
+              <input className="relation__unit" type="text" placeholder={`[${varB}] e.g. m/s`} value={unitB} onChange={(e) => setUnitB(e.target.value)} />
             </span>
           </label>
         </div>
+        {nameError && <p className="relation__error">{nameError}</p>}
         {compiled.error && <p className="relation__error">Expression error — {compiled.error}</p>}
         {unitInfo.error && <p className="relation__error">Unit error — {unitInfo.error}</p>}
+        {!compiled.error && !nameError && !point && <p className="relation__error">No result — check that the expression uses “{varA}” and the domain is valid.</p>}
       </div>
 
       {point && (
         <div className="relation__panel">
           <div className="relation__slider-row">
-            <span className="relation__slider-label">A = {fmt(cur)}</span>
+            <span className="relation__slider-label">{varA} = {fmt(cur)}</span>
             <input
               className="relation__slider"
               type="range"
@@ -191,11 +210,11 @@ export default function Relation() {
 
           <div className="relation__grid">
             <div className="relation__card">
-              <span className="relation__card-label">B(A)</span>
+              <span className="relation__card-label">{varB}({varA})</span>
               <span className="relation__card-value">{fmt(compiled.f(cur))}</span>
             </div>
             <div className="relation__card">
-              <span className="relation__card-label">dB/dA {SIGN_ICON[point.sign]}</span>
+              <span className="relation__card-label">d{varB}/d{varA} {SIGN_ICON[point.sign]}</span>
               <span className="relation__card-value">{fmt(compiled.fp(cur))}</span>
               {unitInfo.base && (
                 <span className="relation__card-unit">
@@ -245,9 +264,9 @@ export default function Relation() {
       )}
 
       <div className="relation__panel">
-        <p className="relation__section">B(A)</p>
+        <p className="relation__section">{varB}({varA})</p>
         <CurveChart f={compiled.f} a={lo} b={hi} aCur={cur} color="#5c3d2e" />
-        <p className="relation__section">dB/dA</p>
+        <p className="relation__section">d{varB}/d{varA}</p>
         <CurveChart f={compiled.fp} a={lo} b={hi} aCur={cur} color="#3d5a80" />
       </div>
     </main>
