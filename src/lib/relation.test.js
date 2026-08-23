@@ -4,7 +4,7 @@
 // ============================================================
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzePoint, findZeros, classifyCritical, analyzeRange, validateVarName } from './relation.js';
+import { analyzePoint, findZeros, classifyCritical, analyzeRange, validateVarName, variableLabel } from './relation.js';
 
 const approx = (a, b, tol = 1e-6, msg) =>
   assert.ok(Math.abs(a - b) <= tol, `${msg || ''} |a−b| = ${Math.abs(a - b)} (a=${a}, b=${b})`);
@@ -193,4 +193,45 @@ test('validateVarName: 식별자 규칙', () => {
   assert.equal(validateVarName('a b'), false);
   assert.equal(validateVarName('x-y'), false);
   assert.equal(validateVarName(null), false);
+});
+
+// ── Variable → Natural Language ─────────────────────────────
+test('variableLabel: 자연어 이름이 있으면 심볼과 함께 표기', () => {
+  assert.equal(variableLabel('t', 'Total Duration'), 'Total Duration (t)');
+  assert.equal(variableLabel('v', 'Constant Car Speed'), 'Constant Car Speed (v)');
+});
+
+test('variableLabel: 이름이 없거나 빈 문자열이면 심볼만', () => {
+  assert.equal(variableLabel('t', null), 't');
+  assert.equal(variableLabel('t', ''), 't');
+  assert.equal(variableLabel('t', '   '), 't');
+  assert.equal(variableLabel('t', undefined), 't');
+});
+
+test('analyzePoint: 자연어 이름이 문장에 반영된다', () => {
+  const r = analyzePoint(
+    { a: 2, b: 4, slope: -2 },
+    { varA: 'v', varB: 't', nameA: 'Constant Car Speed', nameB: 'Total Duration' }
+  );
+  assert.match(r.sentence, /Total Duration \(t\) decreases as Constant Car Speed \(v\) grows/);
+  assert.match(r.sentence, /Total Duration \(t\) is inversely proportional to Constant Car Speed \(v\)/);
+});
+
+test('analyzePoint: 탄력성 % 문장에도 자연어 이름이 반영된다', () => {
+  const r = analyzePoint(
+    { a: 10, b: 20, slope: 4 },
+    { varA: 'v', varB: 't', nameA: 'Speed', nameB: 'Time' }
+  );
+  assert.match(r.sentence, /a 1% rise in Speed \(v\) moves Time \(t\) by 200%/);
+});
+
+test('analyzePoint: 한쪽만 이름이 있어도 정상 동작', () => {
+  const r = analyzePoint({ a: 5, b: 7, slope: 0 }, { varA: 'v', varB: 't', nameA: 'Speed' });
+  assert.match(r.sentence, /t is stationary here — the slope is zero/);
+});
+
+test('analyzePoint: 자연어 이름 없으면 기존 문장 그대로', () => {
+  const r = analyzePoint({ a: 10, b: 20, slope: 4 }, { varA: 'v', varB: 't' });
+  assert.match(r.sentence, /t increases as v grows/);
+  assert.doesNotMatch(r.sentence, /\(t\)|\(v\)/);
 });

@@ -15,10 +15,16 @@ export function validateVarName(name) {
   return typeof name === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
 }
 
+// 자연어 이름 표기 — "Total Duration (t)", 이름이 없으면 "t"
+export function variableLabel(sym, name) {
+  const n = name && String(name).trim();
+  return n ? `${n} (${sym})` : sym;
+}
+
 // ── 한 지점 해석 ──────────────────────────────────────────────
 export function analyzePoint({ a, b, slope, curvature = 0 }, labels = {}) {
-  const varA = labels.varA || 'A';
-  const varB = labels.varB || 'B';
+  const labelA = variableLabel(labels.varA || 'A', labels.nameA);
+  const labelB = variableLabel(labels.varB || 'B', labels.nameB);
   const sign = slope > TOL ? 'positive' : slope < -TOL ? 'negative' : 'zero';
   const curvatureClass = curvature > TOL ? 'convex' : curvature < -TOL ? 'concave' : 'linear';
 
@@ -34,42 +40,42 @@ export function analyzePoint({ a, b, slope, curvature = 0 }, labels = {}) {
     else elasticityClass = 'inelastic';
   }
 
-  const sentence = buildSentence({ sign, elasticity, elasticityClass, curvatureClass, varA, varB });
+  const sentence = buildSentence({ sign, elasticity, elasticityClass, curvatureClass, labelA, labelB });
   return { sign, elasticity, elasticityClass, curvatureClass, sentence };
 }
 
-function buildSentence({ sign, elasticity, elasticityClass, curvatureClass, varA, varB }) {
+function buildSentence({ sign, elasticity, elasticityClass, curvatureClass, labelA, labelB }) {
   if (sign === 'zero') {
-    if (curvatureClass === 'convex') return `${varB} is stationary here — this is a local minimum.`;
-    if (curvatureClass === 'concave') return `${varB} is stationary here — this is a local maximum.`;
-    return `${varB} is stationary here — the slope is zero (flat).`;
+    if (curvatureClass === 'convex') return `${labelB} is stationary here — this is a local minimum.`;
+    if (curvatureClass === 'concave') return `${labelB} is stationary here — this is a local maximum.`;
+    return `${labelB} is stationary here — the slope is zero (flat).`;
   }
 
   const parts = [];
-  parts.push(sign === 'positive' ? `${varB} increases as ${varA} grows.` : `${varB} decreases as ${varA} grows.`);
+  parts.push(sign === 'positive' ? `${labelB} increases as ${labelA} grows.` : `${labelB} decreases as ${labelA} grows.`);
 
   if (elasticity == null) {
-    parts.push(`${varB} passes through zero here — elasticity is undefined.`);
+    parts.push(`${labelB} passes through zero here — elasticity is undefined.`);
   } else {
     const pct = formatValue(Math.abs(elasticity) * 100);
     switch (elasticityClass) {
       case 'proportional':
-        parts.push(`ε = 1 — ${varB} is proportional to ${varA} (a 1% rise in ${varA} lifts ${varB} by 1%).`);
+        parts.push(`ε = 1 — ${labelB} is proportional to ${labelA} (a 1% rise in ${labelA} lifts ${labelB} by 1%).`);
         break;
       case 'inverse-proportional':
-        parts.push(`ε = −1 — ${varB} is inversely proportional to ${varA}.`);
+        parts.push(`ε = −1 — ${labelB} is inversely proportional to ${labelA}.`);
         break;
       case 'elastic':
-        parts.push(`ε = ${formatValue(elasticity)} — elastic: a 1% rise in ${varA} moves ${varB} by ${pct}%.`);
+        parts.push(`ε = ${formatValue(elasticity)} — elastic: a 1% rise in ${labelA} moves ${labelB} by ${pct}%.`);
         break;
       case 'inelastic':
-        parts.push(`ε = ${formatValue(elasticity)} — inelastic: a 1% rise in ${varA} moves ${varB} by only ${pct}%.`);
+        parts.push(`ε = ${formatValue(elasticity)} — inelastic: a 1% rise in ${labelA} moves ${labelB} by only ${pct}%.`);
         break;
       case 'unitary':
         parts.push(`ε = ${formatValue(elasticity)} — about a 1:1 response.`);
         break;
       case 'zero':
-        parts.push(`ε ≈ 0 — ${varB} barely responds to ${varA}.`);
+        parts.push(`ε ≈ 0 — ${labelB} barely responds to ${labelA}.`);
         break;
       default:
         parts.push(`ε = ${formatValue(elasticity)}.`);

@@ -62,6 +62,8 @@ export default function Relation() {
   const [expr, setExpr] = useState('A^2');
   const [varA, setVarA] = useState('A');
   const [varB, setVarB] = useState('B');
+  const [nameA, setNameA] = useState('');
+  const [nameB, setNameB] = useState('');
   const [aMin, setAMin] = useState(-2);
   const [aMax, setAMax] = useState(2);
   const [aCur, setACur] = useState(0.5);
@@ -107,8 +109,8 @@ export default function Relation() {
     const slope = fp(cur);
     const curvature = fpp(cur);
     if (!Number.isFinite(b) || !Number.isFinite(slope) || !Number.isFinite(curvature)) return null;
-    return analyzePoint({ a: cur, b, slope, curvature }, { varA, varB });
-  }, [compiled, cur, varA, varB]);
+    return analyzePoint({ a: cur, b, slope, curvature }, { varA, varB, nameA, nameB });
+  }, [compiled, cur, varA, varB, nameA, nameB]);
 
   const range = useMemo(() => {
     try {
@@ -168,6 +170,11 @@ export default function Relation() {
               <input className="relation__unit" type="text" value={varA} onChange={(e) => setVarA(e.target.value)} title={`Input variable — appears in the expression as ${varA || '?'}`} />
               <em>→</em>
               <input className="relation__unit" type="text" value={varB} onChange={(e) => setVarB(e.target.value)} title="Output variable" />
+            </span>
+            <span className="relation__domain">
+              <input className="relation__unit" type="text" placeholder="name (e.g. Constant Car Speed)" value={nameA} onChange={(e) => setNameA(e.target.value)} title="Natural-language name for the input variable" />
+              <em>→</em>
+              <input className="relation__unit" type="text" placeholder="name (e.g. Total Duration)" value={nameB} onChange={(e) => setNameB(e.target.value)} title="Natural-language name for the output variable" />
             </span>
           </label>
           <label className="relation__field">
