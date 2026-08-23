@@ -579,56 +579,81 @@
     transform: translateX(-50%);
     background: $c-ink;
     color: $c-ink-inverse;
-    padding: $sp-2 $sp-3;
-    border-radius: $radius-md;
-    font-size: $fs-step--2;
+    padding: $sp-3 $sp-3;
+    border-radius: $radius-lg;
+    font-size: $fs-step--1;
     white-space: nowrap;
-    max-width: 16rem;
+    max-width: 20rem;
     box-shadow: $shadow-lg;
     font-family: $ff;
     z-index: 20;
     cursor: pointer;
     align-items: center;
-    gap: $sp-1;
+    gap: $sp-2;
   }
 
   &__comment-tooltip-text {
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 11rem;
+    max-width: 13rem;
   }
 
   &__comment-edit {
     border: none;
-    background: transparent;
+    background: rgba(248, 244, 235, 0.12);
     color: inherit;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     line-height: 1;
     padding: 0;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     flex-shrink: 0;
+    transition: background $transition-fast;
 
     @media (hover: hover) {
-      &:hover { opacity: 0.7; }
+      &:hover { background: rgba(248, 244, 235, 0.28); }
     }
   }
 
   // 툴팁 안의 ✓/✗ — 코멘트 클릭 시 '한 번 더 풀기' (어두운 툴팁 배경이라 밝은 색)
   &__comment-status-btn {
     border: none;
-    background: transparent;
+    background: rgba(248, 244, 235, 0.12);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.95rem;
     line-height: 1;
     padding: 0;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
     font-weight: $fw-bold;
+    transition: background $transition-fast;
 
-    &--solved { color: #8fd19e; }
-    &--wrong { color: #f2a29b; }
+    &--solved {
+      color: #8fd19e;
+      background: rgba(143, 209, 158, 0.16);
 
-    @media (hover: hover) {
-      &:hover { opacity: 0.75; }
+      @media (hover: hover) {
+        &:hover { background: rgba(143, 209, 158, 0.34); }
+      }
+    }
+
+    &--wrong {
+      color: #f2a29b;
+      background: rgba(242, 162, 155, 0.16);
+
+      @media (hover: hover) {
+        &:hover { background: rgba(242, 162, 155, 0.34); }
+      }
     }
   }
 
