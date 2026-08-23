@@ -1778,19 +1778,23 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
 
   const startDrag = (e, mode) => {
     if (eraseMode) return;
+    // ✕ 닫기 등 내부 <button> 클릭은 드래그로 처리하지 않는다 —
+    // 포인터 캡처가 걸리면 click이 버튼 대신 부모로 리타겟되어 버튼이 먹통이 된다.
+    if (e.target && e.target.closest && e.target.closest('button')) return;
     e.stopPropagation();
     e.preventDefault();
     const el = document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
     const canvasRect = getPageCanvasRect(el);
     if (!canvasRect) return;
-    const box = elRef.current ? elRef.current.getBoundingClientRect() : null;
+    // 기준점은 뷰포트 좌표(bounding box)가 아니라 래퍼 기준 pos — 좌표계 혼합으로 인한
+    // 드래그 시작 순간의 순간이동을 방지한다.
     dragRef.current = {
       mode, px: e.clientX, py: e.clientY, dx: 0, dy: 0,
       rect: { ...annotation.rect }, canvasRect,
-      left: box ? box.left : pos.left,
-      top: box ? box.top : pos.top,
-      width: box ? box.width : pos.width,
-      height: box ? box.height : pos.height,
+      left: pos.left,
+      top: pos.top,
+      width: pos.width,
+      height: pos.height,
     };
     movedRef.current = false;
     try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* 합성 이벤트 등에서 무시 */ }
