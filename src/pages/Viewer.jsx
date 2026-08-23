@@ -227,13 +227,6 @@ export default function Viewer() {
     }
   }, []);
 
-  // ── Search state ────────────────────────────────────────────────────────
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const searchIndex = useRef({});  // { path: textContent }
-  const searchDebounce = useRef(null);
-
   // ── 세션 복원: Calc ↔ Viewer 전환 시 상태 유지 ──
   // 메모리 캐시(모듈 레벨)에 있으면 다운로드/파싱 없이 즉시 복원한다.
   useEffect(() => {
@@ -245,9 +238,8 @@ export default function Viewer() {
       const state = JSON.parse(saved);
       if (!state.zipId || !state.selectedPath) { setLoading(false); return; }
 
-      const applyEntry = (entry, zip, blobs, idx, tree) => {
+      const applyEntry = (entry, zip, blobs, tree) => {
         zipRef.current = zip;
-        searchIndex.current = idx;
         zipIdRef.current = state.zipId;
         zipInfoRef.current = { zipId: state.zipId, zipName: entry.fileName || state.fileName || '' };
         setZipId(state.zipId);
@@ -285,7 +277,7 @@ export default function Viewer() {
       // ① 메모리 캐시 히트 — 탭 전환 후 돌아온 경우: 파싱 없이 즉시 복원
       const cached = getZipEntry(state.zipId);
       if (cached) {
-        applyEntry(cached, cached.zip, cached.blobs, cached.searchIndex, cached.tree);
+        applyEntry(cached, cached.zip, cached.blobs, cached.tree);
         renderDoc(cached.zip, cached.blobs);
         return;
       }
@@ -296,12 +288,11 @@ export default function Viewer() {
         JSZip.loadAsync(stored.blob).then(async (zip) => {
           const blobs = await indexImages(zip);
           if (seq !== navSeq.current) return; // 최신 탐색으로 대체됨
-          const idx = await buildSearchIndex(zip);
           const tree = buildZipTree(zip);
           if (seq !== navSeq.current) return;
-          const entry = { zip, fileName: stored.name || state.fileName || '', tree, blobs, searchIndex: idx };
+          const entry = { zip, fileName: stored.name || state.fileName || '', tree, blobs };
           cacheZip(state.zipId, entry);
-          applyEntry(entry, zip, blobs, idx, tree);
+          applyEntry(entry, zip, blobs, tree);
           renderDoc(zip, blobs);
         }).catch(() => { if (seq === navSeq.current) setLoading(false); });
       }).catch(() => { if (seq === navSeq.current) setLoading(false); });
@@ -433,32 +424,14 @@ export default function Viewer() {
     pdfBlobUrlsRef.current = keep;
   }, [pdfUrl]);
 
-  // 언마운트 시 남은 blob URL 전체 해제 + 검색 디바운스 정리 (메모리 누수 방지)
+  // 언마운트 시 남은 blob URL 전체 해제 (메모리 누수 방지)
   useEffect(() => {
     return () => {
       for (const url of blobUrlsRef.current) URL.revokeObjectURL(url);
       for (const url of pdfBlobUrlsRef.current) URL.revokeObjectURL(url);
       blobUrlsRef.current.clear();
       pdfBlobUrlsRef.current.clear();
-      if (searchDebounce.current) clearTimeout(searchDebounce.current);
     };
-  }, []);
-
-  // ── Build search index from text files in ZIP ──────────────────────────
-  const buildSearchIndex = useCallback(async (zip) => {
-    const idx = {};
-    const textExts = ['.md', '.txt', '.html', '.htm', '.xml', '.json', '.csv', '.tex', '.rst', '.yml', '.yaml', '.toml'];
-    for (const [path, file] of Object.entries(zip.files)) {
-      if (file.dir) continue;
-      const ext = '.' + path.split('.').pop().toLowerCase();
-      if (!textExts.includes(ext) && ext !== '.pdf') continue;
-      try {
-        const text = await file.async('text');
-        idx[path] = text;
-      } catch { /* binary, skip */ }
-    }
-    searchIndex.current = idx;
-    return idx;
   }, []);
 
   // ZIP 파일 구조 → 트리 (Recent에서 ZIP 전환 시 재구축용)
@@ -476,93 +449,6 @@ export default function Viewer() {
     return tree;
   }, []);
 
-  // ── Search handler ─────────────────────────────────────────────────────
-  const handleSearch = useCallback((query) => {
-    setSearchQuery(query);
-    if (searchDebounce.current) clearTimeout(searchDebounce.current);
-    if (!query.trim()) {
-      setSearchResults([]);
-      setSearchOpen(false);
-      return;
-    }
-    searchDebounce.current = setTimeout(() => {
-      const q = query.toLowerCase();
-      const results = [];
-      for (const [path, text] of Object.entries(searchIndex.current)) {
-        if (typeof text !== 'string') { console.warn('[search-index] non-string entry', path, typeof text, text); continue; }
-        const lower = text.toLowerCase();
-        let idx = lower.indexOf(q);
-        if (idx === -1) continue;
-        // Collect all match positions
-        const matches = [];
-        let pos = 0;
-        while (pos < lower.length) {
-          const found = lower.indexOf(q, pos);
-          if (found === -1) break;
-          matches.push(found);
-          pos = found + 1;
-        }
-        for (const matchPos of matches) {
-          // Extract snippet around match
-          const start = Math.max(0, matchPos - 60);
-          const end = Math.min(text.length, matchPos + q.length + 60);
-          let snippet = text.slice(start, end);
-          if (start > 0) snippet = '…' + snippet;
-          if (end < text.length) snippet = snippet + '…';
-          // Highlight the match
-          const displayName = path.split('/').pop();
-          results.push({ path, displayName, snippet, matchPos: matchPos - start + (start > 0 ? 1 : 0) });
-        }
-      }
-      // Limit to 20 results, sort by path
-      results.sort((a, b) => a.path.localeCompare(b.path));
-      setSearchResults(results.slice(0, 20));
-      setSearchOpen(results.length > 0);
-    }, 200);
-  }, []);
-
-  const navigateToSearchResult = useCallback((result) => {
-    const seq = ++navSeq.current;                    // 검색 결과 이동 = 최신 탐색
-    setSearchOpen(false);
-    setSearchQuery('');
-    if (selectedPath && previewRef.current) {
-      scrollPositions.current[posKey(selectedPath)] = previewRef.current.scrollTop;
-    }
-    if (result.path.endsWith('.pdf')) {
-      const zip = zipRef.current;
-      if (!zip) return;
-      const file = zip.files[result.path];
-      if (!file) return;
-      file.async('blob').then((blob) => {
-        if (seq !== navSeq.current) return;
-        const url = URL.createObjectURL(blob);
-        pdfBlobUrlsRef.current.add(url);
-        setPdfUrl(url);
-        setSelectedPath(result.path);
-        setRendered('');
-        setToc([]);
-        setPdfInitialPage(pdfState.current[posKey(result.path)]?.page || null);
-        setLoading(false);
-      });
-    } else {
-      // Use the tree node selection path
-      const zip = zipRef.current;
-      if (!zip) return;
-      const file = zip.files[result.path];
-      if (!file) return;
-      setSelectedPath(result.path);
-      setPdfUrl('');            // PDF → 마크다운 전환 시 PDF 뷰어 해제 (누락 버그 수정)
-      setPdfInitialPage(null);
-      const dir = result.path.substring(0, result.path.lastIndexOf('/') + 1);
-      const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
-      file.async('text').then((txt) => {
-        if (seq !== navSeq.current) return;
-        setContent(processContent(txt, resolveImg));
-        setLoading(false);
-      });
-    }
-  }, [imageBlobs, setContent, selectedPath, posKey]);
-
   const loadZip = useCallback(async (file) => {
     if (file.size > 1024 * 1024 * 1024) {          // 클라이언트 사전 차단 — JSZip 파싱 전
       setMdToast('ZIP too large — max 1 GB');
@@ -577,7 +463,6 @@ export default function Viewer() {
       zipRef.current = zip;                          // 크로스 링크용 보관
       const blobs = await indexImages(zip);
       if (seq !== navSeq.current) return;
-      const idx = await buildSearchIndex(zip);        // 검색 인덱스 구축 (ref도 내부에서 갱신)
       const tree = buildZipTree(zip);
       if (seq !== navSeq.current) return;
 
@@ -600,9 +485,8 @@ export default function Viewer() {
       zipInfoRef.current = { zipId: id, zipName: file.name };
       setZipStamp((s) => s + 1);
       setImageBlobs(blobs);
-      searchIndex.current = idx;
       setZipTree(tree);
-      cacheZip(id, { zip, fileName: file.name, tree, blobs, searchIndex: idx });
+      cacheZip(id, { zip, fileName: file.name, tree, blobs });
       // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
       setSelectedPath('');
       setPdfUrl('');
@@ -612,7 +496,7 @@ export default function Viewer() {
     } catch (e) {
       if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
     }
-  }, [indexImages, buildSearchIndex, buildZipTree, refreshStored, cacheZip]);
+  }, [indexImages, buildZipTree, refreshStored, cacheZip]);
 
   // IndexedDB에서 저장된 ZIP 불러오기 (이미 열려 있던 ZIP은 캐시 재사용)
   const handleLoadStored = useCallback(async (entry) => {
@@ -630,7 +514,6 @@ export default function Viewer() {
       setZipId(entry.id);
       setFileName(cached.fileName);
       setImageBlobs(cached.blobs);
-      searchIndex.current = cached.searchIndex;
       setZipTree(cached.tree);
       setSelectedPath('');
       setPdfUrl('');
@@ -654,13 +537,11 @@ export default function Viewer() {
       zipRef.current = zip;                          // 크로스 링크용 보관
       const blobs = await indexImages(zip);
       if (seq !== navSeq.current) return;
-      const idx = await buildSearchIndex(zip);        // 검색 인덱스 구축 (ref도 내부에서 갱신)
       const tree = buildZipTree(zip);
       if (seq !== navSeq.current) return;
       setImageBlobs(blobs);
-      searchIndex.current = idx;
       setZipTree(tree);
-      cacheZip(entry.id, { zip, fileName: stored.name, tree, blobs, searchIndex: idx });
+      cacheZip(entry.id, { zip, fileName: stored.name, tree, blobs });
       zipInfoRef.current = { zipId: entry.id, zipName: stored.name };
       setZipStamp((s) => s + 1);
       // 처음엔 빈 상태로 시작 — 사용자가 사이드바에서 파일을 직접 선택
@@ -672,7 +553,7 @@ export default function Viewer() {
     } catch (e) {
       if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
     }
-  }, [indexImages, buildSearchIndex, buildZipTree, cacheZip]);
+  }, [indexImages, buildZipTree, cacheZip]);
 
   // ZIP 내 문서 간 크로스 링크 처리
   const navigateTo = useCallback(async (href) => {
@@ -799,9 +680,8 @@ export default function Viewer() {
         if (!stored) { setLoading(false); return; }
         const zip = await JSZip.loadAsync(stored.blob);
         const blobs = await indexImages(zip);
-        const idx = await buildSearchIndex(zip);
         const tree = buildZipTree(zip);
-        entry = { zip, fileName: stored.name, tree, blobs, searchIndex: idx };
+        entry = { zip, fileName: stored.name, tree, blobs };
         cacheZip(targetZipId, entry);
       }
       if (seq !== navSeq.current) return;
@@ -812,7 +692,6 @@ export default function Viewer() {
       setZipId(targetZipId);
       setFileName(entry.fileName);
       setImageBlobs(entry.blobs);
-      searchIndex.current = entry.searchIndex;
       setZipTree(entry.tree);
 
       const file = entry.zip.files[path];
@@ -842,7 +721,7 @@ export default function Viewer() {
     } catch (e) {
       if (seq === navSeq.current) { setLoading(false); setContent('<p style="color:red">ZIP error: ' + e.message + '</p>'); }
     }
-  }, [indexImages, buildSearchIndex, buildZipTree, cacheZip, posKey, setContent]);
+  }, [indexImages, buildZipTree, cacheZip, posKey, setContent]);
 
   // ── 푼/틀린 문제 패널 ──────────────────────────────────
   const jumpToProblem = useCallback((p) => {
@@ -1095,44 +974,6 @@ export default function Viewer() {
           <Link to="/problems" className="calculator__nav-tab">Problems</Link>
           <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
         </nav>
-      )}
-      {!fullscreen && zipTree && (
-        <div className="viewer__search-area">
-          <div className="viewer__search-bar">
-            <span className="viewer__search-icon">🔍</span>
-            <input
-              className="viewer__search-input"
-              type="text"
-              placeholder="Search in all documents…"
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              onFocus={() => { if (searchResults.length > 0) setSearchOpen(true); }}
-              onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
-              onKeyDown={(e) => { if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); } }}
-            />
-            {searchQuery && (
-              <button className="viewer__search-clear" onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchOpen(false); }}>×</button>
-            )}
-          </div>
-          {searchOpen && searchResults.length > 0 && (
-            <div className="viewer__search-results">
-              {searchResults.map((r, i) => (
-                <div
-                  key={i}
-                  className="viewer__search-result"
-                  onMouseDown={(e) => { e.preventDefault(); navigateToSearchResult(r); }}
-                >
-                  <span className="viewer__search-result-file">{r.displayName}</span>
-                  <span className="viewer__search-result-snippet">
-                    {r.snippet.slice(0, r.matchPos)}
-                    <mark>{r.snippet.slice(r.matchPos, r.matchPos + searchQuery.length)}</mark>
-                    {r.snippet.slice(r.matchPos + searchQuery.length)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       )}
       {!fullscreen && (
         <div className="viewer__upload"
