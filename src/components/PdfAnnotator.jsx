@@ -1551,8 +1551,10 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
         if (viewOpen) onEditComment(annotation, e);
         else onViewComment(annotation.id);
       };
-  // 툴팁 본문/✏️를 터치해도 바로 수정 (지우개 모드 제외)
+  // 툴팁 본문을 터치해도 바로 수정 (지우개 모드 제외)
   const handleTooltipClick = eraseMode ? undefined : (e) => { e.stopPropagation(); onEditComment(annotation, e); };
+  // 문제 코멘트(✗/✓ 상태)와 일반 텍스트 코멘트는 툴팁 액션이 다르다
+  const isProblemComment = annotation.status === 'wrong' || annotation.status === 'solved';
 
   if (annotation.type === 'comment') {
     return (
@@ -1578,7 +1580,7 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
         </span>
         <span className="pdf-annotator__comment-tooltip" onClick={handleTooltipClick}>
           <span className="pdf-annotator__comment-tooltip-text">{annotation.text}</span>
-          {!eraseMode && (
+          {!eraseMode && isProblemComment && (
             <>
               <button
                 className="pdf-annotator__comment-status-btn pdf-annotator__comment-status-btn--solved"
@@ -1594,7 +1596,6 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
               >✗</button>
             </>
           )}
-          <button className="pdf-annotator__comment-edit" onClick={handleTooltipClick} aria-label="Edit comment">✏️</button>
         </span>
         <button
           className="pdf-annotator__delete-btn"

@@ -520,7 +520,7 @@
         transition: transform $transition-fast;
       }
 
-      // 호버하면 툴팁이 떠서 바로 ✓/✗/✏️를 누를 수 있게
+      // 호버하면 툴팁이 떠서 바로 ✓/✗를 누르거나 본문을 눌러 수정할 수 있게
       &:hover .pdf-annotator__comment-tooltip {
         display: flex;
       }
@@ -596,28 +596,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 13rem;
-  }
-
-  &__comment-edit {
-    border: none;
-    background: rgba(248, 244, 235, 0.12);
-    color: inherit;
-    font-size: 0.85rem;
-    line-height: 1;
-    padding: 0;
-    width: 1.7rem;
-    height: 1.7rem;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background $transition-fast;
-
-    @media (hover: hover) {
-      &:hover { background: rgba(248, 244, 235, 0.28); }
-    }
   }
 
   // 툴팁 안의 ✓/✗ — 코멘트 클릭 시 '한 번 더 풀기' (어두운 툴팁 배경이라 밝은 색)
