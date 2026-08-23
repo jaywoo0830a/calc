@@ -1797,6 +1797,8 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
       height: pos.height,
     };
     movedRef.current = false;
+    const node = elRef.current;
+    if (node) node.style.willChange = 'transform'; // 합성 레이어 승격 — 드래그 중 리플로우 방지
     try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* 합성 이벤트 등에서 무시 */ }
   };
 
@@ -1808,8 +1810,8 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
     d.dy = e.clientY - d.py;
     if (Math.abs(d.dx) > 1 || Math.abs(d.dy) > 1) movedRef.current = true;
     if (d.mode === 'move') {
-      node.style.left = (d.left + d.dx) + 'px';
-      node.style.top = (d.top + d.dy) + 'px';
+      // transform 기반 이동 — left/top 변경과 달리 레이아웃 없이 합성만 일어난다
+      node.style.transform = `translate3d(${d.dx}px, ${d.dy}px, 0)`;
     } else {
       const w = Math.min(Math.max(d.width + d.dx, d.canvasRect.width * 0.12), d.canvasRect.width);
       node.style.width = w + 'px';
@@ -1821,7 +1823,15 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
     const d = dragRef.current;
     if (!d) return;
     dragRef.current = null;
+    const node = elRef.current;
+    if (node) node.style.willChange = '';
     if (!movedRef.current) return; // 움직이지 않으면 저장 생략 (탭 = 열기)
+    if (d.mode === 'move' && node) {
+      // 같은 프레임에서 transform 해제 + 최종 위치를 left/top에 반영 — 시각 점프 없음
+      node.style.transform = '';
+      node.style.left = (d.left + d.dx) + 'px';
+      node.style.top = (d.top + d.dy) + 'px';
+    }
     const final = d.mode === 'move'
       ? {
           ...d.rect,

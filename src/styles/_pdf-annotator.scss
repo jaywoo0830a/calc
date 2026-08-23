@@ -666,12 +666,12 @@
   &__image-stub {
     position: absolute;
     z-index: 16;
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 1.875rem;              // 30px — 작은 마커
+    height: 1.875rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.25rem;
+    font-size: 0.9375rem;
     background: $c-page;
     border: 2px solid rgba(92, 61, 46, 0.5);
     border-radius: $radius-md;
