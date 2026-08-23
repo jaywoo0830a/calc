@@ -172,6 +172,7 @@ Plotly.newPlot(container, [
         <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Math Space</span>
         <Link to="/fields" className="calculator__nav-tab">Fields</Link>
+        <Link to="/units" className="calculator__nav-tab">Units</Link>
         <Link to="/problems" className="calculator__nav-tab">Problems</Link>
         <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>

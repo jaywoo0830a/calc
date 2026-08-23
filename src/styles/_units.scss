@@ -1,0 +1,282 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: units — 물리량 단위 분해·병합 치트시트
+// ============================================================
+
+.units {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: $sp-2;
+  width: 100%;
+  max-width: 44rem;
+  margin: 0 auto;
+  gap: $sp-3;
+
+  // ---- 헤드 ------------------------------------------------
+  &__head {
+    text-align: center;
+    padding: $sp-2 0 0;
+  }
+
+  &__title {
+    font-family: $ff;
+    font-size: $fs-step-2;
+    font-weight: $fw-bold;
+    color: $c-ink;
+    margin: 0 0 $sp-1;
+  }
+
+  &__subtitle {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    font-style: italic;
+    margin: 0;
+  }
+
+  // ---- 카드 패널 --------------------------------------------
+  &__panel {
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-lg;
+    padding: $sp-4;
+    box-shadow: $shadow-xs;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-3;
+    flex-shrink: 0;
+  }
+
+  &__input {
+    width: 100%;
+    font-family: $ff;
+    font-size: $fs-step-1;
+    color: $c-ink;
+    background: $c-page-dark;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    padding: $sp-3 $sp-3;
+    outline: none;
+    transition: border-color $transition-fast;
+
+    &:focus {
+      border-color: $c-accent;
+      background: $c-page;
+    }
+
+    &::placeholder {
+      color: $c-ink-faint;
+      font-style: italic;
+    }
+  }
+
+  &__examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $sp-1;
+  }
+
+  &__ex {
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    background: $c-page;
+    color: $c-link;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: $sp-1 $sp-2;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+        border-color: $c-accent;
+        color: $c-accent;
+      }
+    }
+  }
+
+  // ---- 결과 -------------------------------------------------
+  &__result {
+    min-height: 3rem;
+  }
+
+  &__idle {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    font-style: italic;
+    line-height: $lh-body;
+    margin: 0;
+
+    strong {
+      color: $c-accent;
+      font-style: normal;
+    }
+  }
+
+  &__headline {
+    font-family: $ff;
+    font-size: $fs-step-1;
+    color: $c-ink;
+    margin: 0 0 $sp-1;
+    overflow-wrap: anywhere;
+
+    strong {
+      color: $c-accent;
+    }
+  }
+
+  &__arrow {
+    color: $c-ink-faint;
+    font-style: italic;
+  }
+
+  &__sub {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    margin: 0 0 $sp-1;
+  }
+
+  &__name {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    text-transform: uppercase;
+    letter-spacing: $ls-wide;
+    margin: 0 0 $sp-2;
+  }
+
+  &__error {
+    font-size: $fs-step--1;
+    color: $c-error;
+    margin: 0;
+  }
+
+  // ---- 병합/대체 단위 목록 -----------------------------------
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+  }
+
+  &__group-title {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-faint;
+    text-transform: uppercase;
+    letter-spacing: $ls-wide;
+  }
+
+  &__rows {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+    margin-top: $sp-1;
+  }
+
+  &__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: $sp-3;
+    padding: $sp-1 0;
+    border-bottom: $border-thin solid $c-rule-light;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  &__row-val {
+    font-family: $ff;
+    font-weight: $fw-bold;
+    color: $c-accent;
+    font-size: $fs-step-0;
+    white-space: nowrap;
+  }
+
+  &__row-name {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    text-align: right;
+  }
+
+  // ---- 치트시트 그리드 ----------------------------------------
+  &__hint {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    font-style: italic;
+    margin: 0;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: $sp-2;
+  }
+
+  &__chip {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    text-align: left;
+    padding: $sp-2 $sp-3;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+        border-color: $c-accent;
+        box-shadow: $shadow-xs;
+      }
+    }
+  }
+
+  &__chip-sym {
+    font-family: $ff;
+    font-size: $fs-step-1;
+    font-weight: $fw-bold;
+    color: $c-accent;
+  }
+
+  &__chip-name {
+    font-size: $fs-step--2;
+    color: $c-ink-soft;
+  }
+
+  &__chip-dim {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-style: italic;
+  }
+}
+
+// ── 태블릿 이상: 여유 패딩 ────────────────────────────────────
+@media (min-width: $bp-sm) {
+  .units {
+    padding: $sp-4;
+    gap: $sp-4;
+
+    &__panel {
+      padding: $sp-5;
+    }
+
+    &__title {
+      font-size: $fs-step-3;
+    }
+
+    &__input {
+      font-size: $fs-step-2;
+    }
+
+    &__headline {
+      font-size: $fs-step-2;
+    }
+  }
+}

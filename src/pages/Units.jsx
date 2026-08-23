@@ -1,0 +1,184 @@
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  BASE_UNITS,
+  UNITS,
+  lookupUnit,
+  parseUnitExpr,
+  mergeUnits,
+  formatDim,
+  formatValue,
+  prefixedValue,
+} from '../lib/units.js';
+
+// ── Units — 물리량 단위 분해·병합 치트시트 ───────────────────────
+// · 심볼(또는 접두사+심볼) 입력 → 기저 단위로 분해: "N" → 1 kg·m·s⁻²
+// · 식 입력 → 이름 붙은 단위로 병합: "kg·m/s²" → 1 N (10⁵ dyn)
+// · 아래 치트시트에서 클릭하면 바로 분해해 본다.
+
+const EXAMPLES = ['N', 'kW·h', 'MPa', 'kg·m/s²', 'J/s', 'eV'];
+
+const GROUP_LABEL = { base: 'SI base units', derived: 'SI derived units', common: 'Common (non-SI)' };
+
+/** 입력 → 화면 상태 계산 (순수 함수 — 테스트하기 쉬운 구조 유지) */
+export function buildUnitView(query) {
+  const q = String(query || '').trim();
+  if (!q) return { mode: 'idle' };
+
+  const unit = lookupUnit(q);
+  if (unit) {
+    const total = unit.factor;
+    const alternates = mergeUnits(unit.dim, total);
+    return { mode: 'decompose', query: q, unit, total, alternates };
+  }
+
+  try {
+    const { factor, dim } = parseUnitExpr(q);
+    const matches = mergeUnits(dim, factor);
+    return { mode: 'merge', query: q, factor, dim, matches };
+  } catch (e) {
+    return { mode: 'error', query: q, message: e.message };
+  }
+}
+
+export default function Units() {
+  const [query, setQuery] = useState('');
+  const view = useMemo(() => buildUnitView(query), [query]);
+
+  return (
+    <main className="units">
+      <nav className="calculator__nav">
+        <Link to="/" className="calculator__nav-tab">Calc</Link>
+        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
+        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
+        <Link to="/math" className="calculator__nav-tab">Math Space</Link>
+        <Link to="/fields" className="calculator__nav-tab">Fields</Link>
+        <span className="calculator__nav-tab calculator__nav-tab--active">Units</span>
+        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
+        <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
+      </nav>
+
+      <div className="units__head">
+        <h1 className="units__title">⚖ Units</h1>
+        <p className="units__subtitle">
+          Decompose a named unit into base SI units — or merge an expression back into named units.
+        </p>
+      </div>
+
+      <div className="units__panel">
+        <input
+          className="units__input"
+          type="text"
+          autoFocus
+          spellCheck={false}
+          placeholder="Type a unit or an expression — N · kW·h · kg·m/s² …"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }}
+        />
+        <div className="units__examples">
+          {EXAMPLES.map((ex) => (
+            <button key={ex} className="units__ex" onClick={() => setQuery(ex)}>{ex}</button>
+          ))}
+        </div>
+
+        <div className="units__result">
+          {view.mode === 'idle' && (
+            <p className="units__idle">
+              Try <strong>N</strong> (decompose) or <strong>kg·m/s²</strong> (merge).<br />
+              SI prefixes work too: <strong>kN</strong>, <strong>µF</strong>, <strong>kWh</strong>.
+            </p>
+          )}
+
+          {view.mode === 'decompose' && (
+            <>
+              <p className="units__headline">
+                1 <strong>{view.query}</strong> = {formatValue(view.total)} {formatDim(view.unit.dim)}
+              </p>
+              {view.unit.prefixFactor !== 1 && (
+                <p className="units__sub">
+                  {view.query} = {formatValue(view.unit.prefixFactor)} {view.unit.baseSym} · {view.unit.name}
+                </p>
+              )}
+              <p className="units__name">
+                {view.unit.name}
+                {view.unit.kind === 'base' ? ' — SI base unit' : view.unit.si ? ' — SI unit' : ' — non-SI unit'}
+              </p>
+              {view.alternates.length > 1 && (
+                <div className="units__rows">
+                  <span className="units__group-title">Same dimension ({formatDim(view.unit.dim)})</span>
+                  {view.alternates.filter((a) => a.sym !== view.unit.baseSym && a.sym !== view.unit.sym).map((a) => {
+                    const show = a.si ? prefixedValue(a.value, a.sym) : { sym: a.sym, value: formatValue(a.value) };
+                    return (
+                      <div key={a.sym} className="units__row">
+                        <span className="units__row-val">{show.value} {show.sym}</span>
+                        <span className="units__row-name">{a.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {view.mode === 'merge' && (
+            <>
+              <p className="units__headline">
+                {view.query} <span className="units__arrow">=</span>{' '}
+                {formatValue(view.factor)} {formatDim(view.dim)}
+              </p>
+              {view.matches.length > 0 ? (
+                <div className="units__rows">
+                  <span className="units__group-title">Named units</span>
+                  {view.matches.map((m) => {
+                    const show = m.si ? prefixedValue(m.value, m.sym) : { sym: m.sym, value: formatValue(m.value) };
+                    return (
+                      <div key={m.sym} className="units__row">
+                        <span className="units__row-val">{show.value} {show.sym}</span>
+                        <span className="units__row-name">{m.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="units__idle">No named unit has this dimension — but the base-unit form above is exact.</p>
+              )}
+            </>
+          )}
+
+          {view.mode === 'error' && (
+            <p className="units__error">Couldn't read “{view.query}” — {view.message}.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="units__panel">
+        <p className="units__hint">Cheat sheet — click any unit to decompose it.</p>
+        {(['base', 'derived', 'common']).map((kind) => {
+          const list = kind === 'base'
+            ? BASE_UNITS.map((b) => ({ sym: b.sym, name: b.name, dim: { [b.sym]: 1 } }))
+            : UNITS.filter((u) => u.kind === kind);
+          return (
+            <div key={kind} className="units__group">
+              <span className="units__group-title">{GROUP_LABEL[kind]}</span>
+              <div className="units__grid">
+                {list.map((u) => (
+                  <button
+                    key={u.sym}
+                    className="units__chip"
+                    onClick={() => setQuery(u.sym)}
+                    title={`${u.name} — ${formatDim(u.dim)}`}
+                  >
+                    <span className="units__chip-sym">{u.sym}</span>
+                    <span className="units__chip-name">{u.name}</span>
+                    <span className="units__chip-dim">{formatDim(u.dim)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </main>
+  );
+}

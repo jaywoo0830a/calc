@@ -638,6 +638,7 @@ export default function Fields() {
         <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
         <Link to="/math" className="calculator__nav-tab">Math Space</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Fields</span>
+        <Link to="/units" className="calculator__nav-tab">Units</Link>
         <Link to="/problems" className="calculator__nav-tab">Problems</Link>
         <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
