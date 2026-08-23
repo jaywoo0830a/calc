@@ -5,6 +5,7 @@ import Playground from './pages/Playground.jsx';
 import MathSpace from './pages/MathSpace.jsx';
 import Fields from './pages/Fields.jsx';
 import Units from './pages/Units.jsx';
+import Relation from './pages/Relation.jsx';
 import Vocab from './pages/Vocab.jsx';
 import Problems from './pages/Problems.jsx';
 import CustomCursor from './components/CustomCursor.jsx';
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/math" element={<MathSpace />} />
         <Route path="/fields" element={<Fields />} />
         <Route path="/units" element={<Units />} />
+        <Route path="/relation" element={<Relation />} />
         <Route path="/problems" element={<Problems />} />
         <Route path="/vocab" element={<Vocab />} />
       </Routes>

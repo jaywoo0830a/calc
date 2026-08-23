@@ -305,6 +305,14 @@ export function activeAliases(aliases = []) {
   return aliases.filter((a) => !!a.enabled);
 }
 
+// dB/dA의 단위 — [b]/[a] = 분자 차원 − 분모 차원
+export function quotientDim(dimNumerator, dimDenominator) {
+  const out = {};
+  for (const [b, e] of Object.entries(dimNumerator || {})) out[b] = (out[b] || 0) + e;
+  for (const [b, e] of Object.entries(dimDenominator || {})) out[b] = (out[b] || 0) - e;
+  return normalizeDim(out);
+}
+
 // ── 별칭 치환: 기저 차원을 별칭의 곱으로 인수분해 ────────────────
 // 탐욕적 반복 — 각 단계에서 "가장 많이 커버"하는 별칭(정·역방향)을 뺀다.
 // 모든 별칭은 정의 시점에 기저 차원으로 전개되어 있으므로 연쇄 치환도 안전하다.

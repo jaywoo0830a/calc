@@ -19,6 +19,7 @@ import {
   substituteDim,
   formatSubstitution,
   activeAliases,
+  quotientDim,
 } from './units.js';
 
 const approx = (a, b, tol = 1e-9, msg) =>
@@ -393,6 +394,24 @@ test('activeAliases: 활성화된 별칭만 남긴다', () => {
   assert.deepEqual(activeAliases([{ sym: 'old', dim: { m: 1 }, enabled: undefined }]), []);
   assert.deepEqual(activeAliases([]), []);
   assert.deepEqual(activeAliases(null), []);
+});
+
+// ── quotientDim: dB/dA의 단위 [b]/[a] ───────────────────────
+test('quotientDim: [b]/[a] — speed/s → m·s⁻²', () => {
+  assert.deepEqual(quotientDim({ m: 1, s: -1 }, { s: 1 }), { m: 1, s: -2 });
+});
+
+test('quotientDim: N/m → kg·s⁻²', () => {
+  assert.deepEqual(quotientDim({ kg: 1, m: 1, s: -2 }, { m: 1 }), { kg: 1, s: -2 });
+});
+
+test('quotientDim: 같은 차원 → {} (무차원)', () => {
+  assert.deepEqual(quotientDim({ m: 1, s: -1 }, { m: 1, s: -1 }), {});
+});
+
+test('quotientDim: 분모가 없으면(빈 객체) 분자 그대로', () => {
+  assert.deepEqual(quotientDim({ m: 2 }, {}), { m: 2 });
+  assert.deepEqual(quotientDim({}, { s: 1 }), { s: -1 });
 });
 
 test('alias: defineAlias — 이름·식 오류와 충돌을 거부한다', () => {

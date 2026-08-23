@@ -1,0 +1,280 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: relation — Relation Analyzer
+// ============================================================
+
+.relation {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: $sp-2;
+  width: 100%;
+  max-width: 44rem;
+  margin: 0 auto;
+  gap: $sp-3;
+
+  &__head {
+    text-align: center;
+    padding: $sp-2 0 0;
+  }
+
+  &__title {
+    font-family: $ff;
+    font-size: $fs-step-2;
+    font-weight: $fw-bold;
+    color: $c-ink;
+    margin: 0 0 $sp-1;
+  }
+
+  &__subtitle {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    font-style: italic;
+    margin: 0;
+  }
+
+  // ---- 카드 패널 --------------------------------------------
+  &__panel {
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-lg;
+    padding: $sp-4;
+    box-shadow: $shadow-xs;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-3;
+    flex-shrink: 0;
+  }
+
+  &__section {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-faint;
+    text-transform: uppercase;
+    letter-spacing: $ls-wide;
+    margin: 0;
+  }
+
+  // ---- 폼 ---------------------------------------------------
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-3;
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+  }
+
+  &__input {
+    width: 100%;
+    font-family: $ff;
+    font-size: $fs-step-1;
+    color: $c-ink;
+    background: $c-page-dark;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    padding: $sp-2 $sp-3;
+    outline: none;
+    transition: border-color $transition-fast;
+
+    &:focus {
+      border-color: $c-accent;
+      background: $c-page;
+    }
+  }
+
+  &__domain {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+
+    em {
+      color: $c-ink-faint;
+      font-style: italic;
+    }
+  }
+
+  &__num,
+  &__unit {
+    flex: 1;
+    min-width: 0;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    background: $c-page-dark;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    padding: $sp-2 $sp-3;
+    outline: none;
+
+    &:focus {
+      border-color: $c-accent;
+      background: $c-page;
+    }
+  }
+
+  &__error {
+    font-size: $fs-step--1;
+    color: $c-error;
+    margin: 0;
+  }
+
+  // ---- 슬라이더 ----------------------------------------------
+  &__slider-row {
+    display: flex;
+    align-items: center;
+    gap: $sp-3;
+  }
+
+  &__slider-label {
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    color: $c-accent;
+    white-space: nowrap;
+    min-width: 4.5rem;
+  }
+
+  &__slider {
+    flex: 1;
+    accent-color: $c-accent;
+  }
+
+  // ---- 지표 카드 ---------------------------------------------
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: $sp-2;
+  }
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    padding: $sp-3;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+  }
+
+  &__card-label {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-ink-soft;
+  }
+
+  &__card-value {
+    font-family: $ff;
+    font-size: $fs-step-1;
+    font-weight: $fw-bold;
+    color: $c-ink;
+  }
+
+  &__card-unit {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+  }
+
+  &__via {
+    font-style: normal;
+    color: $c-accent;
+    font-weight: $fw-semibold;
+  }
+
+  // ---- 해석 문장 ----------------------------------------------
+  &__sentence {
+    font-size: $fs-step-0;
+    color: $c-ink;
+    line-height: $lh-body;
+    margin: 0;
+    padding: $sp-3;
+    background: $c-accent-light;
+    border-left: 0.25rem solid $c-accent;
+    border-radius: $radius-sm;
+  }
+
+  // ---- 구간 프로파일 ------------------------------------------
+  &__chips,
+  &__landmarks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $sp-1;
+  }
+
+  &__chip {
+    font-size: $fs-step--1;
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-sm;
+    color: $c-ink-soft;
+    background: $c-page;
+
+    &--positive {
+      color: $c-equals;
+      border-color: $c-equals;
+      background: rgba(61, 90, 64, 0.08);
+    }
+
+    &--negative {
+      color: $c-error;
+      border-color: $c-error;
+      background: $c-error-light;
+    }
+  }
+
+  // ---- 차트 ---------------------------------------------------
+  &__chart {
+    width: 100%;
+    height: 9rem;
+    background: $c-page-dark;
+    border: $border-thin solid $c-rule-light;
+    border-radius: $radius-md;
+    display: block;
+  }
+
+  &__axis {
+    stroke: $c-ink-faint;
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+  }
+
+  &__curve {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  &__dot {
+    fill: $c-error;
+    stroke: $c-page;
+    stroke-width: 1.5;
+  }
+}
+
+// ── 태블릿 이상: 여유 패딩 ────────────────────────────────────
+@media (min-width: $bp-sm) {
+  .relation {
+    padding: $sp-4;
+    gap: $sp-4;
+
+    &__panel {
+      padding: $sp-5;
+    }
+
+    &__title {
+      font-size: $fs-step-3;
+    }
+
+    &__input {
+      font-size: $fs-step-2;
+    }
+  }
+}
