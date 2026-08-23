@@ -15,6 +15,9 @@ import {
   formatDim,
   formatValue,
   prefixedValue,
+  defineAlias,
+  substituteDim,
+  formatSubstitution,
 } from './units.js';
 
 const approx = (a, b, tol = 1e-9, msg) =>
@@ -342,4 +345,78 @@ test('prefixedValue: kg에는 접두사를 붙이지 않는다', () => {
 
 test('prefixedValue: 1은 그대로', () => {
   assert.deepEqual(prefixedValue(1, 'N'), { sym: 'N', value: '1' });
+});
+
+// ── 별칭(alias) 정의·치환 ───────────────────────────────────
+const SPEED = { sym: 'speed', expr: 'm/s', dim: { m: 1, s: -1 }, factor: 1 };
+const FORCE = { sym: 'force', expr: 'kg·m/s²', dim: { kg: 1, m: 1, s: -2 }, factor: 1 };
+const AREA = { sym: 'area', expr: 'm^2', dim: { m: 2 }, factor: 1 };
+
+test('alias: lookupUnit이 사용자 별칭을 정확히 찾는다', () => {
+  const u = lookupUnit('speed', [SPEED]);
+  assert.deepEqual(u.dim, { m: 1, s: -1 });
+  assert.equal(u.kind, 'alias');
+  assert.equal(lookupUnit('speed', []), null); // 별칭 없으면 없음
+});
+
+test('alias: parseUnitExpr가 별칭을 확장한다', () => {
+  assert.deepEqual(parseUnitExpr('speed', [SPEED]).dim, { m: 1, s: -1 });
+  assert.deepEqual(parseUnitExpr('s/speed', [SPEED]).dim, { m: -1, s: 2 });
+  assert.deepEqual(parseUnitExpr('force·area', [FORCE, AREA]).dim, { kg: 1, m: 3, s: -2 });
+});
+
+test('alias: defineAlias — 유효한 정의와 연쇄 정의', () => {
+  const a = defineAlias('speed', 'm/s');
+  assert.equal(a.sym, 'speed');
+  assert.equal(a.expr, 'm/s');
+  assert.deepEqual(a.dim, { m: 1, s: -1 });
+  assert.equal(a.factor, 1);
+  const acc = defineAlias('accel', 'speed/s', [a]);
+  assert.deepEqual(acc.dim, { m: 1, s: -2 });
+});
+
+test('alias: defineAlias — 이름·식 오류와 충돌을 거부한다', () => {
+  assert.throws(() => defineAlias('N', 'm/s'), /already/);          // 실제 단위와 충돌
+  assert.throws(() => defineAlias('bad name', 'm/s'), /identifier/); // 식별자 규칙 위반
+  assert.throws(() => defineAlias('x', 'qqq'), /unknown unit/);      // 알 수 없는 식
+  assert.throws(() => defineAlias('speed', 'm/s', [SPEED]), /already exists/);
+  assert.throws(() => defineAlias('x', ''), /empty/);
+});
+
+test('substituteDim: s²/m → s/speed (속도 별칭)', () => {
+  const { terms, remainder } = substituteDim({ m: -1, s: 2 }, [SPEED]);
+  assert.deepEqual(terms, [{ sym: 'speed', exp: -1 }]);
+  assert.deepEqual(remainder, { s: 1 });
+});
+
+test('substituteDim: N → force (완전 치환)', () => {
+  const { terms, remainder } = substituteDim({ kg: 1, m: 1, s: -2 }, [FORCE]);
+  assert.deepEqual(terms, [{ sym: 'force', exp: 1 }]);
+  assert.deepEqual(remainder, {});
+});
+
+test('substituteDim: 별칭 조합 — m³/s → speed·area', () => {
+  const { terms, remainder } = substituteDim({ m: 3, s: -1 }, [SPEED, AREA]);
+  assert.deepEqual(terms.map((t) => t.sym).sort(), ['area', 'speed']);
+  assert.deepEqual(remainder, {});
+});
+
+test('substituteDim: 맞는 별칭이 없으면 원본 그대로', () => {
+  const { terms, remainder } = substituteDim({ A: 1 }, [SPEED]);
+  assert.deepEqual(terms, []);
+  assert.deepEqual(remainder, { A: 1 });
+});
+
+test('substituteDim: 별칭 역방향 — {m:-1, s:1} → 1/speed', () => {
+  const { terms, remainder } = substituteDim({ m: -1, s: 1 }, [SPEED]);
+  assert.deepEqual(terms, [{ sym: 'speed', exp: -1 }]);
+  assert.deepEqual(remainder, {});
+});
+
+test('formatSubstitution: s/speed, force, s²/m, 1, m/area', () => {
+  assert.equal(formatSubstitution([{ sym: 'speed', exp: -1 }], { s: 1 }), 's/speed');
+  assert.equal(formatSubstitution([{ sym: 'force', exp: 1 }], {}), 'force');
+  assert.equal(formatSubstitution([], { m: -1, s: 2 }), 's²/m');
+  assert.equal(formatSubstitution([], {}), '1');
+  assert.equal(formatSubstitution([{ sym: 'area', exp: -1 }], { m: 1 }), 'm/area');
 });

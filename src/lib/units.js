@@ -108,10 +108,22 @@ function dimsEqual(a, b) {
   return true;
 }
 
-// ── 심볼 조회 (정확 일치 → 접두사 분해) ─────────────────────────
-export function lookupUnit(sym) {
+// ── 심볼 조회 (별칭 → 정확 일치 → 접두사 분해) ─────────────────
+export function lookupUnit(sym, aliases = []) {
   if (typeof sym !== 'string' || !sym.trim()) return null;
   const s = sym.trim();
+  const alias = aliases.find((a) => a.sym === s);
+  if (alias) {
+    return {
+      sym: alias.sym,
+      name: alias.sym,
+      dim: alias.dim,
+      kind: 'alias',
+      si: false,
+      factor: alias.factor == null ? 1 : alias.factor,
+      prefixFactor: 1,
+    };
+  }
   const exact = ALL.find((u) => u.sym === s);
   if (exact) return { ...exact, prefixFactor: 1 };
   for (const p of PREFIX_SORTED) {
@@ -135,8 +147,8 @@ export function lookupUnit(sym) {
   return null;
 }
 
-export function decomposeUnit(sym) {
-  return lookupUnit(sym);
+export function decomposeUnit(sym, aliases = []) {
+  return lookupUnit(sym, aliases);
 }
 
 // ── 유니코드 위첨자를 ^exp 표기로 정규화 ────────────────────────
@@ -158,7 +170,7 @@ function normalizeSuperscripts(s) {
 
 // ── 식 파싱: "kg·m/s²", "N m", "kg m s^-2" ────────────────────
 // 구분자: · * × / 공백. "/" 이후의 모든 항은 분모(지수 부호 반전).
-export function parseUnitExpr(input) {
+export function parseUnitExpr(input, aliases = []) {
   if (typeof input !== 'string' || !input.trim()) {
     throw new Error('empty expression');
   }
@@ -185,7 +197,7 @@ export function parseUnitExpr(input) {
     if (!name) throw new Error(`unknown unit in '${part}'`);
     if (inverse) exp = -exp;
 
-    const u = lookupUnit(name);
+    const u = lookupUnit(name, aliases);
     if (!u) throw new Error(`unknown unit '${name}'`);
     for (const [b, e] of Object.entries(u.dim)) dim[b] = (dim[b] || 0) + e * exp;
     factor *= Math.pow(u.factor, exp);
@@ -271,4 +283,68 @@ export function prefixedValue(value, sym) {
     }
   }
   return { sym: bestSym, value: formatValue(bestF > 0 ? value / bestF : value) };
+}
+
+// ── 사용자 별칭(alias) ───────────────────────────────────────
+// 예: speed = m/s. 별칭은 정의 시점에 기저 차원으로 전개해 저장한다.
+export function defineAlias(sym, expr, aliases = []) {
+  const name = String(sym || '').trim();
+  if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
+    throw new Error('alias name must be a simple identifier (letters, digits, _)');
+  }
+  if (lookupUnit(name)) throw new Error(`'${name}' is already a defined unit`);
+  if (aliases.some((a) => a.sym === name)) throw new Error(`alias '${name}' already exists`);
+  const { factor, dim } = parseUnitExpr(expr, aliases);
+  return { sym: name, expr: String(expr).trim(), dim, factor };
+}
+
+// ── 별칭 치환: 기저 차원을 별칭의 곱으로 인수분해 ────────────────
+// 탐욕적 반복 — 각 단계에서 "가장 많이 커버"하는 별칭(정·역방향)을 뺀다.
+// 모든 별칭은 정의 시점에 기저 차원으로 전개되어 있으므로 연쇄 치환도 안전하다.
+export function substituteDim(dim, aliases = []) {
+  const rest = { ...normalizeDim(dim) };
+  const terms = [];
+  if (!aliases.length) return { terms, remainder: rest };
+
+  for (;;) {
+    let best = null; // { alias, t, coverage }
+    for (const a of aliases) {
+      for (const t of [1, -1]) {
+        let ok = true, coverage = 0;
+        for (const [b, e] of Object.entries(a.dim || {})) {
+          const delta = t * e;
+          if (!delta) continue;
+          const cur = rest[b] || 0;
+          if (Math.sign(cur) !== Math.sign(delta) || Math.abs(cur) < Math.abs(delta)) { ok = false; break; }
+          coverage += Math.abs(delta);
+        }
+        if (ok && coverage > 0 && (!best || coverage > best.coverage || (coverage === best.coverage && Math.abs(t) < Math.abs(best.t)))) {
+          best = { a, t, coverage };
+        }
+      }
+    }
+    if (!best) break;
+
+    for (const [b, e] of Object.entries(best.a.dim || {})) rest[b] = (rest[b] || 0) - best.t * e;
+    const existing = terms.find((x) => x.sym === best.a.sym);
+    if (existing) existing.exp += best.t; else terms.push({ sym: best.a.sym, exp: best.t });
+  }
+
+  for (const b of Object.keys(rest)) if (!rest[b]) delete rest[b];
+  return { terms: terms.filter((t) => t.exp !== 0), remainder: rest };
+}
+
+// ── 치환 결과 표시 — 분수형: "s/speed", "s²/m", "force", "1" ────
+export function formatSubstitution(terms, remainder) {
+  const num = [], den = [];
+  const push = (sym, exp) => {
+    if (!exp) return;
+    if (exp > 0) num.push(exp === 1 ? sym : sym + toSup(exp));
+    else den.push(exp === -1 ? sym : sym + toSup(-exp));
+  };
+  for (const t of terms) push(t.sym, t.exp);
+  for (const [b, e] of Object.entries(remainder || {})) push(b, e);
+  if (!num.length && !den.length) return '1';
+  const n = num.length ? num.join('·') : '1';
+  return den.length ? `${n}/${den.join('·')}` : n;
 }

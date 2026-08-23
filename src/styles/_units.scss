@@ -154,6 +154,83 @@
     margin: 0;
   }
 
+  &__via {
+    font-style: normal;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+  }
+
+  // ---- 별칭(alias) 정의 폼 -----------------------------------
+  &__alias-form {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    flex-wrap: wrap;
+  }
+
+  &__alias-name,
+  &__alias-expr {
+    flex: 1;
+    min-width: 7rem;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    background: $c-page-dark;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    padding: $sp-2 $sp-3;
+    outline: none;
+    transition: border-color $transition-fast;
+
+    &:focus {
+      border-color: $c-accent;
+      background: $c-page;
+    }
+  }
+
+  &__alias-eq {
+    color: $c-ink-faint;
+    font-style: italic;
+    font-size: $fs-step-0;
+  }
+
+  &__alias-add {
+    padding: $sp-2 $sp-4;
+    border: none;
+    border-radius: $radius-md;
+    background: $c-accent;
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-accent-hover;
+      }
+    }
+  }
+
+  &__alias-del {
+    border: none;
+    background: transparent;
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+    cursor: pointer;
+    padding: $sp-1;
+    border-radius: $radius-sm;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        color: $c-error;
+        background: $c-error-light;
+      }
+    }
+  }
+
   // ---- 병합/대체 단위 목록 -----------------------------------
   &__group {
     display: flex;
@@ -195,6 +272,17 @@
     color: $c-accent;
     font-size: $fs-step-0;
     white-space: nowrap;
+
+    &--click {
+      cursor: pointer;
+      border-bottom: 1px dashed transparent;
+
+      @media (hover: hover) {
+        &:hover {
+          border-bottom-color: $c-accent;
+        }
+      }
+    }
   }
 
   &__row-name {

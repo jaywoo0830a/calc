@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BASE_UNITS,
@@ -9,33 +9,50 @@ import {
   formatDim,
   formatValue,
   prefixedValue,
+  defineAlias,
+  substituteDim,
+  formatSubstitution,
 } from '../lib/units.js';
 
 // ── Units — 물리량 단위 분해·병합 치트시트 ───────────────────────
 // · 심볼(또는 접두사+심볼) 입력 → 기저 단위로 분해: "N" → 1 kg·m·s⁻²
 // · 식 입력 → 이름 붙은 단위로 병합: "kg·m/s²" → 1 N (10⁵ dyn)
+// · 사용자 별칭(alias): speed = m/s 라고 정의하면 s²/m → s/speed 로 치환 표시
 // · 아래 치트시트에서 클릭하면 바로 분해해 본다.
 
 const EXAMPLES = ['N', 'kW·h', 'MPa', 'kg·m/s²', 'J/s', 'eV'];
 
 const GROUP_LABEL = { base: 'SI base units', derived: 'SI derived units', common: 'Common (non-SI)' };
 
+const ALIAS_STORE = 'units_aliases';
+
+function loadAliases() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ALIAS_STORE) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch { return []; }
+}
+
 /** 입력 → 화면 상태 계산 (순수 함수 — 테스트하기 쉬운 구조 유지) */
-export function buildUnitView(query) {
+export function buildUnitView(query, aliases = []) {
   const q = String(query || '').trim();
   if (!q) return { mode: 'idle' };
 
-  const unit = lookupUnit(q);
+  const unit = lookupUnit(q, aliases);
   if (unit) {
     const total = unit.factor;
     const alternates = mergeUnits(unit.dim, total);
-    return { mode: 'decompose', query: q, unit, total, alternates };
+    const { terms, remainder } = substituteDim(unit.dim, aliases);
+    const substitution = terms.length ? formatSubstitution(terms, remainder) : '';
+    return { mode: 'decompose', query: q, unit, total, alternates, substitution };
   }
 
   try {
-    const { factor, dim } = parseUnitExpr(q);
+    const { factor, dim } = parseUnitExpr(q, aliases);
     const matches = mergeUnits(dim, factor);
-    return { mode: 'merge', query: q, factor, dim, matches };
+    const { terms, remainder } = substituteDim(dim, aliases);
+    const substitution = terms.length ? formatSubstitution(terms, remainder) : '';
+    return { mode: 'merge', query: q, factor, dim, matches, substitution };
   } catch (e) {
     return { mode: 'error', query: q, message: e.message };
   }
@@ -43,7 +60,31 @@ export function buildUnitView(query) {
 
 export default function Units() {
   const [query, setQuery] = useState('');
-  const view = useMemo(() => buildUnitView(query), [query]);
+  const [aliases, setAliases] = useState(loadAliases);
+  const [aliasName, setAliasName] = useState('');
+  const [aliasExpr, setAliasExpr] = useState('');
+  const [aliasError, setAliasError] = useState('');
+
+  useEffect(() => {
+    try { localStorage.setItem(ALIAS_STORE, JSON.stringify(aliases)); } catch {}
+  }, [aliases]);
+
+  const view = useMemo(() => buildUnitView(query, aliases), [query, aliases]);
+
+  const addAlias = () => {
+    try {
+      const a = defineAlias(aliasName, aliasExpr, aliases);
+      setAliases((prev) => [...prev, a]);
+      setAliasName('');
+      setAliasExpr('');
+      setAliasError('');
+      setQuery(a.sym); // 바로 분해해 보여준다
+    } catch (e) {
+      setAliasError(e.message);
+    }
+  };
+
+  const removeAlias = (sym) => setAliases((prev) => prev.filter((a) => a.sym !== sym));
 
   return (
     <main className="units">
@@ -100,9 +141,14 @@ export default function Units() {
                   {view.query} = {formatValue(view.unit.prefixFactor)} {view.unit.baseSym} · {view.unit.name}
                 </p>
               )}
+              {view.substitution && view.unit.kind !== 'alias' && (
+                <p className="units__sub">
+                  = {view.substitution} <em className="units__via">(with aliases)</em>
+                </p>
+              )}
               <p className="units__name">
                 {view.unit.name}
-                {view.unit.kind === 'base' ? ' — SI base unit' : view.unit.si ? ' — SI unit' : ' — non-SI unit'}
+                {view.unit.kind === 'alias' ? ' — your alias' : view.unit.kind === 'base' ? ' — SI base unit' : view.unit.si ? ' — SI unit' : ' — non-SI unit'}
               </p>
               {view.alternates.length > 1 && (
                 <div className="units__rows">
@@ -127,6 +173,11 @@ export default function Units() {
                 {view.query} <span className="units__arrow">=</span>{' '}
                 {formatValue(view.factor)} {formatDim(view.dim)}
               </p>
+              {view.substitution && view.substitution !== view.query.trim() && (
+                <p className="units__sub">
+                  = {view.substitution} <em className="units__via">(with aliases)</em>
+                </p>
+              )}
               {view.matches.length > 0 ? (
                 <div className="units__rows">
                   <span className="units__group-title">Named units</span>
@@ -150,6 +201,53 @@ export default function Units() {
             <p className="units__error">Couldn't read “{view.query}” — {view.message}.</p>
           )}
         </div>
+      </div>
+
+      <div className="units__panel">
+        <p className="units__hint">
+          Aliases — define your own symbols (e.g., <strong>speed = m/s</strong>). Decompositions then reuse them,
+          so <strong>s²/m</strong> reads as <strong>s/speed</strong>.
+        </p>
+        <div className="units__alias-form">
+          <input
+            className="units__alias-name"
+            type="text"
+            placeholder="name (e.g. speed)"
+            value={aliasName}
+            onChange={(e) => setAliasName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') addAlias(); }}
+          />
+          <span className="units__alias-eq">=</span>
+          <input
+            className="units__alias-expr"
+            type="text"
+            placeholder="m/s"
+            value={aliasExpr}
+            onChange={(e) => setAliasExpr(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') addAlias(); }}
+          />
+          <button className="units__alias-add" onClick={addAlias}>Add</button>
+        </div>
+        {aliasError && <p className="units__error">{aliasError}</p>}
+        {aliases.length > 0 && (
+          <div className="units__rows">
+            {aliases.map((a) => (
+              <div key={a.sym} className="units__row">
+                <span
+                  className="units__row-val units__row-val--click"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setQuery(a.sym)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setQuery(a.sym); }}
+                  title={`Decompose ${a.sym}`}
+                >
+                  {a.sym} = {a.expr}
+                </span>
+                <button className="units__alias-del" onClick={() => removeAlias(a.sym)} aria-label={`Delete alias ${a.sym}`}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="units__panel">
