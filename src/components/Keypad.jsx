@@ -91,7 +91,7 @@ export default function Keypad({ onAction, sciMode, invMode }) {
           })}
         </div>
       )}
-      <div className={'calculator__keypad' + (sciMode ? ' calculator__keypad--basic' : '')}>
+      <div className="calculator__keypad calculator__keypad--basic">
         {(sciMode ? BUTTONS : [...BUTTONS, ...TEMP_BUTTONS]).map(([action, label, mod, value], i) => (
           <div
             key={i}

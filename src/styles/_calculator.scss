@@ -168,7 +168,15 @@
 
     &--basic {
       flex: 1;
+      min-height: 0;
       align-content: center;
+      // 5줄 + 임시 변수 T 행 — 남는 높이를 균등 분배해 작은 화면에서도 잘리지 않게
+      grid-template-rows: repeat(6, 1fr);
+
+      .calculator__btn {
+        aspect-ratio: auto;   // 정사각 고정 해제 — 행 높이에 맞춤
+        min-height: 2.5rem;
+      }
     }
   }
 
@@ -724,7 +732,7 @@
 
 // ── Short screen: allow scrolling ───────────────────────────
 @media (max-height: 700px) {
-  .calculator--sci {
-    overflow-y: auto;
+  .calculator {
+    overflow-y: auto;   // 매우 낮은 화면에서는 스크롤 폴백
   }
 }
