@@ -5,6 +5,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
 import { api } from '../lib/api.js';
 import { fitImageRect } from '../lib/imageRect.js';
+import { autoCropDataUrl } from '../lib/docScan.js';
 import ClearGate from './ClearGate.jsx';
 import { useClearGate } from '../hooks/useClearGate.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -125,6 +126,9 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [flashPage, setFlashPage] = useState(null); // 문제 점프 시 페이지 플래시
   const imageInputRef = useRef(null);              // 🖼️ 이미지 업로드용 숨김 input
   const pendingImageRef = useRef(null);            // 이미지 배치 위치 { pageNumber, x, y }
+  const [autoCrop, setAutoCrop] = useState(true);  // ✂️ 문서/보드 자동 인식 크롭 (기본 켜짐)
+  const autoCropRef = useRef(true);
+  useEffect(() => { autoCropRef.current = autoCrop; }, [autoCrop]);
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -730,6 +734,24 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     }
     try {
       const { dataUrl, aspect } = await compressImageFile(file);
+      let finalUrl = dataUrl;
+      let finalAspect = aspect;
+      let cropped = false;
+      // ✂️ 문서 스캐너: 보드/종이 가장자리를 자동 인식해 원근 보정 크롭
+      if (autoCropRef.current) {
+        try {
+          setToast('✂️ Detecting board edges…');
+          const res = await autoCropDataUrl(dataUrl);
+          if (res) {
+            finalUrl = res.dataUrl;
+            finalAspect = res.aspect;
+            cropped = true;
+          }
+        } catch (err) {
+          // OpenCV 로드 실패 등 — 원본 그대로 사용
+          console.warn('[doc-scan] auto-crop failed, using original:', err);
+        }
+      }
       // 세로 사진이 페이지를 벗어나 잘리지 않도록 처음부터 페이지 안으로 맞춘다
       const pageEl = pageRefs.current[pending.pageNumber] || document.querySelector(`[data-page="${pending.pageNumber}"]`);
       const canvasRect = getPageCanvasRect(pageEl);
@@ -738,13 +760,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         filePath,
         pageNumber: pending.pageNumber,
         type: 'image',
-        dataUrl,
-        aspect,
-        rect: fitImageRect({ x: pending.x, y: pending.y, w: 0.4 }, aspect, pageAspect),
+        dataUrl: finalUrl,
+        aspect: finalAspect,
+        rect: fitImageRect({ x: pending.x, y: pending.y, w: 0.4 }, finalAspect, pageAspect),
       };
       const saved = await saveAnnotation(annotation);
       setAnnotations((prev) => [...prev, saved]);
-      setToast('🖼️ Image added — drag to move, corner to resize');
+      setToast(cropped ? '🖼️ Image added — ✂️ auto-cropped' : '🖼️ Image added — drag to move, corner to resize');
     } catch {
       setToast('Could not read that image');
     }
@@ -907,6 +929,16 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
               {val.label}
             </button>
           ))}
+          {/* ✂️ 이미지 툴 선택 시 문서 자동 크롭 토글 */}
+          {tool === 'image' && (
+            <button
+              className={'pdf-annotator__tool' + (autoCrop ? ' pdf-annotator__tool--active' : '')}
+              onClick={() => setAutoCrop((v) => !v)}
+              title="Auto-detect the board/paper edges and crop like a document scanner"
+            >
+              ✂️ Auto-crop
+            </button>
+          )}
         </div>
         {/* Color pickers — hidden for highlight/underline (use selection trigger) */}
         <div className="pdf-annotator__tools">
