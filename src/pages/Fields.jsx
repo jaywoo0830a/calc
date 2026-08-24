@@ -56,10 +56,13 @@ export default function Fields() {
   const stageRef = useRef(null);
   const canvasRef = useRef(null);
   const heatRef = useRef(null); // 히트맵 오프스크린 캔버스
+  const flowRef = useRef(null); // 🪩 흐르는 빛 오버레이 캔버스 (E 방향 표시)
+  const flowSegsRef = useRef({ lines: [], grid: [] }); // 픽셀 좌표 빛 세그먼트
   const dirtyRef = useRef(true);
   const sizeRef = useRef({ w: 0, h: 0, scale: 1 });
-  const dragRef = useRef(null); // { id, ox, oy } | { id:null, x, y }
+  const dragRef = useRef(null); // { id, ox, oy, sx, sy, moved } | { id:null, x, y }
   const drawRef = useRef(null);
+  const drawFlowRef = useRef(null);
 
   const [mode, setMode] = useState('charges');
   // 모드별 독립 장면 — Canvas/Plates 각자 전하 배치를 보존
@@ -131,6 +134,9 @@ export default function Fields() {
       : s.charges;
     const toPx = (x, y) => [w / 2 + x * scale, h / 2 - y * scale];
 
+    // 흐르는 빛 세그먼트는 매 dirty 드로우마다 재수집
+    flowSegsRef.current = { lines: [], grid: [] };
+
     // 배경
     ctx.fillStyle = COLORS.paper;
     ctx.fillRect(0, 0, w, h);
@@ -141,11 +147,11 @@ export default function Fields() {
     // 등전위선
     if (s.overlays.equipot) drawEquipotential(ctx, s.mode, rc, toPx, w, h);
 
-    // 장선
+    // 장선 — 빛과 같은 계열의 연한 가이드 선 + 흐르는 빛 세그먼트 수집
     if (s.overlays.lines) drawFieldLines(ctx, s.mode, rc, toPx, scale);
 
-    // E 방향 화살표 그리드
-    if (s.overlays.arrows) drawArrowsGrid(ctx, s.mode, rc, toPx, scale);
+    // E 방향 그리드 — 정적 화살표 대신 흐르는 빛 세그먼트 수집 (flow 레이어가 애니메이션)
+    if (s.overlays.arrows) collectGridFlow(s.mode, rc, toPx, scale);
 
     // 평행판
     if (s.mode === 'plates') drawPlates(ctx, toPx, w, h, scale);
@@ -287,23 +293,17 @@ export default function Fields() {
     ctx.setLineDash([]);
   }
 
-  // 후광(종이색)을 먼저 깔고 진한 화살표를 그려 "선 위 레이어"처럼 보이게
-  function drawLayeredArrow(ctx, x, y, ang, len, width, color) {
-    drawArrow(ctx, x, y, ang, len + 2, width + 3.5, 'rgba(255,254,247,0.85)');
-    drawArrow(ctx, x, y, ang, len, width, color);
-  }
-
+  // Field lines 오버레이 — 빛 입자와 같은 황금빛 계열의 연한 가이드 선 + 흐르는 빛 위치 수집
   function drawFieldLines(ctx, mode, rc, toPx, scale) {
-    ctx.lineWidth = 1.3;
     // plates 모드에서는 판 장과 합성된 장에서 전하 장선을 추적
     const extE = mode === 'plates' ? (x, y) => plateField(x, PLATE_X, PLATE_V0) : null;
-
-    // ── 1) 선 레이어: 반투명 회색 ──
-    ctx.strokeStyle = 'rgba(107,96,80,0.35)';
-    const arrowHeads = []; // { x, y, ang } — 화살표 레이어에서 일괄 그림
+    const lineSegs = flowSegsRef.current.lines;
+    // ⚠️ 연한 황금빛 — 빛 입자(rgb(216,162,50))와 같은 계열, 낮은 투명도
+    ctx.strokeStyle = 'rgba(216,162,50,0.15)';
+    ctx.lineWidth = 1.2;
 
     if (mode === 'plates') {
-      // 균일장 선 (판 사이 수평선)
+      // 균일장: 판 사이 수평 가이드 선
       for (let y = -4.5; y <= 4.5; y += 0.5) {
         const [ax, ay] = toPx(-PLATE_X + 0.07, y);
         const [bx, by] = toPx(PLATE_X - 0.07, y);
@@ -312,7 +312,8 @@ export default function Fields() {
         ctx.lineTo(bx, by);
         ctx.stroke();
         for (let x = -1.4; x < PLATE_X - 0.4; x += 0.8) {
-          arrowHeads.push({ x, y, ang: 0 });
+          const [lx, ly] = toPx(x, y);
+          lineSegs.push({ x: lx, y: ly, ang: 0, len: Math.max(8, 0.2 * scale) });
         }
       }
     }
@@ -334,7 +335,7 @@ export default function Fields() {
           ctx.lineTo(px, py);
         }
         ctx.stroke();
-        // ~0.85 세계 단위마다 화살촉 위치 수집 (방향은 물리적 합성 E)
+        // ~0.85 세계 단위마다 흐르는 빛 위치 수집 (방향은 물리적 합성 E)
         let acc = 0.5;
         for (let i = 1; i < pts.length; i++) {
           acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
@@ -350,19 +351,17 @@ export default function Fields() {
             }
             const mE = Math.hypot(ex, ey);
             if (mE < 1e-6) continue;
-            arrowHeads.push({ x: pts[i].x, y: pts[i].y, ang: Math.atan2(ey, ex) });
+            const [fx, fy] = toPx(pts[i].x, pts[i].y);
+            lineSegs.push({ x: fx, y: fy, ang: Math.atan2(ey, ex), len: Math.max(8, 0.2 * scale) });
           }
         }
       }
     }
-    // ── 2) 화살표 레이어: 모든 선 위에 진한 먹색 + 종이색 후광 ──
-    for (const a of arrowHeads) {
-      const [px, py] = toPx(a.x, a.y);
-      drawLayeredArrow(ctx, px, py, a.ang, Math.max(8, 0.2 * scale), 1.8, 'rgba(44,36,22,0.95)');
-    }
   }
 
-  function drawArrowsGrid(ctx, mode, rc, toPx, scale) {
+  // E 방향 그리드 — 각 격자점의 E 방향을 따라 흐르는 빛 세그먼트 수집
+  function collectGridFlow(mode, rc, toPx, scale) {
+    const segs = flowSegsRef.current.grid;
     const step = 0.62;
     for (let y = -5; y <= 5 + 1e-6; y += step) {
       for (let x = -5; x <= 5 + 1e-6; x += step) {
@@ -375,14 +374,56 @@ export default function Fields() {
         const m = Math.hypot(f.ex, f.ey);
         if (m < 0.02) continue;
         const len = Math.max(4, 0.22 * Math.min(1, Math.sqrt(m) / 1.8) * scale);
-        const ang = Math.atan2(f.ey, f.ex); // 세계 각도 — drawArrow가 화면 변환
+        const ang = Math.atan2(f.ey, f.ex); // 세계 각도 — screenOffset이 화면(y↓) 변환
         const [px, py] = toPx(x, y);
         const off = screenOffset(ang, len / 2);
-        const hx = px - off.dx;
-        const hy = py - off.dy;
-        drawArrow(ctx, hx, hy, ang, len, 1.2, 'rgba(107,96,80,0.9)');
+        segs.push({ x: px - off.dx, y: py - off.dy, ang, len });
       }
     }
+  }
+
+  // 🪩 흐르는 빛 — 단순 버전: 세그먼트당 빛 입자 1개가
+  // 전체 거리를 긴 시간(T초)에 걸쳐 천천히 지나가며 양 끝에서 부드럽게 페이드
+  function drawFlowLayer(ctx, w, h, now) {
+    ctx.clearRect(0, 0, w, h);
+    const s = sceneRef.current;
+    const segs = [];
+    if (s.overlays.lines) segs.push(...flowSegsRef.current.lines);
+    if (s.overlays.arrows) segs.push(...flowSegsRef.current.grid);
+    if (!segs.length) return;
+    const t = now / 1000;
+    const T = 1; // 한 입자가 세그먼트를 완주하는 시간 (초)
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgb(216,162,50)';
+    for (const sg of segs) {
+      // 세그먼트별 고정 위상 오프셋 — 모든 입자가 동시에 출발하는 동기화 방지
+      const offset = (sg.x * 0.073 + sg.y * 0.117) % 1;
+      const ph = (t / T + offset) % 1;
+      const { dx, dy } = screenOffset(sg.ang, sg.len);
+      // 입자 길이 = 세그먼트의 40%, 이동 거리 = 세그먼트 + 입자 길이 (더 길게)
+      const pLen = Math.max(3, sg.len * 0.4);
+      const D = sg.len + pLen;
+      const c = ph * D - pLen / 2; // 입자 중심의 세그먼트 내 위치
+      const env = Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, c / D))), 0.8);
+      if (env <= 0.02) continue;
+      const x0 = Math.max(0, c - pLen / 2);
+      const x1 = Math.min(sg.len, c + pLen / 2);
+      if (x1 <= x0) continue;
+      // 은은한 후광 + 밝은 입자 (같은 위치·같은 위상)
+      ctx.lineWidth = 5;
+      ctx.globalAlpha = 0.18 * env;
+      ctx.beginPath();
+      ctx.moveTo(sg.x + (x0 / sg.len) * dx, sg.y + (x0 / sg.len) * dy);
+      ctx.lineTo(sg.x + (x1 / sg.len) * dx, sg.y + (x1 / sg.len) * dy);
+      ctx.stroke();
+      ctx.lineWidth = 2.4;
+      ctx.globalAlpha = 0.9 * env;
+      ctx.beginPath();
+      ctx.moveTo(sg.x + (x0 / sg.len) * dx, sg.y + (x0 / sg.len) * dy);
+      ctx.lineTo(sg.x + (x1 / sg.len) * dx, sg.y + (x1 / sg.len) * dy);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   function drawPlates(ctx, toPx, w, h, scale) {
@@ -475,15 +516,29 @@ export default function Fields() {
   }
 
   drawRef.current = draw;
+  drawFlowRef.current = drawFlowLayer;
 
-  // ── 렌더 루프 (dirty일 때만) ──────────────────────────────────
+  // ── 렌더 루프: 메인 캔버스는 dirty일 때만, 흐르는 빛 레이어는 매 프레임 ──
   useEffect(() => {
     let raf;
-    const loop = () => {
+    const loop = (now) => {
       raf = requestAnimationFrame(loop);
       if (dirtyRef.current) {
         dirtyRef.current = false;
         drawRef.current?.();
+      }
+      const fc = flowRef.current;
+      if (!fc) return;
+      const { w, h } = sizeRef.current;
+      if (!w) return;
+      const fctx = fc.getContext('2d');
+      const dpr = fc.width / w;
+      fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const s = sceneRef.current;
+      if (s.overlays.lines || s.overlays.arrows) {
+        drawFlowRef.current?.(fctx, w, h, now);
+      } else {
+        fctx.clearRect(0, 0, w, h);
       }
     };
     raf = requestAnimationFrame(loop);
@@ -504,6 +559,13 @@ export default function Fields() {
       canvas.height = Math.round(side * dpr);
       canvas.style.width = `${side}px`;
       canvas.style.height = `${side}px`;
+      const flow = flowRef.current;
+      if (flow) {
+        flow.width = Math.round(side * dpr);
+        flow.height = Math.round(side * dpr);
+        flow.style.width = `${side}px`;
+        flow.style.height = `${side}px`;
+      }
       dirtyRef.current = true;
       setResizeTick((t) => t + 1);
     };
@@ -526,7 +588,7 @@ export default function Fields() {
   const hitCharge = (list, x, y) => {
     for (const c of list) {
       const r = 0.2 + 0.06 * Math.abs(c.q);
-      if (Math.hypot(x - c.x, y - c.y) <= r + 0.28) return c;
+      if (Math.hypot(x - c.x, y - c.y) <= r + 0.34) return c; // 터치 정밀도 여유
     }
     return null;
   };
@@ -537,7 +599,7 @@ export default function Fields() {
     const { x, y } = toWorld(e);
     const hit = hitCharge(sceneRef.current.charges, x, y);
     if (hit) {
-      dragRef.current = { id: hit.id, ox: hit.x - x, oy: hit.y - y, moved: false };
+      dragRef.current = { id: hit.id, ox: hit.x - x, oy: hit.y - y, sx: hit.x, sy: hit.y, moved: false };
       setSelectedId(hit.id);
     } else {
       dragRef.current = { id: null, x, y, moved: false };
@@ -548,11 +610,15 @@ export default function Fields() {
     const d = dragRef.current;
     if (!d || !d.id) return;
     const { x, y } = toWorld(e);
+    const nx = x + d.ox;
+    const ny = y + d.oy;
+    // ⚠️ 모바일 손가락 떨림(작은 이동)은 탭으로 취급 — 임계값을 넘어야 드래그
+    if (!d.moved && Math.hypot(nx - d.sx, ny - d.sy) < 0.12) return;
     d.moved = true;
     sceneRef.current.drag = {
       id: d.id,
-      x: Math.max(-5.4, Math.min(5.4, x + d.ox)),
-      y: Math.max(-5.4, Math.min(5.4, y + d.oy)),
+      x: Math.max(-5.4, Math.min(5.4, nx)),
+      y: Math.max(-5.4, Math.min(5.4, ny)),
     };
     dirtyRef.current = true;
   };
@@ -562,14 +628,14 @@ export default function Fields() {
     dragRef.current = null;
     if (!d) return;
     if (d.id) {
-      const p = sceneRef.current.drag;
+      const p = d.moved ? sceneRef.current.drag : null;
       sceneRef.current.drag = null;
       if (p) {
         // 드래그 확정 → 이동 반영, 팝오버 닫기
         updateCharges((cs) => cs.map((c) => (c.id === p.id ? { ...c, x: p.x, y: p.y } : c)));
         setPicker(null);
       } else {
-        // 전하 위 가벼운 탭 → 부호/전하량 편집 팝오버
+        // 전하 위 가벼운 탭 → 부호/전하량 편집 팝오버 (모바일 재탭 포함)
         setSelectedId(d.id);
         setProbe(null);
         setPicker({ id: d.id });
@@ -606,7 +672,17 @@ export default function Fields() {
     setPicker(null);
   };
 
-  const toggleOverlay = (k) => setOverlays((o) => ({ ...o, [k]: !o[k] }));
+  // E direction은 장선/등전위선과 함께 켜면 혼란스러움 → 상호 배타 토글
+  const toggleOverlay = (k) => setOverlays((o) => {
+    const next = { ...o, [k]: !o[k] };
+    if (k === 'arrows' && next.arrows) {
+      next.lines = false;
+      next.equipot = false;
+    } else if ((k === 'lines' || k === 'equipot') && next[k]) {
+      next.arrows = false;
+    }
+    return next;
+  });
 
   const changeMag = (id, d) => {
     const c = charges.find((ch) => ch.id === id);
@@ -682,6 +758,7 @@ export default function Fields() {
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
           />
+          <canvas ref={flowRef} className="fields__canvas fields__flow" aria-hidden="true" />
           {picker && pickerPos && (() => {
             const c = charges.find((ch) => ch.id === picker.id);
             if (!c) return null;

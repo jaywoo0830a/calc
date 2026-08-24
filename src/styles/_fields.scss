@@ -128,6 +128,18 @@
     -webkit-user-select: none;
   }
 
+  // 🪩 흐르는 빛 오버레이 — 메인 캔버스 위, 포인터 통과
+  &__flow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    border: none;
+    background: none;
+    box-shadow: none;
+    border-radius: $radius-xl;
+  }
+
   // ---- 배치 팝오버 (부호/전하량 선택) -------------------------
   &__picker {
     position: absolute;
