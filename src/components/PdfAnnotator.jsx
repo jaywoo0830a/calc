@@ -106,7 +106,6 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [loadError, setLoadError] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [alignment, setAlignment] = useState('center');
   const [zoomLevel, setZoomLevel] = useState(1); // 0.5–2.0 (50%–200%)
   const [chromeVisible, setChromeVisible] = useState(true);
   const [pageRenderTick, setPageRenderTick] = useState(0); // bumps on each Page render → forces annotation recalculation
@@ -1315,7 +1314,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       {/* PDF Document */}
       <div
         ref={documentRef}
-        className={'pdf-annotator__document pdf-annotator__document--paginated pdf-annotator__document--align-' + alignment}
+        className="pdf-annotator__document pdf-annotator__document--paginated"
         style={{
           overflow: (fullscreen || zoomLevel > 1) ? 'auto' : undefined,
           justifyContent: (fullscreen || zoomLevel > 1) ? 'flex-start' : undefined,
@@ -1545,24 +1544,6 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           >
             ▶
           </button>
-          {/* Alignment */}
-          <div className="pdf-annotator__layout-modes">
-            <button
-              className={'pdf-annotator__layout-btn' + (alignment === 'left' ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setAlignment('left')}
-              title="Align left"
-            >◧</button>
-            <button
-              className={'pdf-annotator__layout-btn' + (alignment === 'center' ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setAlignment('center')}
-              title="Align center"
-            >◰</button>
-            <button
-              className={'pdf-annotator__layout-btn' + (alignment === 'right' ? ' pdf-annotator__layout-btn--active' : '')}
-              onClick={() => setAlignment('right')}
-              title="Align right"
-            >◩</button>
-          </div>
           {/* Zoom slider */}
           <div className="pdf-annotator__zoom-slider">
             <button className="pdf-annotator__layout-btn" onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.1))} title="Zoom out">−</button>

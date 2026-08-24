@@ -1366,14 +1366,6 @@
   }
 
   // ---- Layout mode buttons --------------------------------
-  &__layout-modes {
-    display: flex;
-    gap: 0.125rem;
-    margin-left: $sp-2;
-    padding-left: $sp-2;
-    border-left: $border-thin solid rgba(212, 201, 181, 0.12);
-  }
-
   &__layout-btn {
     width: 2rem;
     height: 2rem;
@@ -1424,6 +1416,7 @@
       }
     }
 
+    // ── 정렬은 항상 중앙 (좌/우정렬 버튼 제거 — 2026-08-24) ─
     &--paginated {
       overflow: hidden;
       justify-content: center;
@@ -1433,34 +1426,10 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0;
+        margin: 0 auto;
         box-shadow: none;
         animation: pageFadeIn 0.3s ease;
       }
-    }
-
-    // ── Vertical alignment: margin-based ─────────────────
-    &--align-left {
-      .pdf-annotator__page-wrapper { margin-left: 0; margin-right: auto; }
-    }
-
-    &--align-center {
-      .pdf-annotator__page-wrapper { margin-left: auto; margin-right: auto; }
-    }
-
-    &--align-right {
-      .pdf-annotator__page-wrapper { margin-left: auto; margin-right: 0; }
-    }
-
-    // ── Horizontal alignment: justify-content on flex row ─
-    &.pdf-annotator__document--horizontal.pdf-annotator__document--align-left {
-      justify-content: flex-start;
-    }
-    &.pdf-annotator__document--horizontal.pdf-annotator__document--align-center {
-      justify-content: center;
-    }
-    &.pdf-annotator__document--horizontal.pdf-annotator__document--align-right {
-      justify-content: flex-end;
     }
   }
 
@@ -1676,11 +1645,6 @@
     &__page-input {
       width: 2.75rem;
       height: 2rem;
-    }
-
-    // 정렬 모드(◧◰◩)는 모바일에서 숨김 — 네비 정리
-    &__layout-modes {
-      display: none;
     }
 
     // 줌 슬라이더 컴팩트 — 모바일에서는 − / + 만 유지
