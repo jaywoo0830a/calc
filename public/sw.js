@@ -52,7 +52,8 @@ self.addEventListener('fetch', (event) => {
 
   // ── Strategy 1: Static assets → Cache-first (immutable hashed files)
   if (
-    url.pathname.match(/\.(js|css|woff2?|png|svg|ico|webp|avif)$/) ||
+    url.pathname.startsWith('/scanic-ml/') ||
+    url.pathname.match(/\.(js|css|woff2?|png|svg|ico|webp|avif|wasm|ort)$/) ||
     url.pathname.startsWith('/assets/')
   ) {
     event.respondWith(cacheFirst(CACHE_STATIC, request));

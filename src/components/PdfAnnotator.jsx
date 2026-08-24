@@ -5,7 +5,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark, annotationsMeta, bookmarksMeta, reportPdfPosition, getPdfPosition } from '../lib/storage.js';
 import { api } from '../lib/api.js';
 import { fitImageRect } from '../lib/imageRect.js';
-import { rotateImageDataUrl } from '../lib/docScan.js';
+import { rotateImageDataUrl, warmMl } from '../lib/docScan.js';
 import ScanAreaModal from './ScanAreaModal.jsx';
 import ClearGate from './ClearGate.jsx';
 import { useClearGate } from '../hooks/useClearGate.js';
@@ -820,6 +820,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       setCommentText('');
       setCommentStatus('');
     } else if (tool === 'image') {
+      warmMl(); // 📐 ML 디텍터 워밍업 — 사진 선택 전에 모델 다운로드 시작
       const pageEl = pageRefs.current[pageNumber];
       if (!pageEl) return;
       const pageRect = getPageCanvasRect(pageEl) || pageEl.getBoundingClientRect();
