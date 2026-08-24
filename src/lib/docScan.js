@@ -43,20 +43,20 @@ export function imageFromDataUrl(dataUrl) {
 /**
  * 문서 모서리 자동 감지 — ML(DocCornerNet) 우선, 실패 시 classical 폴백.
  * 코너 에디터의 초기값으로 사용 — 둘 다 실패하면 null(에디터 기본 인셋 사각형).
- * @returns {Promise<CornerPoints|null>} { topLeft, topRight, bottomRight, bottomLeft }
+ * @returns {Promise<{method: 'ml'|'classic', corners: CornerPoints}|null>}
  */
 export async function detectCorners(image) {
   // 1) ML — 지저분한 배경·저대비·강한 원근에 강함
   try {
     const res = await scanDocument(image, { mode: 'detect', detector: 'ml', ml: ML_OPTIONS });
-    if (res.success && res.corners) return res.corners;
+    if (res.success && res.corners) return { method: 'ml', corners: res.corners };
   } catch (err) {
     console.warn('[doc-scan] ML detection failed:', err);
   }
   // 2) classical 폴백 (오프라인·자산 로드 실패 대비)
   try {
     const res = await scanDocument(image, { mode: 'detect' });
-    if (res.success && res.corners) return res.corners;
+    if (res.success && res.corners) return { method: 'classic', corners: res.corners };
   } catch (err) {
     console.warn('[doc-scan] classical detection failed:', err);
   }

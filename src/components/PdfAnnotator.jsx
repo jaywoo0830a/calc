@@ -836,7 +836,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   }, [tool]);
 
   // ── 🖼️ 이미지 주석 — 파일 압축 후 해당 위치에 배치 ──────────
-  const placeImage = useCallback(async (dataUrl, aspect) => {
+  const placeImage = useCallback(async (dataUrl, aspect, scanner) => {
     const pending = pendingImageRef.current || scanPendingRef.current;
     pendingImageRef.current = null;
     scanPendingRef.current = null;
@@ -851,11 +851,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       type: 'image',
       dataUrl,
       aspect,
+      scanner: scanner || '', // 어떤 디텍터가 스캔했는지 (ml | classic | manual)
       rect: fitImageRect({ x: pending.x, y: pending.y, w: 0.4 }, aspect, pageAspect),
     };
     const saved = await saveAnnotation(annotation);
     setAnnotations((prev) => [...prev, saved]);
-    setToast('🖼️ Image added — ✂️ scanned');
+    const label = scanner === 'ml' ? 'ML' : scanner === 'classic' ? 'Classic' : 'Manual';
+    setToast(`🖼️ Image added — Scanned by ${label}`);
   }, [filePath]);
 
   const handleImageSelected = useCallback(async (e) => {
@@ -890,7 +892,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   // 📐 scanic 영역 지정 결과 — Apply → 원근 보정된 이미지 배치
   const handleScanApply = useCallback(async (result) => {
     setScanImage(null);
-    await placeImage(result.dataUrl, result.aspect);
+    await placeImage(result.dataUrl, result.aspect, result.method);
   }, [placeImage]);
 
   const handleScanCancel = useCallback(() => {
@@ -1271,7 +1273,14 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                         : a.type === 'image' ? '🖼️' : a.type === 'underline' ? '⎁' : '🖍️'}
                     </span>
                     <span className="pdf-annotator__note-body">
-                      <span className="pdf-annotator__note-page">p.{a.pageNumber} · {a.type}</span>
+                      <span className="pdf-annotator__note-page">
+                        p.{a.pageNumber} · {a.type}
+                        {a.type === 'image' && a.scanner && (
+                          <span className="pdf-annotator__note-scanner">
+                            {' '}· {a.scanner === 'ml' ? 'ML' : 'Classic'}
+                          </span>
+                        )}
+                      </span>
                       {a.type === 'image' ? (
                         <img className="pdf-annotator__note-thumb" src={a.dataUrl} alt="" />
                       ) : (
@@ -2116,6 +2125,11 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
       }}
     >
       <img src={annotation.dataUrl} alt="" draggable={false} />
+      {!eraseMode && annotation.scanner && (
+        <span className="pdf-annotator__image-note-scanner" title="Document scanner detector">
+          {annotation.scanner === 'ml' ? 'Scanned by ML' : annotation.scanner === 'classic' ? 'Scanned by Classic' : 'Manual'}
+        </span>
+      )}
       {!eraseMode && (
         <span
           className="pdf-annotator__image-note-handle"

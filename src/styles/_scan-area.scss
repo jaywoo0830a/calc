@@ -42,6 +42,33 @@
     text-align: right;
   }
 
+  // 📐 감지한 디텍터 표시 칩 (ML / Classic / Manual)
+  &__method {
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    white-space: nowrap;
+
+    &--ml {
+      background: rgba(92, 61, 46, 0.12);
+      color: $c-accent;
+      border: $border-thin solid rgba(92, 61, 46, 0.35);
+    }
+
+    &--classic {
+      background: rgba(107, 96, 80, 0.1);
+      color: $c-ink-soft;
+      border: $border-thin solid rgba(107, 96, 80, 0.3);
+    }
+
+    &--manual {
+      background: rgba(107, 96, 80, 0.06);
+      color: $c-ink-faint;
+      border: $border-thin dashed rgba(107, 96, 80, 0.4);
+    }
+  }
+
   &__host {
     position: relative;
     flex: 1;

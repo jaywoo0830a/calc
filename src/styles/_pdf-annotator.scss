@@ -441,6 +441,11 @@
     color: $c-ink-faint;
   }
 
+  &__note-scanner {
+    color: $c-accent;
+    font-weight: $fw-semibold;
+  }
+
   &__note-text {
     font-size: $fs-step--1;
     color: $c-ink;
@@ -775,6 +780,20 @@
           background: rgba(92, 61, 46, 0.9);
         }
       }
+    }
+
+    &-scanner {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      padding: 0.1rem 0.5rem;
+      border-radius: 0 $radius-sm 0 0;
+      background: rgba(44, 36, 22, 0.72);
+      color: $c-ink-inverse;
+      font-size: $fs-step--2;
+      font-weight: $fw-semibold;
+      line-height: 1.5;
+      pointer-events: none;
     }
 
     &-close {

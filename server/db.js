@@ -142,6 +142,10 @@ db.exec(`
     if (!cols.some((c) => c.name === 'aspect')) {
       db.exec('ALTER TABLE annotations ADD COLUMN aspect REAL NOT NULL DEFAULT 0');
     }
+    // 📐 스캔 디텍터 식별 (ml | classic | manual)
+    if (!cols.some((c) => c.name === 'scanner')) {
+      db.exec("ALTER TABLE annotations ADD COLUMN scanner TEXT NOT NULL DEFAULT ''");
+    }
   }
 }
 
@@ -388,6 +392,7 @@ export const annotations = {
       rect: JSON.parse(r.rect || '{}'),
       dataUrl: r.data_url || '',
       aspect: Number(r.aspect) || 0,
+      scanner: r.scanner || '',
       updatedAt: r.updated_at,
     }));
   },
@@ -402,7 +407,7 @@ export const annotations = {
       ).all(filePath),
     };
   },
-  upsert({ id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count, dataUrl, aspect }) {
+  upsert({ id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count, dataUrl, aspect, scanner }) {
     const now = new Date().toISOString();
     const exists = db.prepare('SELECT id FROM annotations WHERE id = ?').get(id);
     const data = {
@@ -413,6 +418,7 @@ export const annotations = {
       wrong_count: Number(wrong_count) || 0,
       dataUrl: String(dataUrl || ''),
       aspect: Number(aspect) || 0,
+      scanner: String(scanner || ''),
     };
     if (exists) {
       db.prepare(`
@@ -420,13 +426,13 @@ export const annotations = {
         SET file_path = @filePath, page_number = @pageNumber, type = @type,
             color = @color, style = @style, text = @text, rect = @rect,
             status = @status, attempts = @attempts, wrong_count = @wrong_count,
-            data_url = @dataUrl, aspect = @aspect, updated_at = @now
+            data_url = @dataUrl, aspect = @aspect, scanner = @scanner, updated_at = @now
         WHERE id = @id
       `).run({ ...data, now });
     } else {
       db.prepare(`
-        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, status, attempts, wrong_count, data_url, aspect, created_at, updated_at)
-        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @status, @attempts, @wrong_count, @dataUrl, @aspect, @now, @now)
+        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, status, attempts, wrong_count, data_url, aspect, scanner, created_at, updated_at)
+        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @status, @attempts, @wrong_count, @dataUrl, @aspect, @scanner, @now, @now)
       `).run({ ...data, now });
     }
     // 재생성 시 삭제 톰스톤 제거 (다른 기기가 삭제를 반영하지 않도록)
@@ -438,6 +444,7 @@ export const annotations = {
       wrong_count: Number(wrong_count) || 0,
       dataUrl: String(dataUrl || ''),
       aspect: Number(aspect) || 0,
+      scanner: String(scanner || ''),
       updatedAt: now,
     };
   },
