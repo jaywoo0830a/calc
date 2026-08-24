@@ -7,7 +7,7 @@ const BASE = '/api';
 
 /**
  * dataUrl 이미지에서 문서/보드 영역을 자동 인식해 원근 보정 크롭
- * @returns {Promise<{ dataUrl: string, aspect: number } | null>} — 탐지 실패 시 null
+ * @returns {Promise<{dataUrl: string, aspect: number, method: string} | {skipped: true}>}
  */
 export async function autoCropDataUrl(dataUrl, { maxDim = 1600 } = {}) {
   const res = await fetch(BASE + '/scan', {
@@ -21,11 +21,11 @@ export async function autoCropDataUrl(dataUrl, { maxDim = 1600 } = {}) {
       const j = await res.json();
       if (j && j.error) msg = j.error;
     } catch { /* 무시 */ }
-    // 422 = 문서 미탐지 → 원본 사용(null)으로 처리
-    if (res.status === 422) return null;
+    // 422 = 문서 미탐지 → 원본 사용
+    if (res.status === 422) return { skipped: true, reason: msg };
     throw new Error(msg);
   }
   const j = await res.json();
-  if (!j || !j.dataUrl) return null;
-  return { dataUrl: j.dataUrl, aspect: Number(j.aspect) || 1 };
+  if (!j || !j.dataUrl) return { skipped: true };
+  return { dataUrl: j.dataUrl, aspect: Number(j.aspect) || 1, method: j.method || 'unknown' };
 }

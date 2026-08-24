@@ -4,7 +4,7 @@
 """
 import unittest
 
-from scan_core import order_corners, size_for_quad, usable_bbox, with_margin
+from scan_core import order_corners, shrink_quad, size_for_quad, usable_bbox, with_margin
 
 
 class OrderCornersTest(unittest.TestCase):
@@ -47,12 +47,32 @@ class MarginTest(unittest.TestCase):
         self.assertEqual(with_margin(bbox, 100, 100, 0.03), (0, 0, 53, 53))
 
 
+class ShrinkQuadTest(unittest.TestCase):
+    def test_moves_corners_toward_center(self):
+        q = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)]
+        out = shrink_quad(q, 0.008)
+        # 각 꼭짓점이 대각선의 ratio만큼 중심 쪽으로 이동
+        self.assertAlmostEqual(out[0][0], 0.8, places=2)
+        self.assertAlmostEqual(out[0][1], 0.8, places=2)
+        self.assertAlmostEqual(out[2][0], 99.2, places=2)
+        self.assertAlmostEqual(out[2][1], 99.2, places=2)
+
+    def test_ratio_zero_unchanged(self):
+        q = [(1.0, 2.0), (3.0, 2.0), (3.0, 5.0), (1.0, 5.0)]
+        self.assertEqual(shrink_quad(q, 0.0), q)
+
+
 class UsableBBoxTest(unittest.TestCase):
     def test_too_small_rejected(self):
         self.assertFalse(usable_bbox((0, 0, 5, 5), 1000, 1000))
 
     def test_nearly_whole_rejected(self):
-        self.assertFalse(usable_bbox((5, 5, 990, 990), 1000, 1000))
+        # 99.8% — 자르는 의미 없음
+        self.assertFalse(usable_bbox((1, 1, 999, 999), 1000, 1000))
+
+    def test_almost_whole_accepted(self):
+        # 98% — 살짝이라도 트리밍 여지 있으면 허용
+        self.assertTrue(usable_bbox((10, 10, 990, 990), 1000, 1000))
 
     def test_normal_accepted(self):
         self.assertTrue(usable_bbox((50, 50, 800, 900), 1000, 1000))

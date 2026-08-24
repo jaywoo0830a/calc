@@ -8,8 +8,9 @@
 
 파이프라인:
   1) ≤720px 축소판에서 탐지 — 적응형 양극성 + Otsu 양극성 4종 이진화
-  2) 가장 큰 볼록 4각형 → 원본 해상도 좌표 환산 → 4점 원근 변환(워프)
-  3) 4각형 미탐지 시 잉크(글자) 영역 bbox + 여백 크롭 폴백
+  2) 가장 큰 볼록 4각형(사다리꼴 포함) → 원본 좌표 환산 → 4점 원근 변환
+  3) 4각형 미탐지 시 가장 큰 윤곽의 회전 사각형(minAreaRect) 폴백
+  4) 그것도 없으면 잉크(글자) 영역 bbox + 여백 크롭
 """
 import base64
 import json
@@ -18,52 +19,86 @@ import sys
 import cv2
 import numpy as np
 
-from scan_core import order_corners, size_for_quad, usable_bbox, with_margin
+from scan_core import order_corners, shrink_quad, size_for_quad, usable_bbox, with_margin
 
-MIN_AREA_RATIO = 0.12
+MIN_AREA_RATIO = 0.05
 
 
-def best_quad_from_binary(binary, min_area_ratio):
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
+def contours_of(binary):
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
     closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    img_area = binary.shape[0] * binary.shape[1]
-    best = None
-    best_area = 0.0
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
-        if area < img_area * min_area_ratio or area <= best_area:
-            continue
-        peri = cv2.arcLength(cnt, True)
-        approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
-        if len(approx) == 4 and cv2.isContourConvex(approx):
-            best = approx.reshape(-1, 2).astype(np.int32).tolist()
-            best_area = area
-    return best
+    return cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
 
 
-def find_doc_quad(src, min_area_ratio):
-    """밝은 종이(THRESH_BINARY)와 어두운 액정 보드(THRESH_BINARY_INV)를
-    적응형/Otsu 이진화 각각으로 시도해 가장 큰 4각형을 선택."""
+def area_ok(area, img_area, min_ratio):
+    """너무 작으면(잡음) 또는 거의 전체면(배경이 통째로 잡힌 경우) 배제."""
+    return img_area * min_ratio <= area <= img_area * 0.98
+
+
+def quad_from_contour(cnt, min_area_ratio, img_area):
+    """윤곽 → 볼록 몹체 → 점진적 epsilon으로 4점(사다리꼴 포함) 근사.
+    테이프·굴곡으로 점이 5~8개 나와도 점차 뭉개 4점을 만든다."""
+    if not area_ok(cv2.contourArea(cnt), img_area, min_area_ratio):
+        return None
+    hull = cv2.convexHull(cnt)
+    peri = cv2.arcLength(hull, True)
+    if peri <= 0:
+        return None
+    for eps in (0.02, 0.03, 0.04, 0.05, 0.07):
+        approx = cv2.approxPolyDP(hull, eps * peri, True)
+        if len(approx) == 4:
+            return approx.reshape(-1, 2).astype(np.int32).tolist()
+    return None
+
+
+def rect_from_contour(cnt, min_area_ratio, img_area):
+    """회전 사각형(minAreaRect) 폴백 — 4각형이 안 잡혀도 기울어진 문서를 잡는다."""
+    if not area_ok(cv2.contourArea(cnt), img_area, min_area_ratio):
+        return None
+    return cv2.boxPoints(cv2.minAreaRect(cnt)).astype(np.int32).tolist()
+
+
+def detect_doc(src, min_area_ratio):
+    """4종 이진화에서 문서 사각형 탐지.
+    @return (corners, method) — method: 'quad' | 'rect' | None
+    """
     gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     binaries = [
-        cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 41, 10),
-        cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 41, 10),
+        cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 25, 15),
+        cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 25, 15),
     ]
     _, otsu = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     binaries.append(otsu)
     binaries.append(cv2.bitwise_not(otsu))
 
-    best = None
-    best_area = 0.0
+    img_area = src.shape[0] * src.shape[1]
+    best_quad = None
+    best_quad_area = 0.0
+    best_rect = None
+    best_rect_area = 0.0
+
     for binary in binaries:
-        quad = best_quad_from_binary(binary, min_area_ratio)
-        if quad:
-            area = cv2.contourArea(np.array(quad, dtype=np.int32).reshape(-1, 1, 2))
-            if area > best_area:
-                best, best_area = quad, area
-    return order_corners(best) if best else None
+        contours = contours_of(binary)
+        # 큰 것부터 — 면적 정렬
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)
+        for cnt in contours[:8]:
+            area = cv2.contourArea(cnt)
+            quad = quad_from_contour(cnt, min_area_ratio, img_area)
+            if quad and area > best_quad_area:
+                best_quad = quad
+                best_quad_area = area
+            if area > best_rect_area:
+                rect = rect_from_contour(cnt, min_area_ratio, img_area)
+                if rect:
+                    best_rect = rect
+                    best_rect_area = area
+
+    if best_quad:
+        return order_corners(best_quad), 'quad'
+    if best_rect:
+        return order_corners(best_rect), 'rect'
+    return None, None
 
 
 def ink_bbox(src):
@@ -96,11 +131,12 @@ def run(image_path, max_dim=1600):
     else:
         small = img
 
-    corners = find_doc_quad(small, MIN_AREA_RATIO)
+    corners, method = detect_doc(small, MIN_AREA_RATIO)
     if corners:
-        # 2) 원본 해상도 좌표 환산 → 4점 원근 변환
+        # 2) 원본 해상도 좌표 환산 → 4점 원근 변환 (사다리꼴 포함)
+        #    형태학 팽창으로 불어난 테두리를 살짝 안쪽으로 수축
         k = 1.0 / scale
-        corners = [(x * k, y * k) for x, y in corners]
+        corners = [(x * k, y * k) for x, y in shrink_quad(corners, 0.01)]
         out_w, out_h = size_for_quad(corners, max_dim)
         src_tri = np.float32(corners)
         dst_tri = np.float32([[0, 0], [out_w - 1, 0], [out_w - 1, out_h - 1], [0, out_h - 1]])
@@ -112,6 +148,7 @@ def run(image_path, max_dim=1600):
         bbox = ink_bbox(small)
         if bbox is None:
             return {"ok": False, "reason": "no document detected"}
+        method = 'ink'
         k = 1.0 / scale
         x, y, bw, bh = (int(v * k) for v in bbox)
         x = min(max(0, x), img_w - 2)
@@ -133,7 +170,7 @@ def run(image_path, max_dim=1600):
     if not ok:
         return {"ok": False, "reason": "encode failed"}
     data_url = 'data:image/jpeg;base64,' + base64.b64encode(buf.tobytes()).decode('ascii')
-    return {"ok": True, "dataUrl": data_url, "aspect": out_w / float(out_h)}
+    return {"ok": True, "dataUrl": data_url, "aspect": out_w / float(out_h), "method": method}
 
 
 def main():

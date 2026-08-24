@@ -46,10 +46,31 @@ def with_margin(bbox, img_w, img_h, ratio=0.03):
 
 
 def usable_bbox(bbox, img_w, img_h):
-    """크롭할 가치가 있는 bbox인지 (10% 미만이거나 97% 초과면 무의미)."""
+    """크롭할 가치가 있는 bbox인지 (5% 미만이거나 99.5% 초과면 무의미)."""
     x, y, bw, bh = bbox
     area = bw * bh
     total = img_w * img_h
-    if area < total * 0.10 or area > total * 0.97:
+    if area < total * 0.05 or area > total * 0.995:
         return False
     return bw >= 8 and bh >= 8
+
+
+def shrink_quad(corners, ratio=0.008):
+    """형태학 팽창으로 불어난 윤곽 테두리를 제거하기 위해
+    각 꼭짓점을 중심 방향으로 대각선의 ratio만큼 수축."""
+    cx = sum(p[0] for p in corners) / len(corners)
+    cy = sum(p[1] for p in corners) / len(corners)
+    diag = max(
+        hypot(corners[0][0] - corners[2][0], corners[0][1] - corners[2][1]),
+        hypot(corners[1][0] - corners[3][0], corners[1][1] - corners[3][1]),
+    )
+    d = diag * ratio
+    out = []
+    for x, y in corners:
+        l = hypot(x - cx, y - cy)
+        if l < 1e-6:
+            out.append((x, y))
+            continue
+        s = max(0.0, 1.0 - d / l)
+        out.append((cx + (x - cx) * s, cy + (y - cy) * s))
+    return out

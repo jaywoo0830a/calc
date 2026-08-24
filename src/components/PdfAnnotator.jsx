@@ -737,18 +737,23 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       let finalUrl = dataUrl;
       let finalAspect = aspect;
       let cropped = false;
+      let scanSkipped = false;
       // ✂️ 문서 스캐너: 보드/종이 가장자리를 자동 인식해 원근 보정 크롭
       if (autoCropRef.current) {
         try {
           setToast('✂️ Detecting board edges…');
           const res = await autoCropDataUrl(dataUrl);
-          if (res) {
+          if (res && res.dataUrl) {
             finalUrl = res.dataUrl;
             finalAspect = res.aspect;
             cropped = true;
+            console.info('[doc-scan] cropped via', res.method);
+          } else if (res && res.skipped) {
+            scanSkipped = true;
+            console.info('[doc-scan] skipped:', res.reason || 'no document');
           }
         } catch (err) {
-          // OpenCV 로드 실패 등 — 원본 그대로 사용
+          // 서버 오류 등 — 원본 그대로 사용
           console.warn('[doc-scan] auto-crop failed, using original:', err);
         }
       }
@@ -766,7 +771,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       };
       const saved = await saveAnnotation(annotation);
       setAnnotations((prev) => [...prev, saved]);
-      setToast(cropped ? '🖼️ Image added — ✂️ auto-cropped' : '🖼️ Image added — drag to move, corner to resize');
+      setToast(
+        cropped
+          ? '🖼️ Image added — ✂️ auto-cropped'
+          : scanSkipped
+            ? '🖼️ Image added — no board detected, kept original'
+            : '🖼️ Image added — drag to move, corner to resize'
+      );
     } catch {
       setToast('Could not read that image');
     }

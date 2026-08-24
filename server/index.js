@@ -713,7 +713,7 @@ app.post('/scan', async (req, res) => {
     });
     const parsed = JSON.parse(stdout);
     if (parsed && parsed.ok) {
-      res.json({ dataUrl: parsed.dataUrl, aspect: Number(parsed.aspect) || 1 });
+      res.json({ dataUrl: parsed.dataUrl, aspect: Number(parsed.aspect) || 1, method: parsed.method || 'unknown' });
     } else {
       res.status(422).json({ error: (parsed && parsed.reason) || 'no document detected' });
     }
