@@ -1,6 +1,13 @@
 .git
 .gitignore
 .dockerignore
-node_modules
+**/node_modules
 dist
 README.md
+server/.venv
+server/data
+server/models
+server/train
+server/runs
+**/__pycache__
+**/*.pyc
