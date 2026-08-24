@@ -5,8 +5,7 @@ import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { rm, mkdir, writeFile, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { problems, archives, archivesDir, vocab, vocabAliases, annotations, bookmarks, pdfPosition } from './db.js';
 import { CONFIG } from './config.js';
@@ -726,49 +725,6 @@ app.post('/pdf-position', (req, res) => {
 
 // health check
 app.get('/health', (_, res) => res.json({ ok: true }));
-
-// ── ✂️ 문서 자동 인식 크롭 (LiteObject/doc-scanner) ─────────────────────────
-// dataUrl 이미지 → scan.py(4각형 탐지 → four_point_transform 원근 펼치기)
-const serverDir = dirname(fileURLToPath(import.meta.url));
-const venvPython = join(serverDir, '.venv', 'bin', 'python');
-const PYTHON = existsSync(venvPython) ? venvPython : (process.env.SERVER_PYTHON || 'python3');
-
-app.post('/scan', async (req, res) => {
-  const tmpFile = join(tmpdir(), 'calc-scan-' + randomUUID() + '.img');
-  try {
-    const { dataUrl, maxDim, rotate } = req.body || {};
-    const match = /^data:image\/(?:png|jpe?g|webp);base64,(.+)$/i.exec(String(dataUrl || ''));
-    if (!match) return res.status(400).json({ error: 'dataUrl image required' });
-    const bytes = Buffer.from(match[1], 'base64');
-    if (bytes.length > 12 * 1024 * 1024) {
-      return res.status(413).json({ error: 'Image too large — max 10MB' });
-    }
-    await writeFile(tmpFile, bytes);
-    const script = join(serverDir, 'scan.py');
-    // 🔄 회전 (0|90|180|270)
-    const rot = [0, 90, 180, 270].includes(Number(rotate)) ? Number(rotate) : 0;
-    const stdout = await new Promise((resolve, reject) => {
-      execFile(PYTHON, [script, tmpFile, String(Number(maxDim) || 1600), String(rot)], {
-        timeout: 120000,
-        maxBuffer: 64 * 1024 * 1024,
-      }, (err, out, stderr) => {
-        if (err) reject(new Error(stderr || err.message));
-        else resolve(out);
-      });
-    });
-    const parsed = JSON.parse(stdout);
-    if (parsed && parsed.ok) {
-      res.json({ dataUrl: parsed.dataUrl, aspect: Number(parsed.aspect) || 1, method: parsed.method || 'unknown' });
-    } else {
-      res.status(422).json({ error: (parsed && parsed.reason) || 'no document detected' });
-    }
-  } catch (e) {
-    console.error('scan error:', e.message);
-    res.status(500).json({ error: 'scan failed: ' + e.message });
-  } finally {
-    await rm(tmpFile, { force: true }).catch(() => {});
-  }
-});
 
 // 업로드/요청 에러 → JSON 응답 (multer fileFilter/size 초과 포함)
 app.use((err, req, res, next) => {

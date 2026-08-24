@@ -1,4 +1,0 @@
-pillow
-numpy
-opencv-python
-# LiteObject/doc-scanner는 패키지가 아니라 스크립트 → lite_scanner.py로 vendor (git 불필요)

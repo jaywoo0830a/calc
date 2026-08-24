@@ -128,6 +128,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const imageInputRef = useRef(null);              // 🖼️ 이미지 업로드용 숨김 input
   const cameraInputRef = useRef(null);             // 📷 카메라 촬영용 숨김 input (모바일 capture)
   const pendingImageRef = useRef(null);            // 이미지 배치 위치 { pageNumber, x, y }
+  const scanPendingRef = useRef(null);             // 📐 스캔 세션 중 배치 위치 보관 — setTool(null) effect가 pendingImageRef를 비워도 유지
   const [imageChoice, setImageChoice] = useState(null); // 📷/🖼️ 선택 팝업 위치 { px, py }
   const [scanImage, setScanImage] = useState(null);     // 📐 scanic 스캔 영역 지정 세션 { dataUrl, aspect }
   const [autoCrop, setAutoCrop] = useState(true);  // ✂️ 문서/보드 자동 인식 크롭 (기본 켜짐)
@@ -838,8 +839,9 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
 
   // ── 🖼️ 이미지 주석 — 파일 압축 후 해당 위치에 배치 ──────────
   const placeImage = useCallback(async (dataUrl, aspect, cropped) => {
-    const pending = pendingImageRef.current;
+    const pending = pendingImageRef.current || scanPendingRef.current;
     pendingImageRef.current = null;
+    scanPendingRef.current = null;
     if (!pending) return;
     // 세로 사진이 페이지를 벗어나 잘리지 않도록 처음부터 페이지 안으로 맞춘다
     const pageEl = pageRefs.current[pending.pageNumber] || document.querySelector(`[data-page="${pending.pageNumber}"]`);
@@ -880,12 +882,15 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       const { dataUrl, aspect } = await compressImageFile(file);
       if (autoCropRef.current) {
         // 📐 scanic — 스캔 영역 지정 모달 (모서리 드래그 → Apply → 원근 보정)
+        // setTool(null)의 effect가 pendingImageRef를 비우므로 세션용 ref에 보관
+        scanPendingRef.current = pending;
         setScanImage({ dataUrl, aspect });
         return;
       }
       await placeImage(dataUrl, aspect, false);
     } catch {
       pendingImageRef.current = null;
+      scanPendingRef.current = null;
       setToast('Could not read that image');
     }
   }, [placeImage]);
@@ -898,6 +903,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
 
   const handleScanCancel = useCallback(() => {
     pendingImageRef.current = null;
+    scanPendingRef.current = null;
     setScanImage(null);
   }, []);
 
