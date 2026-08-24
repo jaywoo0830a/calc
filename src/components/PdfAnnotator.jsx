@@ -125,7 +125,9 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [toast, setToast] = useState(null);        // 잠깐 표시되는 등록 피드백
   const [flashPage, setFlashPage] = useState(null); // 문제 점프 시 페이지 플래시
   const imageInputRef = useRef(null);              // 🖼️ 이미지 업로드용 숨김 input
+  const cameraInputRef = useRef(null);             // 📷 카메라 촬영용 숨김 input (모바일 capture)
   const pendingImageRef = useRef(null);            // 이미지 배치 위치 { pageNumber, x, y }
+  const [imageChoice, setImageChoice] = useState(null); // 📷/🖼️ 선택 팝업 위치 { px, py }
   const [autoCrop, setAutoCrop] = useState(true);  // ✂️ 문서/보드 자동 인식 크롭 (기본 켜짐)
   const autoCropRef = useRef(true);
   useEffect(() => { autoCropRef.current = autoCrop; }, [autoCrop]);
@@ -371,6 +373,10 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       setSelTrigger(null);
       savedSelectionRef.current = null;
       lastDetectedText.current = '';
+    }
+    if (tool !== 'image') {
+      setImageChoice(null);
+      pendingImageRef.current = null;
     }
   }, [tool]);
 
@@ -722,7 +728,11 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       const x = (e.clientX - pageRect.left) / pageRect.width;
       const y = (e.clientY - pageRect.top) / pageRect.height;
       pendingImageRef.current = { pageNumber, x, y };
-      imageInputRef.current?.click(); // 사진 선택/촬영
+      // 📷/🖼️ 선택 팝업 — 탭 위치 근처에 표시
+      setImageChoice({
+        px: Math.min(Math.max(e.clientX, 8), window.innerWidth - 220),
+        py: Math.min(Math.max(e.clientY, 8), window.innerHeight - 90),
+      });
     }
   }, [tool]);
 
@@ -732,6 +742,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     e.target.value = '';
     const pending = pendingImageRef.current;
     pendingImageRef.current = null;
+    setImageChoice(null);
     setTool(null); // 1회 배치 후 Read 모드로 복귀
     if (!file || !pending || !file.type.startsWith('image/')) {
       setToast('Please choose an image file');
@@ -1065,11 +1076,20 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           >
             ▴
           </button>
-          {/* 🖼️ 이미지 주석 업로드 (숨김) */}
+          {/* 🖼️ 이미지 주석 업로드 (숨김) — 갤러리 */}
           <input
             ref={imageInputRef}
             type="file"
             accept="image/*"
+            hidden
+            onChange={handleImageSelected}
+          />
+          {/* 📷 카메라 직접 촬영 (모바일/태블릿: capture=environment) */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
             hidden
             onChange={handleImageSelected}
           />
@@ -1585,6 +1605,42 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                 </button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 📷/🖼️ 이미지 소스 선택 팝업 — 이미지 툴로 페이지 탭 시 표시 */}
+      {imageChoice && tool === 'image' && (
+        <div
+          className="pdf-annotator__sel-trigger"
+          style={{
+            position: 'fixed',
+            left: imageChoice.px,
+            top: imageChoice.py,
+            zIndex: 200,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <div className="pdf-annotator__sel-trigger-inner">
+            <button
+              className="pdf-annotator__sel-confirm"
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              📷 Camera
+            </button>
+            <button
+              className="pdf-annotator__sel-confirm"
+              onClick={() => imageInputRef.current?.click()}
+            >
+              🖼️ Gallery
+            </button>
+            <button
+              className="pdf-annotator__sel-cancel"
+              onClick={() => { setImageChoice(null); pendingImageRef.current = null; }}
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
