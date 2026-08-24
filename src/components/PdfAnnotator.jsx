@@ -131,9 +131,6 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const scanPendingRef = useRef(null);             // 📐 스캔 세션 중 배치 위치 보관 — setTool(null) effect가 pendingImageRef를 비워도 유지
   const [imageChoice, setImageChoice] = useState(null); // 📷/🖼️ 선택 팝업 위치 { px, py }
   const [scanImage, setScanImage] = useState(null);     // 📐 scanic 스캔 영역 지정 세션 { dataUrl, aspect }
-  const [autoCrop, setAutoCrop] = useState(true);  // ✂️ 문서/보드 자동 인식 크롭 (기본 켜짐)
-  const autoCropRef = useRef(true);
-  useEffect(() => { autoCropRef.current = autoCrop; }, [autoCrop]);
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -838,7 +835,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   }, [tool]);
 
   // ── 🖼️ 이미지 주석 — 파일 압축 후 해당 위치에 배치 ──────────
-  const placeImage = useCallback(async (dataUrl, aspect, cropped) => {
+  const placeImage = useCallback(async (dataUrl, aspect) => {
     const pending = pendingImageRef.current || scanPendingRef.current;
     pendingImageRef.current = null;
     scanPendingRef.current = null;
@@ -857,9 +854,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     };
     const saved = await saveAnnotation(annotation);
     setAnnotations((prev) => [...prev, saved]);
-    setToast(cropped
-      ? '🖼️ Image added — ✂️ scanned'
-      : '🖼️ Image added — drag to move, corner to resize');
+    setToast('🖼️ Image added — ✂️ scanned');
   }, [filePath]);
 
   const handleImageSelected = useCallback(async (e) => {
@@ -880,14 +875,10 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     }
     try {
       const { dataUrl, aspect } = await compressImageFile(file);
-      if (autoCropRef.current) {
-        // 📐 scanic — 스캔 영역 지정 모달 (모서리 드래그 → Apply → 원근 보정)
-        // setTool(null)의 effect가 pendingImageRef를 비우므로 세션용 ref에 보관
-        scanPendingRef.current = pending;
-        setScanImage({ dataUrl, aspect });
-        return;
-      }
-      await placeImage(dataUrl, aspect, false);
+      // 📐 scanic — 스캔 영역 지정 모달 (모서리 드래그 → Apply → 원근 보정)
+      // setTool(null)의 effect가 pendingImageRef를 비우므로 세션용 ref에 보관
+      scanPendingRef.current = pending;
+      setScanImage({ dataUrl, aspect });
     } catch {
       pendingImageRef.current = null;
       scanPendingRef.current = null;
@@ -898,7 +889,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   // 📐 scanic 영역 지정 결과 — Apply → 원근 보정된 이미지 배치
   const handleScanApply = useCallback(async (result) => {
     setScanImage(null);
-    await placeImage(result.dataUrl, result.aspect, true);
+    await placeImage(result.dataUrl, result.aspect);
   }, [placeImage]);
 
   const handleScanCancel = useCallback(() => {
@@ -1064,16 +1055,6 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
               {val.label}
             </button>
           ))}
-          {/* ✂️ 이미지 툴 선택 시 문서 자동 크롭 토글 */}
-          {tool === 'image' && (
-            <button
-              className={'pdf-annotator__tool' + (autoCrop ? ' pdf-annotator__tool--active' : '')}
-              onClick={() => setAutoCrop((v) => !v)}
-              title="Auto-detect the board/paper edges and crop like a document scanner"
-            >
-              ✂️ Auto-crop
-            </button>
-          )}
         </div>
         {/* Color pickers — hidden for highlight/underline (use selection trigger) */}
         <div className="pdf-annotator__tools">
