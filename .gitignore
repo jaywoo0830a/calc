@@ -6,3 +6,7 @@ server/data/
 __pycache__/
 *.pyc
 server/.venv/
+server/models/
+server/train/
+server/runs/
+server/dataset.yaml

@@ -1,23 +1,26 @@
-FROM node:24.18.0-alpine
+FROM node:24-bookworm-slim
 
-# ── PDF → Markdown 변환 스택 ──
-# poppler-utils: pdftotext (PDF → HTML 추출)
-# pandoc + pandoc-cli: 문서 변환기 (Haskell 풀버전)
-# py3-opencv + py3-numpy: ✂️ 문서 자동 인식 크롭 (scan.py)
-RUN apk add --no-cache \
+# ── PDF → Markdown 변환 + 모델 기반 문서 스캐너 ──
+# poppler-utils: pdftotext / pandoc: 문서 변환
+# python3 + rapidocr-onnxruntime: ✂️ 종이 자동 크롭 (텍스트 껍질)
+# torch(cpu) + docgeonet: 📐 DocGeoNet 문서 정류 (구부러진 문서 펴기)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     pandoc \
-    pandoc-cli \
     python3 \
-    py3-opencv \
-    py3-numpy \
-    make \
-    g++
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY server/package.json ./
 RUN npm install --legacy-peer-deps
 COPY server/ .
+RUN pip3 install --break-system-packages --no-cache-dir -r requirements-scan.txt \
+    && pip3 install --break-system-packages --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cpu -r requirements-rectify.txt \
+    && python3 -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()" # ONNX 모델 미리 다운로드(첫 호출 지연 제거)
+# DocGeoNet 가중치(~100MB)는 git에 없음: server/models/docgeonet/{DocGeoNet,preprocess}.pth
+# — 볼륨 마운트하거나 빌드 시 수동 다운로드. 없으면 스캔은 워프까지만 수행(정류 스킵).
 
 EXPOSE 3001
 CMD ["node", "index.js"]

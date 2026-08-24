@@ -74,3 +74,86 @@ def shrink_quad(corners, ratio=0.008):
         s = max(0.0, 1.0 - d / l)
         out.append((cx + (x - cx) * s, cy + (y - cy) * s))
     return out
+
+
+# ── 모델 기반 스캐너용 기하 (OpenCV 없이) ─────────────────────
+
+def _cross(o, a, b):
+    return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+
+def monotone_hull(pts):
+    """Andrew monotone chain — 점들의 볼록 껍질 (반시계 방향)."""
+    pts = sorted(set((float(x), float(y)) for x, y in pts))
+    if len(pts) <= 1:
+        return pts
+    lower = []
+    for p in pts:
+        while len(lower) >= 2 and _cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    upper = []
+    for p in reversed(pts):
+        while len(upper) >= 2 and _cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return lower[:-1] + upper[:-1]
+
+
+def _rdp(pts, eps):
+    """Ramer–Douglas–Peucker 단순화 (재귀)."""
+    if len(pts) < 3:
+        return pts
+    a, b = pts[0], pts[-1]
+    ab = hypot(b[0] - a[0], b[1] - a[1])
+    if ab < 1e-9:
+        return [a, b]
+    dmax, idx = -1.0, 0
+    for i in range(1, len(pts) - 1):
+        d = abs((b[0] - a[0]) * (a[1] - pts[i][1]) - (a[0] - pts[i][0]) * (b[1] - a[1])) / ab
+        if d > dmax:
+            dmax, idx = d, i
+    if dmax > eps:
+        left = _rdp(pts[:idx + 1], eps)
+        right = _rdp(pts[idx:], eps)
+        return left[:-1] + right
+    return [a, b]
+
+
+def simplify_to_quad(hull, min_eps=1.0, max_eps=80.0, steps=10):
+    """볼록 껍질을 점진적으로 단순화해 4점 사각형 근사.
+    실패 시 None."""
+    if len(hull) <= 4:
+        return list(hull) if len(hull) == 4 else None
+    for i in range(steps):
+        eps = min_eps + (max_eps - min_eps) * i / max(1, steps - 1)
+        poly = _rdp(hull, eps)
+        if len(poly) == 4:
+            return poly
+        if len(poly) < 4:
+            break
+    return None
+
+
+def quad_area(corners):
+    """신발끈 공식 — 4각형(또는 다각형) 면적."""
+    s = 0.0
+    for i in range(len(corners)):
+        x1, y1 = corners[i]
+        x2, y2 = corners[(i + 1) % len(corners)]
+        s += x1 * y2 - x2 * y1
+    return abs(s) / 2.0
+
+
+def expand_quad(corners, factor, w, h):
+    """4각형을 중심 기준 factor배 확장 후 이미지 경계로 클램프.
+    factor=1.0이면 원본. 정류 모델이 '여백 포함 문서'를 기대하므로 사용."""
+    cx = sum(p[0] for p in corners) / 4.0
+    cy = sum(p[1] for p in corners) / 4.0
+    out = []
+    for x, y in corners:
+        out.append((
+            max(0.0, min(w - 1.0, cx + (x - cx) * factor)),
+            max(0.0, min(h - 1.0, cy + (y - cy) * factor)),
+        ))
+    return out

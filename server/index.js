@@ -684,8 +684,8 @@ app.delete('/bookmarks', requireClearToken, (req, res) => {
 // health check
 app.get('/health', (_, res) => res.json({ ok: true }));
 
-// ── ✂️ 문서 자동 인식 크롭 (Python OpenCV 백엔드) ──────────────────────────
-// dataUrl 이미지 → scan.py(적응형+Otsu 4각 탐지 → 원근 워프, 실패 시 잉크 bbox)
+// ── ✂️ 문서 자동 인식 크롭 (RapidOCR + DocGeoNet 백엔드) ───────────────────
+// dataUrl 이미지 → scan.py(텍스트 껍질 4각 → QUAD 워프 → DocGeoNet 정류)
 const serverDir = dirname(fileURLToPath(import.meta.url));
 const venvPython = join(serverDir, '.venv', 'bin', 'python');
 const PYTHON = existsSync(venvPython) ? venvPython : (process.env.SERVER_PYTHON || 'python3');
@@ -704,7 +704,7 @@ app.post('/scan', async (req, res) => {
     const script = join(serverDir, 'scan.py');
     const stdout = await new Promise((resolve, reject) => {
       execFile(PYTHON, [script, tmpFile, String(Number(maxDim) || 1600)], {
-        timeout: 30000,
+        timeout: 120000,
         maxBuffer: 64 * 1024 * 1024,
       }, (err, out, stderr) => {
         if (err) reject(new Error(stderr || err.message));
