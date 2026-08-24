@@ -129,6 +129,12 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [autoCrop, setAutoCrop] = useState(true);  // ✂️ 문서/보드 자동 인식 크롭 (기본 켜짐)
   const autoCropRef = useRef(true);
   useEffect(() => { autoCropRef.current = autoCrop; }, [autoCrop]);
+  const [padX, setPadX] = useState(0);   // ↔ 크롭 가로 확장 비율 (0~0.5)
+  const [padY, setPadY] = useState(0);   // ↕ 크롭 세로 확장 비율 (0~0.5)
+  const padXRef = useRef(0);
+  const padYRef = useRef(0);
+  useEffect(() => { padXRef.current = padX; }, [padX]);
+  useEffect(() => { padYRef.current = padY; }, [padY]);
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -742,7 +748,10 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       if (autoCropRef.current) {
         try {
           setToast('✂️ Detecting board edges…');
-          const res = await autoCropDataUrl(dataUrl);
+          const res = await autoCropDataUrl(dataUrl, {
+            padX: padXRef.current,
+            padY: padYRef.current,
+          });
           if (res && res.dataUrl) {
             finalUrl = res.dataUrl;
             finalAspect = res.aspect;
@@ -940,15 +949,35 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
               {val.label}
             </button>
           ))}
-          {/* ✂️ 이미지 툴 선택 시 문서 자동 크롭 토글 */}
+          {/* ✂️ 이미지 툴 선택 시 문서 자동 크롭 토글 + 여백 확장 조절 */}
           {tool === 'image' && (
-            <button
-              className={'pdf-annotator__tool' + (autoCrop ? ' pdf-annotator__tool--active' : '')}
-              onClick={() => setAutoCrop((v) => !v)}
-              title="Auto-detect the board/paper edges and crop like a document scanner"
-            >
-              ✂️ Auto-crop
-            </button>
+            <>
+              <button
+                className={'pdf-annotator__tool' + (autoCrop ? ' pdf-annotator__tool--active' : '')}
+                onClick={() => setAutoCrop((v) => !v)}
+                title="Auto-detect the board/paper edges and crop like a document scanner"
+              >
+                ✂️ Auto-crop
+              </button>
+              {autoCrop && (
+                <>
+                  <label className="pdf-annotator__tune" title="Crop width expansion — includes more paper margin">
+                    ↔ <input
+                      type="range" min="0" max="0.5" step="0.05"
+                      value={padX}
+                      onChange={(e) => setPadX(Number(e.target.value))}
+                    /><span>{Math.round(padX * 100)}%</span>
+                  </label>
+                  <label className="pdf-annotator__tune" title="Crop height expansion — includes more paper margin">
+                    ↕ <input
+                      type="range" min="0" max="0.5" step="0.05"
+                      value={padY}
+                      onChange={(e) => setPadY(Number(e.target.value))}
+                    /><span>{Math.round(padY * 100)}%</span>
+                  </label>
+                </>
+              )}
+            </>
           )}
         </div>
         {/* Color pickers — hidden for highlight/underline (use selection trigger) */}

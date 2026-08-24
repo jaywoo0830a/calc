@@ -19,6 +19,7 @@ import sys
 from PIL import Image
 
 from scan_core import (
+    expand_quad,
     monotone_hull,
     order_corners,
     quad_area,
@@ -123,7 +124,7 @@ def _try_rectify(img):
         return None
 
 
-def run(image_path, max_dim=1600):
+def run(image_path, max_dim=1600, pad_x=0.0, pad_y=0.0):
     try:
         img = Image.open(image_path).convert('RGB')
     except Exception:
@@ -142,6 +143,9 @@ def run(image_path, max_dim=1600):
 
     k = 1.0 / scale
     corners = [[x * k, y * k] for x, y in quad]
+    # 가로/세로 확장 비율 (종이 여백을 크롭에 더 포함) — 0이면 원본 그대로
+    if pad_x > 0.0 or pad_y > 0.0:
+        corners = expand_quad(corners, pad_x, pad_y, w, h)
     out = warp_quad(img, corners, max_dim)
 
     # 4) DocGeoNet 정류 — 공식 레시피 (선택적)
@@ -164,10 +168,12 @@ def run(image_path, max_dim=1600):
 
 def main():
     if len(sys.argv) < 2:
-        print(json.dumps({"ok": False, "reason": "usage: scan.py <image_path> [maxDim]"}))
+        print(json.dumps({"ok": False, "reason": "usage: scan.py <image_path> [maxDim] [padX] [padY]"}))
         return
     max_dim = int(sys.argv[2]) if len(sys.argv) > 2 else 1600
-    print(json.dumps(run(sys.argv[1], max_dim)))
+    pad_x = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
+    pad_y = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0
+    print(json.dumps(run(sys.argv[1], max_dim, pad_x, pad_y)))
 
 
 if __name__ == '__main__':

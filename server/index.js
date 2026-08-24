@@ -693,7 +693,7 @@ const PYTHON = existsSync(venvPython) ? venvPython : (process.env.SERVER_PYTHON 
 app.post('/scan', async (req, res) => {
   const tmpFile = join(tmpdir(), 'calc-scan-' + randomUUID() + '.img');
   try {
-    const { dataUrl, maxDim } = req.body || {};
+    const { dataUrl, maxDim, padX, padY } = req.body || {};
     const match = /^data:image\/(?:png|jpe?g|webp);base64,(.+)$/i.exec(String(dataUrl || ''));
     if (!match) return res.status(400).json({ error: 'dataUrl image required' });
     const bytes = Buffer.from(match[1], 'base64');
@@ -702,8 +702,11 @@ app.post('/scan', async (req, res) => {
     }
     await writeFile(tmpFile, bytes);
     const script = join(serverDir, 'scan.py');
+    // ↔/↕ 크롭 확장 비율 (0~0.5, 기본 0 = 순정)
+    const px = Number.isFinite(Number(padX)) ? Math.min(0.5, Math.max(0, Number(padX))) : 0;
+    const py = Number.isFinite(Number(padY)) ? Math.min(0.5, Math.max(0, Number(padY))) : 0;
     const stdout = await new Promise((resolve, reject) => {
-      execFile(PYTHON, [script, tmpFile, String(Number(maxDim) || 1600)], {
+      execFile(PYTHON, [script, tmpFile, String(Number(maxDim) || 1600), String(px), String(py)], {
         timeout: 120000,
         maxBuffer: 64 * 1024 * 1024,
       }, (err, out, stderr) => {

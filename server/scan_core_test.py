@@ -5,6 +5,7 @@
 import unittest
 
 from scan_core import (
+    expand_quad,
     monotone_hull,
     order_corners,
     quad_area,
@@ -77,6 +78,28 @@ class QuadAreaTest(unittest.TestCase):
 
     def test_parallelogram(self):
         self.assertEqual(quad_area([(0, 0), (4, 0), (5, 3), (1, 3)]), 12.0)
+
+
+class ExpandQuadTest(unittest.TestCase):
+    def test_identity(self):
+        quad = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]
+        self.assertEqual(expand_quad(quad, 0.0, 0.0, 100, 100), quad)
+
+    def test_grow_x_only(self):
+        quad = [(2.0, 2.0), (8.0, 2.0), (8.0, 8.0), (2.0, 8.0)]
+        out = expand_quad(quad, 0.5, 0.0, 100, 100)
+        self.assertEqual(out, [(0.5, 2.0), (9.5, 2.0), (9.5, 8.0), (0.5, 8.0)])
+
+    def test_grow_y_only(self):
+        quad = [(2.0, 2.0), (8.0, 2.0), (8.0, 8.0), (2.0, 8.0)]
+        out = expand_quad(quad, 0.0, 0.5, 100, 100)
+        self.assertEqual(out, [(2.0, 0.5), (8.0, 0.5), (8.0, 9.5), (2.0, 9.5)])
+
+    def test_clamp_to_bounds(self):
+        quad = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]
+        out = expand_quad(quad, 1.0, 1.0, 20, 20)
+        self.assertTrue(all(0.0 <= x <= 19.0 and 0.0 <= y <= 19.0 for x, y in out))
+        self.assertEqual(out[0], (0.0, 0.0))  # TL은 코너에 고정
 
 
 class HullTest(unittest.TestCase):
