@@ -5,7 +5,8 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark, annotationsMeta, bookmarksMeta, reportPdfPosition, getPdfPosition } from '../lib/storage.js';
 import { api } from '../lib/api.js';
 import { fitImageRect } from '../lib/imageRect.js';
-import { autoCropDataUrl, rotateImageDataUrl } from '../lib/docScan.js';
+import { rotateImageDataUrl } from '../lib/docScan.js';
+import ScanAreaModal from './ScanAreaModal.jsx';
 import ClearGate from './ClearGate.jsx';
 import { useClearGate } from '../hooks/useClearGate.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -128,6 +129,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const cameraInputRef = useRef(null);             // 📷 카메라 촬영용 숨김 input (모바일 capture)
   const pendingImageRef = useRef(null);            // 이미지 배치 위치 { pageNumber, x, y }
   const [imageChoice, setImageChoice] = useState(null); // 📷/🖼️ 선택 팝업 위치 { px, py }
+  const [scanImage, setScanImage] = useState(null);     // 📐 scanic 스캔 영역 지정 세션 { dataUrl, aspect }
   const [autoCrop, setAutoCrop] = useState(true);  // ✂️ 문서/보드 자동 인식 크롭 (기본 켜짐)
   const autoCropRef = useRef(true);
   useEffect(() => { autoCropRef.current = autoCrop; }, [autoCrop]);
@@ -835,71 +837,69 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   }, [tool]);
 
   // ── 🖼️ 이미지 주석 — 파일 압축 후 해당 위치에 배치 ──────────
+  const placeImage = useCallback(async (dataUrl, aspect, cropped) => {
+    const pending = pendingImageRef.current;
+    pendingImageRef.current = null;
+    if (!pending) return;
+    // 세로 사진이 페이지를 벗어나 잘리지 않도록 처음부터 페이지 안으로 맞춘다
+    const pageEl = pageRefs.current[pending.pageNumber] || document.querySelector(`[data-page="${pending.pageNumber}"]`);
+    const canvasRect = getPageCanvasRect(pageEl);
+    const pageAspect = canvasRect ? canvasRect.height / canvasRect.width : 1.4;
+    const annotation = {
+      filePath,
+      pageNumber: pending.pageNumber,
+      type: 'image',
+      dataUrl,
+      aspect,
+      rect: fitImageRect({ x: pending.x, y: pending.y, w: 0.4 }, aspect, pageAspect),
+    };
+    const saved = await saveAnnotation(annotation);
+    setAnnotations((prev) => [...prev, saved]);
+    setToast(cropped
+      ? '🖼️ Image added — ✂️ scanned'
+      : '🖼️ Image added — drag to move, corner to resize');
+  }, [filePath]);
+
   const handleImageSelected = useCallback(async (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
     const pending = pendingImageRef.current;
-    pendingImageRef.current = null;
     setImageChoice(null);
     setTool(null); // 1회 배치 후 Read 모드로 복귀
     if (!file || !pending || !file.type.startsWith('image/')) {
+      pendingImageRef.current = null;
       setToast('Please choose an image file');
       return;
     }
     if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+      pendingImageRef.current = null;
       setToast(`Image too large — ${MAX_IMAGE_MB}MB max`);
       return;
     }
     try {
       const { dataUrl, aspect } = await compressImageFile(file);
-      let finalUrl = dataUrl;
-      let finalAspect = aspect;
-      let cropped = false;
-      let scanSkipped = false;
-      // ✂️ 문서 스캐너: 보드/종이 가장자리를 자동 인식해 원근 보정 크롭
       if (autoCropRef.current) {
-        try {
-          setToast('✂️ Detecting board edges…');
-          const res = await autoCropDataUrl(dataUrl);
-          if (res && res.dataUrl) {
-            finalUrl = res.dataUrl;
-            finalAspect = res.aspect;
-            cropped = true;
-            console.info('[doc-scan] cropped via', res.method);
-          } else if (res && res.skipped) {
-            scanSkipped = true;
-            console.info('[doc-scan] skipped:', res.reason || 'no document');
-          }
-        } catch (err) {
-          // 서버 오류 등 — 원본 그대로 사용
-          console.warn('[doc-scan] auto-crop failed, using original:', err);
-        }
+        // 📐 scanic — 스캔 영역 지정 모달 (모서리 드래그 → Apply → 원근 보정)
+        setScanImage({ dataUrl, aspect });
+        return;
       }
-      // 세로 사진이 페이지를 벗어나 잘리지 않도록 처음부터 페이지 안으로 맞춘다
-      const pageEl = pageRefs.current[pending.pageNumber] || document.querySelector(`[data-page="${pending.pageNumber}"]`);
-      const canvasRect = getPageCanvasRect(pageEl);
-      const pageAspect = canvasRect ? canvasRect.height / canvasRect.width : 1.4;
-      const annotation = {
-        filePath,
-        pageNumber: pending.pageNumber,
-        type: 'image',
-        dataUrl: finalUrl,
-        aspect: finalAspect,
-        rect: fitImageRect({ x: pending.x, y: pending.y, w: 0.4 }, finalAspect, pageAspect),
-      };
-      const saved = await saveAnnotation(annotation);
-      setAnnotations((prev) => [...prev, saved]);
-      setToast(
-        cropped
-          ? '🖼️ Image added — ✂️ auto-cropped'
-          : scanSkipped
-            ? '🖼️ Image added — no board detected, kept original'
-            : '🖼️ Image added — drag to move, corner to resize'
-      );
+      await placeImage(dataUrl, aspect, false);
     } catch {
+      pendingImageRef.current = null;
       setToast('Could not read that image');
     }
-  }, [filePath]);
+  }, [placeImage]);
+
+  // 📐 scanic 영역 지정 결과 — Apply → 원근 보정된 이미지 배치
+  const handleScanApply = useCallback(async (result) => {
+    setScanImage(null);
+    await placeImage(result.dataUrl, result.aspect, true);
+  }, [placeImage]);
+
+  const handleScanCancel = useCallback(() => {
+    pendingImageRef.current = null;
+    setScanImage(null);
+  }, []);
 
   // 이미지 이동/크기 변경 저장
   const updateImageRect = useCallback((id, patch) => {
@@ -1798,6 +1798,15 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         >⛶</button>
       )}
       {toast && <div className="pdf-annotator__toast">{toast}</div>}
+      {/* 📐 scanic 스캔 영역 지정 모달 — 사진 → 모서리 지정 → 원근 보정 */}
+      {scanImage && (
+        <ScanAreaModal
+          dataUrl={scanImage.dataUrl}
+          aspect={scanImage.aspect}
+          onApply={handleScanApply}
+          onCancel={handleScanCancel}
+        />
+      )}
       <ClearGate {...gateProps} />
     </div>
   );

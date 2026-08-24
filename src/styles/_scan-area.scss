@@ -1,0 +1,62 @@
+// 📐 scanic 스캔 영역 지정 모달 — 사진 → 모서리 드래그 → 원근 보정
+@use 'variables' as *;
+
+.scan-area-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $sp-3;
+  background: rgba(22, 19, 13, 0.7);
+  backdrop-filter: blur(4px);
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+    width: min(94vw, 46rem);
+    height: calc(100dvh - 6rem);
+    padding: $sp-3;
+    border: $border-thin solid rgba(212, 201, 181, 0.25);
+    border-radius: $radius-lg;
+    background: $c-paper;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  &__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: $sp-2;
+    color: $c-ink;
+    font-size: $fs-step--1;
+    font-weight: $fw-bold;
+  }
+
+  &__hint {
+    color: $c-ink-soft;
+    font-size: $fs-step--2;
+    font-weight: $fw-normal;
+    text-align: right;
+  }
+
+  &__host {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: $radius-md;
+    background: #15130e;
+
+    .scanic-corner-editor {
+      --scanic-accent: #{$c-accent};
+      --scanic-mask: rgba(15, 13, 8, 0.55);
+      --scanic-handle-size: 22px;
+      --scanic-handle-hit: 48px;
+      --scanic-surface: rgba(30, 26, 18, 0.94);
+      --scanic-surface-fg: #ece5d8;
+    }
+  }
+}

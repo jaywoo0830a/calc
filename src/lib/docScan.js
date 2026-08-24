@@ -1,9 +1,51 @@
 // ============================================================
-// docScan — 문서/보드 자동 인식 크롭 (백엔드 Python OpenCV)
-// 클라이언트는 이미지를 POST /api/scan으로 보내고 결과를 받는다.
+// docScan — 문서 스캔 (scanic — 브라우저 WASM, 서버 왕복 불필요)
+// 사진 → scanDocument로 모서리 감지 → 사용자가 코너 에디터로 영역 확정
+// → extractDocument(원근 보정) → dataUrl 반환
 // ============================================================
+import { scanDocument, extractDocument } from 'scanic';
 
-const BASE = '/api';
+/**
+ * dataUrl → HTMLImageElement (scanic 입력용)
+ * @returns {Promise<HTMLImageElement>}
+ */
+export function imageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onerror = () => reject(new Error('bad image'));
+    img.onload = () => resolve(img);
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * 문서 모서리 자동 감지 (classical — Canny+contour). 실패 시 null.
+ * 코너 에디터의 초기값으로 사용 — null이면 에디터가 기본 인셋 사각형으로 시작.
+ * @returns {Promise<CornerPoints|null>} { topLeft, topRight, bottomRight, bottomLeft }
+ */
+export async function detectCorners(image) {
+  try {
+    const res = await scanDocument(image, { mode: 'detect' });
+    if (res.success && res.corners) return res.corners;
+  } catch (err) {
+    console.warn('[doc-scan] detection failed:', err);
+  }
+  return null;
+}
+
+/**
+ * 지정된 모서리로 원근 보정 (사용자가 코너 에디터에서 확정한 4점)
+ * @returns {Promise<{dataUrl: string, aspect: number}>}
+ */
+export async function scanWithCorners(image, corners, quality = 0.9) {
+  const res = await extractDocument(image, corners, { output: 'canvas' });
+  if (!res.success || !res.output) throw new Error(res.message || 'extract failed');
+  const canvas = res.output;
+  return {
+    dataUrl: canvas.toDataURL('image/jpeg', quality),
+    aspect: canvas.width / canvas.height,
+  };
+}
 
 /**
  * dataUrl 이미지를 90° 단위로 회전 (캔버스 재인코딩, EXIF 정규화 포함)
@@ -33,30 +75,4 @@ export function rotateImageDataUrl(dataUrl, deg) {
     };
     img.src = dataUrl;
   });
-}
-
-/**
- * dataUrl 이미지에서 문서/보드 영역을 자동 인식해 원근 보정 크롭
- * @param {object} [opts] { maxDim=1600, rotate=0 (0|90|180|270) }
- * @returns {Promise<{dataUrl: string, aspect: number, method: string} | {skipped: true}>}
- */
-export async function autoCropDataUrl(dataUrl, { maxDim = 1600, rotate = 0 } = {}) {
-  const res = await fetch(BASE + '/scan', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dataUrl, maxDim, rotate }),
-  });
-  if (!res.ok) {
-    let msg = `scan failed (${res.status})`;
-    try {
-      const j = await res.json();
-      if (j && j.error) msg = j.error;
-    } catch { /* 무시 */ }
-    // 422 = 문서 미탐지 → 원본 사용
-    if (res.status === 422) return { skipped: true, reason: msg };
-    throw new Error(msg);
-  }
-  const j = await res.json();
-  if (!j || !j.dataUrl) return { skipped: true };
-  return { dataUrl: j.dataUrl, aspect: Number(j.aspect) || 1, method: j.method || 'unknown' };
 }
