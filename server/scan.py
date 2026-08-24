@@ -144,6 +144,23 @@ def warp_quad(img, corners, max_dim):
     return out
 
 
+def _expand_quad(corners, factor, W, H):
+    """경계 사각형을 중심 기준 바깥으로 살짝 확장.
+
+    그림자·말린 가장자리 때문에 경계가 실제 문서보다 안쪽으로 잡혀
+    테두리가 잘리는 것을 방지 (factor=0.03 → 각 축 3%).
+    """
+    cx = sum(p[0] for p in corners) / 4.0
+    cy = sum(p[1] for p in corners) / 4.0
+    out = []
+    for x, y in corners:
+        out.append((
+            max(0.0, min(W - 1.0, cx + (x - cx) * (1.0 + factor))),
+            max(0.0, min(H - 1.0, cy + (y - cy) * (1.0 + factor))),
+        ))
+    return out
+
+
 def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
     try:
         img = Image.open(image_path).convert('RGB')
@@ -167,7 +184,10 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
     else:
         corners, method = found
 
-    # 2) 원근 변환으로 펼치기
+    # 2) 가장자리 잘림 방지 — 사각형을 바깥으로 3% 확장 (그림자·말림 대응)
+    corners = _expand_quad(corners, 0.03, img.width, img.height)
+
+    # 3) 원근 변환으로 펼치기
     out = warp_quad(img, corners, max_dim)
 
     m = max(out.width, out.height)
