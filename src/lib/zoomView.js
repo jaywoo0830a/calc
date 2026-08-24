@@ -39,3 +39,10 @@ export function clampPan(x, y, scale, view, img) {
 export function toggleZoom(scale) {
   return scale > ZOOM_MIN + 1e-6 ? ZOOM_MIN : 2;
 }
+
+// 핀치(두 손가락): 거리 비율(factor)로 앵커 기준 줌 + 중점 이동(delta) 팬
+export function pinchView(state, factor, anchor, delta, view, img) {
+  const z = zoomAt(state, factor, anchor, view, img);
+  const p = clampPan(z.x + delta.dx, z.y + delta.dy, z.scale, view, img);
+  return { scale: z.scale, x: p.x, y: p.y };
+}

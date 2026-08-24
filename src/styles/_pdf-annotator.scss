@@ -802,6 +802,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      touch-action: none;           // 핀치/팬 제스처를 앱이 직접 처리 (브라우저 줌 방지)
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     &-wrap {
