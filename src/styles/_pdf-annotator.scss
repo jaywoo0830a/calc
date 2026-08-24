@@ -484,11 +484,13 @@
     cursor: default;
     border-radius: 0.125rem;
     z-index: 15; // above react-pdf text/annotation layers
+    opacity: 0.85;                 // 🪟 약간 투명 — 아래 텍스트가 은은하게 비침
+    transition: opacity $transition-fast;
 
     &--erasable {
       pointer-events: auto;
       cursor: pointer;
-      transition: opacity $transition-fast;
+      opacity: 1;                  // 지우개 모드는 대상이 잘 보이게 불투명
 
       &:hover {
         opacity: 0.8;
@@ -683,9 +685,18 @@
     box-shadow: $shadow-md;
     cursor: pointer;
     touch-action: none;
+    opacity: 0.85;                // 🪟 약간 투명
+    transition: opacity $transition-fast;
 
     &--erasable {
       border-color: $c-error;
+      opacity: 1;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        opacity: 1;
+      }
     }
 
     // Erase 모드에서 덮이는 🗑️ — 🖼️ 이모지와 같은 크기로 통일
@@ -704,6 +715,19 @@
     box-shadow: $shadow-md;
     overflow: hidden;
     background: $c-page;
+    opacity: 0.9;               // 🪟 약간 투명
+    transition: opacity $transition-fast;
+
+    &--erasable {
+      cursor: pointer;
+      opacity: 1;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        opacity: 1;
+      }
+    }
 
     img {
       width: 100%;
@@ -712,10 +736,6 @@
       display: block;
       pointer-events: none;
       user-select: none;
-    }
-
-    &--erasable {
-      cursor: pointer;
     }
 
     &-handle {
