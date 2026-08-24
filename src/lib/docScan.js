@@ -37,14 +37,14 @@ export function rotateImageDataUrl(dataUrl, deg) {
 
 /**
  * dataUrl 이미지에서 문서/보드 영역을 자동 인식해 원근 보정 크롭
- * @param {object} [opts] { maxDim=1600, stretchX=0, stretchY=0 (늘리기 0~0.5), rotate=0 (0|90|180|270) }
+ * @param {object} [opts] { maxDim=1600, rotate=0 (0|90|180|270) }
  * @returns {Promise<{dataUrl: string, aspect: number, method: string} | {skipped: true}>}
  */
-export async function autoCropDataUrl(dataUrl, { maxDim = 1600, stretchX = 0, stretchY = 0, rotate = 0 } = {}) {
+export async function autoCropDataUrl(dataUrl, { maxDim = 1600, rotate = 0 } = {}) {
   const res = await fetch(BASE + '/scan', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dataUrl, maxDim, stretchX, stretchY, rotate }),
+    body: JSON.stringify({ dataUrl, maxDim, rotate }),
   });
   if (!res.ok) {
     let msg = `scan failed (${res.status})`;

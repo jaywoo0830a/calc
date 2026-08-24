@@ -9,7 +9,7 @@ https://github.com/LiteObject/doc-scanner (opencv + numpy만 사용)
   3) 실패 시 Canny 임계값 8종 재시도, 그래도 안 되면 최소 면적 폴백
   4) four_point_transform으로 원근 펼치기 → 색상 그대로 반환
 
-사용: python3 scan.py <image_path> [maxDim=1600] [stretchX] [stretchY] [rotate]
+사용: python3 scan.py <image_path> [maxDim=1600] [rotate]
 출력: JSON {"ok": true, "dataUrl": ..., "aspect": ..., "method": "lite"}
 """
 import base64
@@ -124,7 +124,7 @@ def _scan_document(img):
     return Image.fromarray(cv2.cvtColor(warped, cv2.COLOR_BGR2RGB))
 
 
-def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
+def run(image_path, max_dim=1600, rotate=0):
     try:
         img = Image.open(image_path).convert('RGB')
     except Exception:
@@ -143,13 +143,7 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
         s = max_dim / float(m)
         out = out.resize((max(2, int(out.width * s)), max(2, int(out.height * s))), Image.LANCZOS)
 
-    # 2) 가로/세로 늘이기 — 처리된 이미지에 비율 적용 (0 = 순정 그대로)
-    if stretch_x > 0.0 or stretch_y > 0.0:
-        nw = max(2, int(round(out.width * (1.0 + stretch_x))))
-        nh = max(2, int(round(out.height * (1.0 + stretch_y))))
-        out = out.resize((nw, nh), Image.LANCZOS)
-
-    # 3) 90° 단위 회전 — 처리된 이미지에 적용 (0 = 그대로)
+    # 2) 90° 단위 회전 — 처리된 이미지에 적용 (0 = 그대로)
     if rotate in (90, 180, 270):
         out = out.rotate(rotate, expand=True)
 
@@ -162,13 +156,11 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
 
 def main():
     if len(sys.argv) < 2:
-        print(json.dumps({"ok": False, "reason": "usage: scan.py <image_path> [maxDim] [stretchX] [stretchY] [rotate]"}))
+        print(json.dumps({"ok": False, "reason": "usage: scan.py <image_path> [maxDim] [rotate]"}))
         return
     max_dim = int(sys.argv[2]) if len(sys.argv) > 2 else 1600
-    stretch_x = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
-    stretch_y = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0
-    rotate = int(sys.argv[5]) if len(sys.argv) > 5 else 0
-    print(json.dumps(run(sys.argv[1], max_dim, stretch_x, stretch_y, rotate)))
+    rotate = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+    print(json.dumps(run(sys.argv[1], max_dim, rotate)))
 
 
 if __name__ == '__main__':
