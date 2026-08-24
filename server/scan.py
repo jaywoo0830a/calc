@@ -74,7 +74,8 @@ def _find_quad(img):
                     break
             if poly is None:
                 poly = cv2.boxPoints(cv2.minAreaRect(c))
-            pts = [(float(p[0][0]), float(p[0][1])) for p in poly]
+            # approxPolyDP는 (N,1,2), boxPoints는 (4,2) — reshape로 통일
+            pts = [(float(pt[0]), float(pt[1])) for pt in np.asarray(poly).reshape(-1, 2)]
             try:
                 q = order_corners(pts)
             except ValueError:
@@ -151,10 +152,16 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
 
     # 1) 주 오브젝트 4각형 탐지 (명암 경계 기반 — 모델 없음)
     method = 'edge'
-    found = _find_quad(img)
+    try:
+        found = _find_quad(img)
+    except Exception as e:
+        found = None
     if found is None:
-        corners = _fallback_bbox(img)
-        method = 'crop'
+        try:
+            corners = _fallback_bbox(img)
+            method = 'crop'
+        except Exception as e:
+            corners = None
         if corners is None:
             return {"ok": False, "reason": "no document detected"}
     else:
