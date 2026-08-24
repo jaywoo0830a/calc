@@ -5,6 +5,25 @@
 from math import hypot
 
 
+def extreme_corners(pts):
+    """여러 점에서 사다리꼴/직사각형의 4 극점 모서리를 [TL, TR, BR, BL]로 추출.
+
+    TL = x+y 최소, BR = x+y 최대, TR = y−x 최소, BL = y−x 최대 —
+    텍스트 블록의 바깥쪽 모서리 점들을 넣으면 사다리꼴(원근)이 보존된다.
+    4개가 모두 달라야 유효 (그렇지 않으면 None).
+    """
+    if not pts:
+        return None
+    tl = min(pts, key=lambda p: p[0] + p[1])
+    br = max(pts, key=lambda p: p[0] + p[1])
+    tr = min(pts, key=lambda p: p[1] - p[0])
+    bl = max(pts, key=lambda p: p[1] - p[0])
+    out = [(float(x), float(y)) for x, y in (tl, tr, br, bl)]
+    if len(set(out)) < 4:
+        return None
+    return out
+
+
 def order_corners(pts):
     """4개 꼭짓점을 [TL, TR, BR, BL] 순서로 정렬.
 

@@ -3,12 +3,12 @@
 
 파이프라인:
   1) RapidOCR(ONNX) 텍스트 탐지 (960px, 실패 시 1440px/90°회전 재시도)
-  2) 오탐 상자 제거(MAD) → 볼록 껍질 → 4각형 단순화(이분 탐색) → 종이 4각형
-  3) PIL QUAD 원근 변환으로 워프 (자체 학습 YOLO 모델이 있으면 우선 사용)
-  4) DocGeoNet(ECCV 2022) 정류 — 공식 레시피, 플로우가 항등에 가까우면 자동 스킵
+  2) 옆으로 눕힌 문서(주축 ±60° 초과)는 강제 회전 경로로
+  3) 오탐 상자 제거(MAD) → 볼록 껍질 → 4각형(이분 탐색, 실패 시 극점 모서리)
+  4) PIL QUAD 원근 변환 — 사다리꼴(원근) 보정 (휜 문서 정류는 비활성)
 
 사용: python3 scan.py <image_path> [maxDim=1600] [stretchX] [stretchY] [rotate]
-출력: JSON {"ok": true, "dataUrl": ..., "aspect": ..., "method": "dl"|"dl-rot90"|"yolo"|...+geo}
+출력: JSON {"ok": true, "dataUrl": ..., "aspect": ..., "method": "dl"|"dl-rotNN"|"yolo"}
 """
 import base64
 import io
@@ -20,6 +20,7 @@ import sys
 from PIL import Image
 
 from scan_core import (
+    extreme_corners,
     monotone_hull,
     order_corners,
     quad_area,
@@ -101,6 +102,15 @@ def text_quad(img):
         if quad_area(quad) < w * h * 0.04:
             quad = None
     if quad is None:
+        # 사다리꼴(원근) 보존 폴백 — 껍질 단순화가 축 정렬로 퇴화할 때
+        quad = extreme_corners(pts)
+        if quad is not None:
+            xs = [p[0] for p in pts]
+            ys = [p[1] for p in pts]
+            aabb = (max(xs) - min(xs)) * (max(ys) - min(ys))
+            if quad_area(quad) < aabb * 0.3 or quad_area(quad) < w * h * 0.02:
+                quad = None
+    if quad is None:
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
         x0, x1 = min(xs), max(xs)
@@ -159,24 +169,14 @@ def warp_quad(img, corners, max_dim):
     return out
 
 
-def _try_rectify_flow(img):
-    """DocGeoNet 정류 — (결과 또는 None, 플로우 편차 mag) 반환. 모듈 없으면 None."""
-    try:
-        from rectify import rectify_flow
-        return rectify_flow(img)
-    except Exception:
-        return None
+def _dominant_angle(img):
+    """텍스트 주축 각도(도, ±90 정규화 후 −45~45 범위).
 
-
-def _text_curvature(img):
-    """텍스트 줄 곡률(도) — 상자 기울기의 중앙값 대비 최대 편차.
-
-    곡면(책 펼침)이나 잔여 원근이 있으면 줄마다 기울기가 달라진다.
-    평평한 문서는 모든 상자가 거의 같은 각도(≈0°). 반환: 최대 편차(도).
+    옆으로 눕힌 문서는 ≈±90° 근처 — 방향 판정용. 상자 <3개면 None.
     """
     boxes = _ocr_boxes(img)
     if not boxes or len(boxes) < 3:
-        return 0.0
+        return None
 
     def edge_ang(a, b):
         d = math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))
@@ -187,8 +187,7 @@ def _text_curvature(img):
         return d
 
     angles = [(edge_ang(b[0], b[1]) + edge_ang(b[3], b[2])) / 2.0 for b in boxes]
-    med = _median(angles)
-    return max(abs(a - med) for a in angles)
+    return _median(angles)
 
 
 def _unrotate_point(p, deg, W, H):
@@ -215,6 +214,11 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
     small = img.resize((max(2, int(w * scale)), max(2, int(h * scale))), Image.LANCZOS) if scale < 1.0 else img
     method = 'dl'
     quad = text_quad(small)
+    # 옆으로 눕힌 문서 — 부분 탐지가 통과하는 것을 차단하고 회전 재시도로
+    if quad is not None:
+        ang = _dominant_angle(small)
+        if ang is not None and abs(ang) > 60.0:
+            quad = None
 
     # 2) 고해상도 재시도 — 먼 거리/작은 글씨 (실패 경로에서만)
     if quad is None:
@@ -223,8 +227,12 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
             big = img.resize((max(2, int(w * hs)), max(2, int(h * hs))), Image.LANCZOS)
             q = text_quad(big)
             if q is not None:
-                quad = q
-                scale = hs
+                ang = _dominant_angle(big)
+                if ang is not None and abs(ang) > 60.0:
+                    q = None
+                else:
+                    quad = q
+                    scale = hs
 
     # 3) 회전 재시도 — 가로/세로로 잘못 찍힌 사진 자동 교정 (실패 경로에서만)
     if quad is None:
@@ -248,19 +256,8 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
     corners = [[x * k, y * k] for x, y in quad]
     out = warp_quad(img, corners, max_dim)
 
-    # 4) DocGeoNet 정류 — 공식 레시피 + 3단 판정
-    #    mag ≥ 0.05   : 확실한 왜곡 → 적용
-    #    mag < 0.003  : 평평 → 스킵 (빠른 경로)
-    #    그 사이       : 텍스트 줄 곡률(>4°)로 판정 — 약한 휘어짐도 놓치지 않음
-    r = _try_rectify_flow(out)
-    if r is not None:
-        rect, mag = r
-        apply = mag >= 0.05
-        if rect is not None and not apply and mag >= 0.003:
-            apply = _text_curvature(out) > 4.0
-        if rect is not None and apply:
-            out = rect
-            method += '+geo'
+    # 4) DocGeoNet 정류 — 사용자 요청으로 비활성 (휜 문서 보정 안 함).
+    #    사다리꼴 원근 보정은 위 QUAD 워프로 충분.
 
     m = max(out.width, out.height)
     if m > max_dim:
