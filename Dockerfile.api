@@ -3,11 +3,14 @@ FROM node:24.18.0-alpine
 # ── PDF → Markdown 변환 스택 ──
 # poppler-utils: pdftotext (PDF → HTML 추출)
 # pandoc + pandoc-cli: 문서 변환기 (Haskell 풀버전)
+# py3-opencv + py3-numpy: ✂️ 문서 자동 인식 크롭 (scan.py)
 RUN apk add --no-cache \
     poppler-utils \
     pandoc \
     pandoc-cli \
     python3 \
+    py3-opencv \
+    py3-numpy \
     make \
     g++
 

@@ -3,3 +3,6 @@ dist/
 .DS_Store
 package-lock.json
 server/data/
+__pycache__/
+*.pyc
+server/.venv/
