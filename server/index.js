@@ -595,7 +595,7 @@ app.get('/annotations/meta', (req, res) => {
 
 app.post('/annotations', (req, res) => {
   try {
-    const { id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count, dataUrl, aspect, scanner } = req.body || {};
+    const { id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count, dataUrl, aspect, scanner, rangeStart, rangeEnd } = req.body || {};
     if (!id || !filePath) return res.status(400).json({ error: 'id and filePath required' });
     // 🖼️ 이미지 dataURL 상한 — 10MB 바이너리(base64 4/3) + 헤더 여유
     const MAX_IMAGE_DATAURL = 15_000_000;
@@ -618,6 +618,8 @@ app.post('/annotations', (req, res) => {
       dataUrl: dataUrlStr, // 🖼️ 압축된 이미지 dataURL (최대 ~10MB)
       aspect: Number(aspect) || 0,
       scanner: String(scanner || '').slice(0, 20), // 📐 스캔 디텍터 식별 (ml | classic | manual)
+      rangeStart: Number(rangeStart) || 0,        // 📒 요약 주석 페이지 범위
+      rangeEnd: Number(rangeEnd) || 0,
     }));
   } catch (e) {
     res.status(500).json({ error: e.message });

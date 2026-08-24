@@ -9,7 +9,7 @@ import { clampPan, pinchView, zoomAt, toggleZoom } from '../lib/zoomView.js';
  * ─ Esc / ✕ / 배경 클릭: 닫기
  * 드래그 중에는 React 상태를 거치지 않고 DOM을 직접 조작한다 (ImageOverlay와 동일 전략).
  */
-export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate }) {
+export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, onPrev, onNext }) {
   const portalTarget = useFullscreenPortal();
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const stageRef = useRef(null);
@@ -32,10 +32,14 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate }) 
     setView({ scale: 1, x: 0, y: 0 });
   }, [dataUrl]);
 
-  // Esc 닫기 + 배경 스크롤 잠금
+  // Esc 닫기 + 배경 스크롤 잠금 (+ ‹ › 키보드 네비게이션)
   useEffect(() => {
     if (!portalTarget) return;
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'ArrowLeft') onPrev?.();
+      if (e.key === 'ArrowRight') onNext?.();
+    };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -43,7 +47,7 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate }) 
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [portalTarget, onClose]);
+  }, [portalTarget, onClose, onPrev, onNext]);
 
   // 휠 줌 — React의 wheel은 passive라 preventDefault가 안 되므로 네이티브로 바인딩
   // (라이트박스 뒤의 PDF 스크롤이 함께 움직이는 것을 막는다)
@@ -220,6 +224,22 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate }) 
           aria-label="Close image viewer"
           title="Close (Esc)"
         >✕</button>
+        {onPrev && (
+          <button
+            className="pdf-annotator__lightbox-prev"
+            onClick={onPrev}
+            aria-label="Previous image"
+            title="Previous (←)"
+          >‹</button>
+        )}
+        {onNext && (
+          <button
+            className="pdf-annotator__lightbox-next"
+            onClick={onNext}
+            aria-label="Next image"
+            title="Next (→)"
+          >›</button>
+        )}
         {onRotate && (
           <>
             <button

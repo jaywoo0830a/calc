@@ -86,4 +86,48 @@
       --scanic-surface-fg: #ece5d8;
     }
   }
+
+  // 📒 이미지/요약 모드 토글 + 페이지 범위 입력
+  &__mode {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    flex-wrap: wrap;
+  }
+
+  &__mode-btn {
+    padding: 0.25rem 0.75rem;
+    border: $border-thin solid rgba(107, 96, 80, 0.4);
+    border-radius: 999px;
+    background: transparent;
+    color: $c-ink-soft;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+
+    &--active {
+      background: rgba(92, 61, 46, 0.14);
+      border-color: $c-accent;
+      color: $c-accent;
+    }
+  }
+
+  &__range {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: $c-ink-soft;
+    font-size: $fs-step--2;
+
+    input {
+      width: 3.2rem;
+      padding: 0.15rem 0.35rem;
+      border: $border-thin solid rgba(107, 96, 80, 0.4);
+      border-radius: $radius-md;
+      background: $c-paper;
+      color: $c-ink;
+      font-size: $fs-step--2;
+      text-align: center;
+    }
+  }
 }

@@ -11,14 +11,28 @@ const METHOD_LABEL = { ml: '🧠 Scanned by ML', classic: '📐 Scanned by Class
  * → Apply 시 원근 보정 → onApply({ dataUrl, aspect })
  * Cancel/Esc → onCancel()
  */
-export default function ScanAreaModal({ dataUrl, aspect = 1, onApply, onCancel }) {
+export default function ScanAreaModal({ dataUrl, aspect = 1, onApply, onCancel, suggestedRange }) {
   const hostRef = useRef(null);
   const editorRef = useRef(null);
   const busyRef = useRef(false);
   const methodRef = useRef('manual'); // 어떤 디텍터가 감지했는지 — Apply 결과에 실어 보낸다
+  const kindRef = useRef('image');    // 🖼️ image | 📒 summary — Apply 결과에 실어 보낸다
+  const rangeRef = useRef({
+    start: Number(suggestedRange?.start) || 1,
+    end: Number(suggestedRange?.end) || 1,
+  });
   const [method, setMethod] = useState(null);
+  const [kind, setKind] = useState('image');
+  const [range, setRange] = useState(() => ({ ...rangeRef.current }));
   const cbRef = useRef({ onApply, onCancel });
   cbRef.current = { onApply, onCancel };
+
+  const setKindBoth = (k) => { kindRef.current = k; setKind(k); };
+  const setRangeBoth = (patch) => {
+    const next = { ...rangeRef.current, ...patch };
+    rangeRef.current = next;
+    setRange(next);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +62,14 @@ export default function ScanAreaModal({ dataUrl, aspect = 1, onApply, onCancel }
           try {
             const result = await scanWithCorners(img, corners);
             try { editorRef.current?.destroy(); } catch { /* 이미 파괴됨 */ }
-            cbRef.current.onApply({ dataUrl: result.dataUrl, aspect: result.aspect, method: methodRef.current });
+            cbRef.current.onApply({
+              dataUrl: result.dataUrl,
+              aspect: result.aspect,
+              method: methodRef.current,
+              kind: kindRef.current,
+              rangeStart: Number(rangeRef.current.start) || 0,
+              rangeEnd: Number(rangeRef.current.end) || 0,
+            });
           } catch (err) {
             busyRef.current = false;
             console.warn('[scan-area] extract failed:', err);
@@ -77,6 +98,34 @@ export default function ScanAreaModal({ dataUrl, aspect = 1, onApply, onCancel }
             </span>
           ) : (
             <span className="scan-area-modal__hint">Detecting document edges…</span>
+          )}
+        </div>
+        <div className="scan-area-modal__mode">
+          <button
+            className={'scan-area-modal__mode-btn' + (kind === 'image' ? ' scan-area-modal__mode-btn--active' : '')}
+            onClick={() => setKindBoth('image')}
+            title="Place as a regular image annotation"
+          >🖼️ Image</button>
+          <button
+            className={'scan-area-modal__mode-btn' + (kind === 'summary' ? ' scan-area-modal__mode-btn--active' : '')}
+            onClick={() => setKindBoth('summary')}
+            title="Place as a summary note covering a page range"
+          >📒 Summary</button>
+          {kind === 'summary' && (
+            <label className="scan-area-modal__range">
+              covers pages
+              <input
+                type="number" min="1" value={range.start}
+                onChange={(e) => setRangeBoth({ start: e.target.value })}
+                aria-label="Summary start page"
+              />
+              –
+              <input
+                type="number" min="1" value={range.end}
+                onChange={(e) => setRangeBoth({ end: e.target.value })}
+                aria-label="Summary end page"
+              />
+            </label>
           )}
         </div>
         <div className="scan-area-modal__host" ref={hostRef} />

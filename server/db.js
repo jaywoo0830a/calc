@@ -146,6 +146,13 @@ db.exec(`
     if (!cols.some((c) => c.name === 'scanner')) {
       db.exec("ALTER TABLE annotations ADD COLUMN scanner TEXT NOT NULL DEFAULT ''");
     }
+    // 📒 요약 주석 페이지 범위 (0 = 일반 이미지 주석)
+    if (!cols.some((c) => c.name === 'range_start')) {
+      db.exec('ALTER TABLE annotations ADD COLUMN range_start INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!cols.some((c) => c.name === 'range_end')) {
+      db.exec('ALTER TABLE annotations ADD COLUMN range_end INTEGER NOT NULL DEFAULT 0');
+    }
   }
 }
 
@@ -393,6 +400,8 @@ export const annotations = {
       dataUrl: r.data_url || '',
       aspect: Number(r.aspect) || 0,
       scanner: r.scanner || '',
+      rangeStart: Number(r.range_start) || 0,
+      rangeEnd: Number(r.range_end) || 0,
       updatedAt: r.updated_at,
     }));
   },
@@ -407,7 +416,7 @@ export const annotations = {
       ).all(filePath),
     };
   },
-  upsert({ id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count, dataUrl, aspect, scanner }) {
+  upsert({ id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count, dataUrl, aspect, scanner, rangeStart, rangeEnd }) {
     const now = new Date().toISOString();
     const exists = db.prepare('SELECT id FROM annotations WHERE id = ?').get(id);
     const data = {
@@ -419,6 +428,8 @@ export const annotations = {
       dataUrl: String(dataUrl || ''),
       aspect: Number(aspect) || 0,
       scanner: String(scanner || ''),
+      rangeStart: Number(rangeStart) || 0,
+      rangeEnd: Number(rangeEnd) || 0,
     };
     if (exists) {
       db.prepare(`
@@ -426,13 +437,14 @@ export const annotations = {
         SET file_path = @filePath, page_number = @pageNumber, type = @type,
             color = @color, style = @style, text = @text, rect = @rect,
             status = @status, attempts = @attempts, wrong_count = @wrong_count,
-            data_url = @dataUrl, aspect = @aspect, scanner = @scanner, updated_at = @now
+            data_url = @dataUrl, aspect = @aspect, scanner = @scanner,
+            range_start = @rangeStart, range_end = @rangeEnd, updated_at = @now
         WHERE id = @id
       `).run({ ...data, now });
     } else {
       db.prepare(`
-        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, status, attempts, wrong_count, data_url, aspect, scanner, created_at, updated_at)
-        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @status, @attempts, @wrong_count, @dataUrl, @aspect, @scanner, @now, @now)
+        INSERT INTO annotations (id, file_path, page_number, type, color, style, text, rect, status, attempts, wrong_count, data_url, aspect, scanner, range_start, range_end, created_at, updated_at)
+        VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @status, @attempts, @wrong_count, @dataUrl, @aspect, @scanner, @rangeStart, @rangeEnd, @now, @now)
       `).run({ ...data, now });
     }
     // 재생성 시 삭제 톰스톤 제거 (다른 기기가 삭제를 반영하지 않도록)
@@ -445,6 +457,8 @@ export const annotations = {
       dataUrl: String(dataUrl || ''),
       aspect: Number(aspect) || 0,
       scanner: String(scanner || ''),
+      rangeStart: Number(rangeStart) || 0,
+      rangeEnd: Number(rangeEnd) || 0,
       updatedAt: now,
     };
   },

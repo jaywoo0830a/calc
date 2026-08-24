@@ -130,7 +130,10 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const pendingImageRef = useRef(null);            // 이미지 배치 위치 { pageNumber, x, y }
   const scanPendingRef = useRef(null);             // 📐 스캔 세션 중 배치 위치 보관 — setTool(null) effect가 pendingImageRef를 비워도 유지
   const [imageChoice, setImageChoice] = useState(null); // 📷/🖼️ 선택 팝업 위치 { px, py }
-  const [scanImage, setScanImage] = useState(null);     // 📐 scanic 스캔 영역 지정 세션 { dataUrl, aspect }
+  const [scanImage, setScanImage] = useState(null);     // 📐 scanic 스캔 영역 지정 세션 { dataUrl, aspect, suggestedRange }
+  const [summariesOpen, setSummariesOpen] = useState(false); // 📒 요약 모아보기 사이드바
+  const [summariesOnly, setSummariesOnly] = useState(false); // 📒 요약만 보기 모드
+  const [browseIndex, setBrowseIndex] = useState(null);      // 📒 요약 브라우즈 라이트박스 인덱스
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -836,7 +839,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   }, [tool]);
 
   // ── 🖼️ 이미지 주석 — 파일 압축 후 해당 위치에 배치 ──────────
-  const placeImage = useCallback(async (dataUrl, aspect, scanner) => {
+  const placeImage = useCallback(async (dataUrl, aspect, scanner, opts = {}) => {
     const pending = pendingImageRef.current || scanPendingRef.current;
     pendingImageRef.current = null;
     scanPendingRef.current = null;
@@ -848,16 +851,22 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     const annotation = {
       filePath,
       pageNumber: pending.pageNumber,
-      type: 'image',
+      type: opts.kind === 'summary' ? 'summary' : 'image',
       dataUrl,
       aspect,
       scanner: scanner || '', // 어떤 디텍터가 스캔했는지 (ml | classic | manual)
+      rangeStart: opts.kind === 'summary' ? (Number(opts.rangeStart) || 0) : 0,
+      rangeEnd: opts.kind === 'summary' ? (Number(opts.rangeEnd) || 0) : 0,
       rect: fitImageRect({ x: pending.x, y: pending.y, w: 0.4 }, aspect, pageAspect),
     };
     const saved = await saveAnnotation(annotation);
     setAnnotations((prev) => [...prev, saved]);
     const label = scanner === 'ml' ? 'ML' : scanner === 'classic' ? 'Classic' : 'Manual';
-    setToast(`🖼️ Image added — Scanned by ${label}`);
+    if (annotation.type === 'summary') {
+      setToast(`📒 Summary added — p.${annotation.rangeStart || '?'}–${annotation.rangeEnd || '?'} (Scanned by ${label})`);
+    } else {
+      setToast(`🖼️ Image added — Scanned by ${label}`);
+    }
   }, [filePath]);
 
   const handleImageSelected = useCallback(async (e) => {
@@ -881,18 +890,30 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       // 📐 scanic — 스캔 영역 지정 모달 (모서리 드래그 → Apply → 원근 보정)
       // setTool(null)의 effect가 pendingImageRef를 비우므로 세션용 ref에 보관
       scanPendingRef.current = pending;
-      setScanImage({ dataUrl, aspect });
+      // 📒 요약 범위 자동 제안 — 이전 요약의 끝 페이지 다음부터 현재 페이지까지
+      const lastEnd = annotations
+        .filter((a) => a.type === 'summary')
+        .reduce((m, s) => Math.max(m, Number(s.rangeEnd) || s.pageNumber || 0), 0);
+      setScanImage({
+        dataUrl,
+        aspect,
+        suggestedRange: { start: lastEnd ? lastEnd + 1 : 1, end: pending.pageNumber },
+      });
     } catch {
       pendingImageRef.current = null;
       scanPendingRef.current = null;
       setToast('Could not read that image');
     }
-  }, [placeImage]);
+  }, [placeImage, annotations]);
 
   // 📐 scanic 영역 지정 결과 — Apply → 원근 보정된 이미지 배치
   const handleScanApply = useCallback(async (result) => {
     setScanImage(null);
-    await placeImage(result.dataUrl, result.aspect, result.method);
+    await placeImage(result.dataUrl, result.aspect, result.method, {
+      kind: result.kind,
+      rangeStart: result.rangeStart,
+      rangeEnd: result.rangeEnd,
+    });
   }, [placeImage]);
 
   const handleScanCancel = useCallback(() => {
@@ -1007,6 +1028,32 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     [annotations]
   );
 
+  // 📒 요약 필기 — 페이지 범위순 정렬 (요약만 보기/브라우즈 모드의 순서 기준)
+  const summaries = useMemo(
+    () => annotations
+      .filter((a) => a.type === 'summary')
+      .sort((a, b) => (a.rangeStart || a.pageNumber) - (b.rangeStart || b.pageNumber)),
+    [annotations]
+  );
+
+  // 📒 요약 브라우즈 라이트박스에서 회전 — dataUrl 회전 + aspect 역수 + 저장
+  const rotateSummaryBy = useCallback(async (index, deg) => {
+    const s = summaries[index];
+    if (!s) return;
+    try {
+      const rotated = await rotateImageDataUrl(s.dataUrl, deg);
+      const newAspect = 1 / (s.aspect || 1);
+      const patch = { dataUrl: rotated, aspect: newAspect };
+      const el = document.querySelector(`[data-page="${s.pageNumber}"]`);
+      const canvasRect = getPageCanvasRect(el);
+      if (canvasRect) {
+        const pageAspect = canvasRect.height / canvasRect.width;
+        patch.rect = fitImageRect(s.rect, newAspect, pageAspect);
+      }
+      await updateImageRect(s.id, patch);
+    } catch { /* 회전 실패 시 무시 */ }
+  }, [summaries, updateImageRect]);
+
   // 주석 모아보기에서 클릭 → 해당 페이지로 이동 후 주석 플래시
   const jumpToAnnotation = useCallback((a) => {
     setAnnotationsOpen(false);
@@ -1115,6 +1162,27 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             title="Bookmarks"
           >
             🔖 Bookmarks
+          </button>
+          <button
+            className={'pdf-annotator__tool' + (summariesOpen ? ' pdf-annotator__tool--active' : '')}
+            onClick={() => setSummariesOpen(!summariesOpen)}
+            title="Summary notes"
+          >
+            📒 Summaries
+          </button>
+          <button
+            className={'pdf-annotator__tool' + (summariesOnly ? ' pdf-annotator__tool--active' : '')}
+            onClick={() => {
+              const next = !summariesOnly;
+              setSummariesOnly(next);
+              setBrowseIndex(null);
+              if (next && summaries.length === 0) {
+                setToast('No summaries yet — place a scanned photo as 📒 Summary');
+              }
+            }}
+            title="Show only summary notes"
+          >
+            📒 Browse
           </button>
           <button
             className={'pdf-annotator__tool' + (problemsOpen ? ' pdf-annotator__tool--active' : '')}
@@ -1249,16 +1317,17 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       {/* Notes Sidebar — 주석 모아보기 (클릭 → 해당 페이지/주석으로 이동) */}
       <div className={'pdf-annotator__toc-sidebar' + (annotationsOpen ? ' pdf-annotator__toc-sidebar--open' : '')}>
         <div className="pdf-annotator__toc-header">
-          <span>🗒️ Notes ({annotations.length})</span>
+          <span>🗒️ Notes ({annotations.filter((a) => a.type !== 'summary').length})</span>
           <button className="pdf-annotator__toc-close" onClick={() => setAnnotationsOpen(false)}>×</button>
         </div>
         <div className="pdf-annotator__toc-list">
-          {annotations.length === 0 ? (
+          {annotations.filter((a) => a.type !== 'summary').length === 0 ? (
             <div className="pdf-annotator__toc-item" style={{ opacity: 0.5, cursor: 'default' }}>
               No notes yet
             </div>
           ) : (
             [...annotations]
+              .filter((a) => a.type !== 'summary') // 📒 요약은 Summaries 패널에서만
               .sort((a, b) => a.pageNumber - b.pageNumber)
               .map((a) => (
                 <div key={a.id} className="pdf-annotator__note">
@@ -1299,6 +1368,45 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         </div>
       </div>
       <div className="pdf-annotator__toc-overlay" onClick={() => setAnnotationsOpen(false)} />
+
+      {/* 📒 Summaries Sidebar — 요약 필기 모아보기 (범위순, 클릭 → 해당 페이지로) */}
+      <div className={'pdf-annotator__toc-sidebar' + (summariesOpen ? ' pdf-annotator__toc-sidebar--open' : '')}>
+        <div className="pdf-annotator__toc-header">
+          <span>📒 Summaries ({summaries.length})</span>
+          <button className="pdf-annotator__toc-close" onClick={() => setSummariesOpen(false)}>×</button>
+        </div>
+        <div className="pdf-annotator__toc-list">
+          {summaries.length === 0 ? (
+            <div className="pdf-annotator__toc-item" style={{ opacity: 0.5, cursor: 'default' }}>
+              No summaries yet — place a scanned photo as 📒 Summary
+            </div>
+          ) : (
+            summaries.map((s) => (
+              <div key={s.id} className="pdf-annotator__note">
+                <button
+                  className="pdf-annotator__note-open"
+                  onClick={() => { jumpToAnnotation(s); setSummariesOpen(false); }}
+                  title={`Go to page ${s.pageNumber}`}
+                >
+                  <span className="pdf-annotator__note-icon">📒</span>
+                  <span className="pdf-annotator__note-body">
+                    <span className="pdf-annotator__note-page">
+                      p.{s.rangeStart || s.pageNumber}–{s.rangeEnd || s.pageNumber}
+                    </span>
+                    <img className="pdf-annotator__note-thumb" src={s.dataUrl} alt="" />
+                  </span>
+                </button>
+                <button
+                  className="pdf-annotator__delete-btn"
+                  onClick={() => removeAnnotation(s.id)}
+                  title="Delete summary"
+                >×</button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+      <div className="pdf-annotator__toc-overlay" onClick={() => setSummariesOpen(false)} />
 
       {/* Problems Sidebar — 풀스크린 포함 접근 가능 */}
       <div className={'pdf-annotator__toc-sidebar' + (problemsOpen ? ' pdf-annotator__toc-sidebar--open' : '')}>
@@ -1543,6 +1651,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           {[currentPage - 1].filter(i => i >= 0 && i < numPages).map((i) => {
             const pageNumber = i + 1;
             const annos = pageAnnotations(pageNumber);
+            // 📒 요약만 보기 모드 — 요약 주석 외에는 전부 숨김
+            const visAnnos = summariesOnly ? annos.filter((a) => a.type === 'summary') : annos;
             const pageHits = searchOpen ? searchHits.get(pageNumber) : undefined;
             const vw = window.innerWidth;
             // Dynamic scaling: fit page within viewport comfortably
@@ -1573,7 +1683,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                   onRenderSuccess={() => setPageRenderTick(t => t + 1)}
                 />
                 {/* Annotation overlay */}
-                {annos.map((a) => a.type === 'image' ? (
+                {visAnnos.map((a) => (a.type === 'image' || a.type === 'summary') ? (
                   <ImageOverlay
                     key={a.id}
                     annotation={a}
@@ -1588,6 +1698,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                     annotation={a}
                     pageEl={pageRefs.current[pageNumber]}
                     onDelete={removeAnnotation}
+                    onSave={updateImageRect}
                     eraseMode={tool === 'erase'}
                     viewOpen={openCommentId === a.id}
                     onViewComment={setOpenCommentId}
@@ -1800,8 +1911,51 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         <ScanAreaModal
           dataUrl={scanImage.dataUrl}
           aspect={scanImage.aspect}
+          suggestedRange={scanImage.suggestedRange}
           onApply={handleScanApply}
           onCancel={handleScanCancel}
+        />
+      )}
+      {/* 📒 요약만 보기 모드 — 하단 필름스트립 (썸네일 클릭 → 전체화면 브라우즈) */}
+      {summariesOnly && (
+        <div className="pdf-annotator__summary-strip">
+          <div className="pdf-annotator__summary-strip-head">
+            <span>📒 Summaries ({summaries.length})</span>
+            <button
+              className="pdf-annotator__summary-strip-exit"
+              onClick={() => { setSummariesOnly(false); setBrowseIndex(null); }}
+              title="Exit summaries mode"
+            >✕</button>
+          </div>
+          {summaries.length === 0 ? (
+            <div className="pdf-annotator__summary-strip-empty">
+              No summaries yet — place a scanned photo as 📒 Summary
+            </div>
+          ) : (
+            <div className="pdf-annotator__summary-strip-list">
+              {summaries.map((s, i) => (
+                <button
+                  key={s.id}
+                  className="pdf-annotator__summary-strip-item"
+                  onClick={() => setBrowseIndex(i)}
+                  title={`View summary p.${s.rangeStart || s.pageNumber}–${s.rangeEnd || s.pageNumber}`}
+                >
+                  <img src={s.dataUrl} alt="" />
+                  <span>p.{s.rangeStart || s.pageNumber}–{s.rangeEnd || s.pageNumber}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {/* 📒 요약 브라우즈 라이트박스 — ‹ ›로 순서대로 넘기기, ↺↻ 회전 */}
+      {browseIndex !== null && summaries[browseIndex] && (
+        <ImageLightbox
+          dataUrl={summaries[browseIndex].dataUrl}
+          onClose={() => setBrowseIndex(null)}
+          onRotate={(deg) => rotateSummaryBy(browseIndex, deg)}
+          onPrev={summaries[browseIndex - 1] ? () => setBrowseIndex(browseIndex - 1) : null}
+          onNext={summaries[browseIndex + 1] ? () => setBrowseIndex(browseIndex + 1) : null}
         />
       )}
       <ClearGate {...gateProps} />
@@ -1817,7 +1971,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
  *  위치를 다시 계산해야 하므로 부모 리렌더마다 갱신한다. 값 비교로 불필요한
  *  setState는 막아 루프 없이 안정적으로 동작한다)
  */
-function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, onViewComment, onEditComment, onToggleStatus }) {
+function AnnotationOverlay({ annotation, pageEl, onDelete, onSave, eraseMode, viewOpen, onViewComment, onEditComment, onToggleStatus }) {
   // Always find page element fresh from DOM — prop may be stale after page navigation
   const getPageEl = () => document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
   const [rect, setRect] = useState(null);
@@ -1861,17 +2015,83 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
     ? handleDelete
     : (e) => {
         e.stopPropagation();
+        if (movedRef.current) return; // 드래그 직후 클릭 무시 (이미지 주석과 동일)
         if (viewOpen) onEditComment(annotation, e);
         else onViewComment(annotation.id);
       };
-  // 툴팁 본문을 터치해도 바로 수정 (지우개 모드 제외)
-  const handleTooltipClick = eraseMode ? undefined : (e) => { e.stopPropagation(); onEditComment(annotation, e); };
+  // 툴팁 본문을 터치해도 바로 수정 (지우개 모드 제외, 드래그 직후 클릭 무시)
+  const handleTooltipClick = eraseMode ? undefined : (e) => {
+    e.stopPropagation();
+    if (movedRef.current) return;
+    onEditComment(annotation, e);
+  };
   // 문제 코멘트(✗/✓ 상태)와 일반 텍스트 코멘트는 툴팁 액션이 다르다
   const isProblemComment = annotation.status === 'wrong' || annotation.status === 'solved';
+
+  // ── 💬 코멘트 마커 드래그 — 이미지 주석처럼 끌어서 위치 갱신 (드래그 후 저장) ──
+  const markerElRef = useRef(null);
+  const dragRef = useRef(null);   // { px, py, left, top }
+  const movedRef = useRef(false); // 탭(툴팁) vs 드래그 구분 — 다음 pointerdown까지 유지
+
+  const startCommentDrag = (e) => {
+    if (eraseMode) return;
+    if (e.target && e.target.closest && e.target.closest('button')) return; // 툴팁 버튼/삭제 버튼은 클릭으로
+    const el = markerElRef.current;
+    if (!el) return;
+    e.stopPropagation();
+    dragRef.current = {
+      px: e.clientX,
+      py: e.clientY,
+      left: parseFloat(el.style.left) || (markerPos?.left ?? 0),
+      top: parseFloat(el.style.top) || (markerPos?.top ?? 0),
+    };
+    movedRef.current = false;
+    el.style.willChange = 'left, top';
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* 합성 이벤트 무시 */ }
+  };
+
+  const moveCommentDrag = (e) => {
+    const d = dragRef.current;
+    const el = markerElRef.current;
+    if (!d || !el) return;
+    const dx = e.clientX - d.px;
+    const dy = e.clientY - d.py;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) movedRef.current = true;
+    el.style.left = `${d.left + dx}px`;
+    el.style.top = `${d.top + dy}px`;
+  };
+
+  const endCommentDrag = () => {
+    const el = markerElRef.current;
+    if (!dragRef.current) {
+      if (el) el.style.willChange = '';
+      return;
+    }
+    dragRef.current = null;
+    if (!el) return;
+    el.style.willChange = '';
+    if (!movedRef.current) return; // 탭 — 클릭 핸들러가 툴팁/수정 처리
+    // 위치 저장 — wrapper 기준 px → 캔버스 기준 정규화 좌표 (렌더 경로와 동일한 역변환)
+    const page = getPageEl();
+    const canvasRect = getPageCanvasRect(page);
+    const wrapperRect = page ? page.getBoundingClientRect() : null;
+    if (!canvasRect || !wrapperRect) return;
+    const x = (parseFloat(el.style.left) + wrapperRect.left - canvasRect.left) / canvasRect.width;
+    const y = (parseFloat(el.style.top) + wrapperRect.top - canvasRect.top) / canvasRect.height;
+    onSave(annotation.id, {
+      rect: {
+        x: Math.max(0.02, Math.min(0.98, x)),
+        y: Math.max(0.02, Math.min(0.98, y)),
+        w: annotation.rect.w || 0.03,
+        h: annotation.rect.h || 0.03,
+      },
+    });
+  };
 
   if (annotation.type === 'comment') {
     return (
       <div
+        ref={markerElRef}
         data-annotation-id={annotation.id}
         className={'pdf-annotator__comment-marker' +
           (eraseMode ? ' pdf-annotator__comment-marker--erasable' : ' pdf-annotator__comment-marker--viewable') +
@@ -1886,6 +2106,10 @@ function AnnotationOverlay({ annotation, pageEl, onDelete, eraseMode, viewOpen, 
           top: markerPos ? markerPos.top : rect ? rect.top : `${annotation.rect.y * 100}%`,
         }}
         title={annotation.text}
+        onPointerDown={startCommentDrag}
+        onPointerMove={moveCommentDrag}
+        onPointerUp={endCommentDrag}
+        onPointerCancel={endCommentDrag}
         onClick={handleCommentClick}
       >
         <span className="pdf-annotator__comment-icon" aria-hidden>
@@ -2102,7 +2326,7 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
         }}
         title={eraseMode ? 'Delete image' : 'Tap to view image'}
       >
-        🖼️
+        {annotation.type === 'summary' ? '📒' : '🖼️'}
         {eraseMode && <span className="pdf-annotator__image-note-erase">🗑️</span>}
       </div>
     );
@@ -2129,6 +2353,11 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
       {!eraseMode && annotation.scanner && (
         <span className="pdf-annotator__image-note-scanner" title="Document scanner detector">
           {annotation.scanner === 'ml' ? 'Scanned by ML' : annotation.scanner === 'classic' ? 'Scanned by Classic' : 'Manual'}
+        </span>
+      )}
+      {!eraseMode && annotation.type === 'summary' && (annotation.rangeStart || annotation.rangeEnd) > 0 && (
+        <span className="pdf-annotator__image-note-summary" title="Summary covers these pages">
+          📒 p.{annotation.rangeStart || '?'}–{annotation.rangeEnd || '?'}
         </span>
       )}
       {!eraseMode && (
