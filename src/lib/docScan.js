@@ -7,13 +7,14 @@ const BASE = '/api';
 
 /**
  * dataUrl 이미지에서 문서/보드 영역을 자동 인식해 원근 보정 크롭
+ * @param {object} [opts] { maxDim=1600, dewarp=1 (정류 강도 0~2), smooth=1 (블러 반경 0~5) }
  * @returns {Promise<{dataUrl: string, aspect: number, method: string} | {skipped: true}>}
  */
-export async function autoCropDataUrl(dataUrl, { maxDim = 1600 } = {}) {
+export async function autoCropDataUrl(dataUrl, { maxDim = 1600, dewarp = 1, smooth = 1 } = {}) {
   const res = await fetch(BASE + '/scan', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dataUrl, maxDim }),
+    body: JSON.stringify({ dataUrl, maxDim, dewarp, smooth }),
   });
   if (!res.ok) {
     let msg = `scan failed (${res.status})`;

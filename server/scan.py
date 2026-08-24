@@ -19,6 +19,7 @@ import sys
 from PIL import Image
 
 from scan_core import (
+    extreme_corners,
     monotone_hull,
     order_corners,
     quad_area,
@@ -40,7 +41,12 @@ def load_ocr():
 
 
 def text_quad(img):
-    """RapidOCR 텍스트 상자 → 종이 4각형 (탐지 실패 시 None)."""
+    """RapidOCR 텍스트 상자 → 종이 4각형 (탐지 실패 시 None).
+
+    1) OCR 라인 박스 꼭짓점들의 극점 모서리 — 사다리꼴(원근) 보존
+    2) 실패 시 볼록 껍질 → RDP 4점 단순화
+    3) 마지막 폴백: 축 정렬 bbox + 여백
+    """
     try:
         result, _ = load_ocr()(img)
     except Exception:
@@ -51,16 +57,25 @@ def text_quad(img):
     for item in result:
         for x, y in item[0]:
             pts.append((float(x), float(y)))
-    if len(pts) < 3:
+    if len(pts) < 4:
         return None
     w, h = img.size
-    hull = monotone_hull(pts)
-    quad = simplify_to_quad(hull)
-    if quad:
-        quad = order_corners(quad)
-        # 텍스트가 너무 적으면 전체를 못 덮음 → bbox+여백으로 확장
-        if quad_area(quad) < w * h * 0.04:
+    quad = extreme_corners(pts)
+    if quad is not None:
+        # 퇴화 검사: 극점 quad가 점들 AABB의 30% 미만이면(교차/기형) 폐기
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        aabb = (max(xs) - min(xs)) * (max(ys) - min(ys))
+        if quad_area(quad) < aabb * 0.3 or quad_area(quad) < w * h * 0.02:
             quad = None
+    if quad is None:
+        hull = monotone_hull(pts)
+        quad = simplify_to_quad(hull)
+        if quad:
+            quad = order_corners(quad)
+            # 텍스트가 너무 적으면 전체를 못 덮음 → bbox+여백으로 확장
+            if quad_area(quad) < w * h * 0.04:
+                quad = None
     if quad is None:
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
@@ -105,25 +120,43 @@ def yolo_quad(img):
         return None
 
 
-def warp_quad(img, corners, max_dim):
+def warp_quad(img, corners, max_dim, img_w, img_h):
     corners = shrink_quad(corners, 0.012)
-    ow, oh = size_for_quad(corners, max_dim)
+    ow, oh = size_for_quad(corners, max_dim, img_w, img_h)
     data = tuple(round(c) for p in corners for c in p)
     out = img.transform((ow, oh), Image.QUAD, data,
                         resample=Image.BICUBIC, fillcolor=(255, 255, 255))
-    return out
+    return out, ow / float(oh)
 
 
-def _try_rectify(img):
+def _try_rectify(img, dewarp=1.0, smooth=1):
     """DocGeoNet 정류 — 가중치/모듈 없으면 None (조용히 폴백)."""
     try:
         from rectify import rectify
-        return rectify(img)
+        return rectify(img, strength=dewarp, smooth=smooth)
     except Exception:
         return None
 
 
-def run(image_path, max_dim=1600):
+def _restore_aspect(img, doc_aspect, max_dim):
+    """정류 후 전역 '찌그러짐' 방지 — 사각형에서 추정한 종횡비로 복원."""
+    ra = img.width / float(img.height)
+    if abs(ra / doc_aspect - 1.0) <= 0.02:
+        return img
+    if ra > doc_aspect:  # 너무 넓음 → 세로 기준
+        nh = img.height
+        nw = max(2, int(round(nh * doc_aspect)))
+    else:                # 너무 좁음 → 가로 기준
+        nw = img.width
+        nh = max(2, int(round(nw / doc_aspect)))
+    m = max(nw, nh)
+    if m > max_dim:
+        s = max_dim / float(m)
+        nw, nh = max(2, int(nw * s)), max(2, int(nh * s))
+    return img.resize((nw, nh), Image.LANCZOS)
+
+
+def run(image_path, max_dim=1600, dewarp=1.0, smooth=1):
     try:
         img = Image.open(image_path).convert('RGB')
     except Exception:
@@ -142,13 +175,16 @@ def run(image_path, max_dim=1600):
 
     k = 1.0 / scale
     corners = [[x * k, y * k] for x, y in quad]
-    out = warp_quad(img, corners, max_dim)
+    out, doc_aspect = warp_quad(img, corners, max_dim, w, h)
 
-    # 4) DocGeoNet 정류 — 구부러진 문서 펼치기 (선택적)
-    rect = _try_rectify(out)
-    if rect is not None:
-        out = rect
-        method += '+geo'
+    # 4) DocGeoNet 정류 — 구부러진 문서 펼치기 (선택적, dewarp=0이면 꺼짐)
+    if float(dewarp) > 0.0:
+        rect = _try_rectify(out, dewarp, smooth)
+        if rect is not None:
+            out = rect
+            method += '+geo'
+            # 정류가 전역적으로 누르/늘리는 것 방지 — 종횡비 복원
+            out = _restore_aspect(out, doc_aspect, max_dim)
 
     m = max(out.width, out.height)
     if m > max_dim:
@@ -164,10 +200,12 @@ def run(image_path, max_dim=1600):
 
 def main():
     if len(sys.argv) < 2:
-        print(json.dumps({"ok": False, "reason": "usage: scan.py <image_path> [maxDim]"}))
+        print(json.dumps({"ok": False, "reason": "usage: scan.py <image_path> [maxDim] [dewarp] [smooth]"}))
         return
     max_dim = int(sys.argv[2]) if len(sys.argv) > 2 else 1600
-    print(json.dumps(run(sys.argv[1], max_dim)))
+    dewarp = float(sys.argv[3]) if len(sys.argv) > 3 else 1.0
+    smooth = int(sys.argv[4]) if len(sys.argv) > 4 else 1
+    print(json.dumps(run(sys.argv[1], max_dim, dewarp, smooth)))
 
 
 if __name__ == '__main__':

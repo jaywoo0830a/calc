@@ -16,7 +16,7 @@ import os
 import sys
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image
 
 import torch
 import torch.nn as nn
@@ -78,18 +78,41 @@ def _load():
     return _net
 
 
-def _resize_blur(ch, w, h):
-    """플로우 채널 [-1,1] → uint8 스케일 → 리사이즈(BILINEAR)+3×3 박스 블러 → 복원."""
-    arr = (ch * 127.5 + 127.5).clip(0, 255).astype(np.uint8)
-    img = Image.fromarray(arr, 'L').resize((w, h), Image.BILINEAR).filter(ImageFilter.BoxBlur(1))
-    return np.asarray(img, dtype=np.float32) / 127.5 - 1.0
+def _resize_flow(ch, w, h):
+    """플로우 채널 [-1,1]을 float 그대로 리사이즈 (uint8 양자화 없음)."""
+    return np.asarray(Image.fromarray(ch.astype(np.float32), 'F')
+                      .resize((w, h), Image.BILINEAR), dtype=np.float32)
 
 
-def rectify(img, max_side=1600):
-    """PIL 이미지 → 정류된 PIL 이미지. 모델/가중치 없거나 실패 시 None."""
+def _box_blur(arr, radius):
+    """numpy 박스 블러 (radius=1 → 3×3, 원본 cv2.blur와 동일 계열)."""
+    if radius <= 0:
+        return arr
+    k = 2 * radius + 1
+    p = np.pad(arr, ((radius, radius), (radius, radius)), mode='edge')
+    c = p.cumsum(axis=0).cumsum(axis=1)
+    return (c[k:, k:] - c[k:, :-k] - c[:-k, k:] + c[:-k, :-k]) / float(k * k)
+
+
+def _identity_flow(h, w):
+    """align_corners=True 좌표계의 항등 그리드 (x=열, y=행)."""
+    xs = np.linspace(-1.0, 1.0, w, dtype=np.float32)
+    ys = np.linspace(-1.0, 1.0, h, dtype=np.float32)
+    return np.stack([np.tile(xs, (h, 1)), np.tile(ys[:, None], (1, w))])  # (2, h, w)
+
+
+def rectify(img, max_side=1600, strength=1.0, smooth=1):
+    """PIL 이미지 → 정류된 PIL 이미지. 모델/가중치 없거나 실패 시 None.
+
+    strength: 정류 강도 — 0=원본 그대로, 1=모델 전체 적용(기본), 1.5=과적용
+    smooth:   플로우 박스 블러 반경(px) — 클수록 부드러운 워프 (기본 1)
+    """
     net = _load()
     if net is None:
         return None
+    s = min(2.0, max(0.0, float(strength)))
+    if s == 0.0:
+        return img  # 정류 꺼짐 — 항등 변환
     try:
         w0, h0 = img.size
         scale = min(1.0, max_side / float(max(w0, h0)))
@@ -101,10 +124,17 @@ def rectify(img, max_side=1600):
         im = torch.from_numpy(im256.transpose(2, 0, 1)).float().unsqueeze(0)
         with torch.no_grad():
             bm = net(im)[0].numpy()  # (2, 256, 256)
-        # 플로우를 원본 해상도로 확대 + 3×3 박스 블러 (원본 cv2.blur 동일 효과)
-        bm0 = _resize_blur(bm[0], w, h)
-        bm1 = _resize_blur(bm[1], w, h)
-        grid = torch.from_numpy(np.stack([bm0, bm1], axis=2)).unsqueeze(0).float()
+        # 플로우를 원본 해상도로 확대 (float 그대로)
+        bm = np.stack([_resize_flow(bm[0], w, h), _resize_flow(bm[1], w, h)])
+        # 정류 강도 — 항등 그리드와 블렌드
+        if s != 1.0:
+            idf = _identity_flow(h, w)
+            bm = idf + (bm - idf) * s
+        # 부드러움 — 박스 블러
+        if smooth:
+            r = max(0, int(smooth))
+            bm = np.stack([_box_blur(bm[0], r), _box_blur(bm[1], r)])
+        grid = torch.from_numpy(np.stack([bm[0], bm[1]], axis=2)).unsqueeze(0).float()
         src = torch.from_numpy(im_ori.transpose(2, 0, 1)).unsqueeze(0).float()
         out = F.grid_sample(src, grid, align_corners=True)
         out = (out[0] * 255.0).permute(1, 2, 0).numpy().clip(0, 255).astype(np.uint8)

@@ -2,7 +2,27 @@
 
 이미지 좌표계: y↓
 """
-from math import hypot
+from math import hypot, sqrt
+
+
+def extreme_corners(pts):
+    """여러 점에서 사다리꼴/직사각형의 4 극점 모서리를 [TL, TR, BR, BL]로 추출.
+
+    TL = x+y 최소, BR = x+y 최대, TR = y−x 최소, BL = y−x 최대 —
+    OCR 라인 박스들의 꼭짓점을 넣으면 문서 블록의 실제 모서리가 나온다
+    (볼록 껍질 RDP처럼 축 정렬 사각형으로 퇴화하지 않음).
+    """
+    if not pts:
+        return None
+    tl = min(pts, key=lambda p: p[0] + p[1])
+    br = max(pts, key=lambda p: p[0] + p[1])
+    tr = min(pts, key=lambda p: p[1] - p[0])
+    bl = max(pts, key=lambda p: p[1] - p[0])
+    out = [(float(x), float(y)) for x, y in (tl, tr, br, bl)]
+    # 4개가 모두 달라야 유효한 사각형
+    if len(set(out)) < 4:
+        return None
+    return out
 
 
 def order_corners(pts):
@@ -24,11 +44,132 @@ def _dist(a, b):
     return hypot(a[0] - b[0], a[1] - b[1])
 
 
-def size_for_quad(corners, max_dim=1600):
-    """평균 가로·세로 길이로 워프 타깃 크기 계산 (max_dim 이하)."""
+# ── 3차원 벡터 연산 (소실점 종횡비 추정용) ──
+def _v3(x, y, z):
+    return (x, y, z)
+
+
+def _dot3(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def _sub3(a, b):
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _cross3(a, b):
+    return (a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0])
+
+
+def _len3(a):
+    return sqrt(_dot3(a, a))
+
+
+def _norm3(a):
+    n = _len3(a)
+    return (a[0] / n, a[1] / n, a[2] / n) if n > 1e-12 else (0.0, 0.0, 0.0)
+
+
+def _scale3(s, a):
+    return (s * a[0], s * a[1], s * a[2])
+
+
+def _line_intersect(p1, p2, p3, p4):
+    """두 직선 p1p2, p3p4의 교점 (거의 평행이면 None)."""
+    x1, y1 = p1
+    x2, y2 = p2
+    x3, y3 = p3
+    x4, y4 = p4
+    d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(d) < 1e-9:
+        return None
+    n1 = x1 * y2 - y1 * x2
+    n2 = x3 * y4 - y3 * x4
+    return ((n1 * (x3 - x4) - (x1 - x2) * n2) / d,
+            (n1 * (y3 - y4) - (y1 - y2) * n2) / d)
+
+
+def aspect_for_quad(corners, img_w, img_h):
+    """종이(직사각형)의 실제 가로/세로 비율(w/h) 추정.
+
+    소실점 + 핀홀 카메라(주점=이미지 중심) 가정으로 원근 왜곡을 제거해 계산.
+    평균 변 길이 휴리스틱의 '찌그러짐'(aspect 오차)을 교정한다.
+    평행/퇴화 케이스는 변 길이 비로 폴백. 결과는 [0.2, 5.0]으로 클램프.
+    """
     tl, tr, br, bl = corners
-    w = (_dist(tl, tr) + _dist(bl, br)) / 2.0
-    h = (_dist(tl, bl) + _dist(tr, br)) / 2.0
+    vx = _line_intersect(tl, tr, bl, br)   # 가로 방향 소실점
+    vy = _line_intersect(tl, bl, tr, br)   # 세로 방향 소실점
+    limit = 1e6 * max(img_w, img_h)
+    if (vx is None or vy is None
+            or max(abs(vx[0]), abs(vx[1])) > limit
+            or max(abs(vy[0]), abs(vy[1])) > limit):
+        w = (_dist(tl, tr) + _dist(bl, br)) / 2.0
+        h = (_dist(tl, bl) + _dist(tr, br)) / 2.0
+        return min(max(w / max(1e-6, h), 0.2), 5.0)
+    px, py = img_w / 2.0, img_h / 2.0
+    ax, ay = vx[0] - px, vx[1] - py
+    bx, by = vy[0] - px, vy[1] - py
+    # 직교 방향 소실점: (vx-p)·(vy-p) = −f²  →  초점거리 f 복원
+    f2 = -(ax * bx + ay * by)
+    if f2 <= 0.0:
+        f = 1.4 * hypot(img_w, img_h)
+    else:
+        f = sqrt(f2)
+        f = min(max(f, 0.3 * hypot(img_w, img_h)), 5.0 * hypot(img_w, img_h))
+    # 소실점 → 3D 방향 벡터 (z=f 성분 포함)
+    def _dir2(q):
+        x, y = q[0] - px, q[1] - py
+        return _norm3(_v3(x, y, f))
+    u = _norm3(_v3(ax, ay, f))   # 가로축 방향
+    v = _norm3(_v3(bx, by, f))   # 세로축 방향
+    n = _cross3(u, v)
+    n = _norm3(n)
+    d0, d1, d2, d3 = _dir2(tl), _dir2(tr), _dir2(br), _dir2(bl)
+    if _dot3(n, d0) < 0.0:
+        n = _scale3(-1.0, n)
+    # 코너 광선을 문서 평면에 역투영해 변의 실제 길이비 계산
+    def _side(da, db):
+        na = _dot3(da, n)
+        nb = _dot3(db, n)
+        if abs(na) < 1e-6 or abs(nb) < 1e-6:
+            return None
+        return _sub3(_scale3(1.0 / nb, db), _scale3(1.0 / na, da))
+    w_vec = _side(d0, d1)   # 가로 변 (q0→q1)
+    h_vec = _side(d0, d3)   # 세로 변 (q0→q3)
+    if w_vec is None or h_vec is None:
+        w = (_dist(tl, tr) + _dist(bl, br)) / 2.0
+        h = (_dist(tl, bl) + _dist(tr, br)) / 2.0
+        return min(max(w / max(1e-6, h), 0.2), 5.0)
+    t = _len3(w_vec) / max(1e-6, _len3(h_vec))
+    t = min(max(t, 0.2), 5.0)
+    # 안전 가드: 소실점 추정이 변 길이 비와 크게 어긋나면(퇴화 케이스) 폴백
+    t_edges = ((_dist(tl, tr) + _dist(bl, br)) / 2.0) / max(1e-6, (_dist(tl, bl) + _dist(tr, br)) / 2.0)
+    if t < t_edges * 0.5 or t > t_edges * 2.0:
+        return min(max(t_edges, 0.2), 5.0)
+    return t
+
+
+def size_for_quad(corners, max_dim=1600, img_w=None, img_h=None):
+    """워프 타깃 크기 계산 (max_dim 이하).
+
+    img_w/img_h가 주어지면 소실점 기반의 실제 종횡비로 크기를 정해
+    원근 왜곡으로 인한 '찌그러짐'을 방지한다.
+    """
+    tl, tr, br, bl = corners
+    mean_w = (_dist(tl, tr) + _dist(bl, br)) / 2.0
+    mean_h = (_dist(tl, bl) + _dist(tr, br)) / 2.0
+    if img_w is not None and img_h is not None:
+        t = aspect_for_quad(corners, img_w, img_h)
+    else:
+        t = mean_w / max(1e-6, mean_h)
+    if t >= 1.0:
+        w = mean_w
+        h = w / t
+    else:
+        h = mean_h
+        w = h * t
     s = min(1.0, max_dim / max(w, h))
     return (max(2, int(round(w * s))), max(2, int(round(h * s))))
 

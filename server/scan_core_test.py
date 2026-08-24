@@ -5,6 +5,7 @@
 import unittest
 
 from scan_core import (
+    aspect_for_quad,
     expand_quad,
     monotone_hull,
     order_corners,
@@ -45,6 +46,41 @@ class SizeForQuadTest(unittest.TestCase):
         self.assertEqual(
             size_for_quad([[0, 0], [600, 0], [700, 400], [100, 400]], 1600),
             (600, round((100**2 + 400**2) ** 0.5)))
+
+    def test_frontoparallel_aspect(self):
+        # 정면 200×280 — 소실점 무한대 → 폴백, aspect 유지
+        self.assertEqual(
+            size_for_quad([[0, 0], [200, 0], [200, 280], [0, 280]], 1600, 2000, 2000),
+            (200, 280))
+
+
+class AspectForQuadTest(unittest.TestCase):
+    def test_affine_frontoparallel(self):
+        quad = [[0, 0], [200, 0], [200, 280], [0, 280]]
+        self.assertAlmostEqual(aspect_for_quad(quad, 2000, 2000), 200 / 280, places=3)
+
+    def test_perspective_known_camera(self):
+        # 핀홀 K(f=1000, 주점=(1000,1000)) — 두 축으로 기울어진 평면 위 12×17 직사각형
+        import math
+        W, H = 12.0, 17.0
+        theta, phi = math.radians(25), math.radians(15)
+        ct, st = math.cos(theta), math.sin(theta)
+        cp, sp = math.cos(phi), math.sin(phi)
+        z0, f = 600.0, 1000.0
+        quad = []
+        for x3, y3 in ((-W / 2, -H / 2), (W / 2, -H / 2), (W / 2, H / 2), (-W / 2, H / 2)):
+            X = x3 * ct + z0 * st
+            Z1 = -x3 * st + z0 * ct
+            Y = y3 * cp + Z1 * sp
+            Z = -y3 * sp + Z1 * cp
+            quad.append([1000.0 + f * X / Z, 1000.0 + f * Y / Z])
+        t = aspect_for_quad(quad, 2000, 2000)
+        self.assertAlmostEqual(t, W / H, delta=0.03 * W / H)
+
+    def test_trapezoid_parallel_sides(self):
+        quad = [[0, 0], [600, 0], [700, 400], [100, 400]]
+        t = aspect_for_quad(quad, 2000, 2000)
+        self.assertAlmostEqual(t, 600 / (100**2 + 400**2) ** 0.5, places=3)
 
 
 class MarginTest(unittest.TestCase):
