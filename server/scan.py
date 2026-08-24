@@ -123,7 +123,7 @@ def _try_rectify(img):
         return None
 
 
-def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0):
+def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
     try:
         img = Image.open(image_path).convert('RGB')
     except Exception:
@@ -161,6 +161,10 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0):
         nh = max(2, int(round(out.height * (1.0 + stretch_y))))
         out = out.resize((nw, nh), Image.LANCZOS)
 
+    # 6) 90° 단위 회전 — 처리된 이미지에 적용 (0 = 그대로)
+    if rotate in (90, 180, 270):
+        out = out.rotate(rotate, expand=True)
+
     buf = io.BytesIO()
     out.save(buf, format='JPEG', quality=90)
     data_url = 'data:image/jpeg;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
@@ -170,12 +174,13 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0):
 
 def main():
     if len(sys.argv) < 2:
-        print(json.dumps({"ok": False, "reason": "usage: scan.py <image_path> [maxDim] [stretchX] [stretchY]"}))
+        print(json.dumps({"ok": False, "reason": "usage: scan.py <image_path> [maxDim] [stretchX] [stretchY] [rotate]"}))
         return
     max_dim = int(sys.argv[2]) if len(sys.argv) > 2 else 1600
     stretch_x = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
     stretch_y = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0
-    print(json.dumps(run(sys.argv[1], max_dim, stretch_x, stretch_y)))
+    rotate = int(sys.argv[5]) if len(sys.argv) > 5 else 0
+    print(json.dumps(run(sys.argv[1], max_dim, stretch_x, stretch_y, rotate)))
 
 
 if __name__ == '__main__':

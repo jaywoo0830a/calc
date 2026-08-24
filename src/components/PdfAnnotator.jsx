@@ -5,7 +5,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
 import { api } from '../lib/api.js';
 import { fitImageRect } from '../lib/imageRect.js';
-import { autoCropDataUrl } from '../lib/docScan.js';
+import { autoCropDataUrl, rotateImageDataUrl } from '../lib/docScan.js';
 import ClearGate from './ClearGate.jsx';
 import { useClearGate } from '../hooks/useClearGate.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -135,6 +135,9 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const stretchYRef = useRef(0);
   useEffect(() => { stretchXRef.current = stretchX; }, [stretchX]);
   useEffect(() => { stretchYRef.current = stretchY; }, [stretchY]);
+  const [rotate, setRotate] = useState(0);       // 🔄 처리된 이미지 회전 (0|90|180|270)
+  const rotateRef = useRef(0);
+  useEffect(() => { rotateRef.current = rotate; }, [rotate]);
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -751,6 +754,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           const res = await autoCropDataUrl(dataUrl, {
             stretchX: stretchXRef.current,
             stretchY: stretchYRef.current,
+            rotate: rotateRef.current,
           });
           if (res && res.dataUrl) {
             finalUrl = res.dataUrl;
@@ -765,6 +769,10 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           // 서버 오류 등 — 원본 그대로 사용
           console.warn('[doc-scan] auto-crop failed, using original:', err);
         }
+      } else if (rotateRef.current) {
+        // Auto-crop 꺼짐 — 회전은 클라이언트에서 적용
+        finalUrl = await rotateImageDataUrl(finalUrl, rotateRef.current);
+        if (rotateRef.current === 90 || rotateRef.current === 270) finalAspect = 1 / finalAspect;
       }
       // 세로 사진이 페이지를 벗어나 잘리지 않도록 처음부터 페이지 안으로 맞춘다
       const pageEl = pageRefs.current[pending.pageNumber] || document.querySelector(`[data-page="${pending.pageNumber}"]`);
@@ -958,6 +966,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                 title="Auto-detect the board/paper edges and crop like a document scanner"
               >
                 ✂️ Auto-crop
+              </button>
+              <button
+                className={'pdf-annotator__tool' + (rotate ? ' pdf-annotator__tool--active' : '')}
+                onClick={() => setRotate((r) => (r + 90) % 360)}
+                title="Rotate the processed image 90° clockwise"
+              >
+                🔄 {rotate}°
               </button>
               {autoCrop && (
                 <>
