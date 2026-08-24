@@ -9,7 +9,7 @@ import { clampPan, pinchView, zoomAt, toggleZoom } from '../lib/zoomView.js';
  * ─ Esc / ✕ / 배경 클릭: 닫기
  * 드래그 중에는 React 상태를 거치지 않고 DOM을 직접 조작한다 (ImageOverlay와 동일 전략).
  */
-export default function ImageLightbox({ dataUrl, alt = '', onClose }) {
+export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate }) {
   const portalTarget = useFullscreenPortal();
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const stageRef = useRef(null);
@@ -26,6 +26,11 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose }) {
     if (!el || !el.naturalWidth) return null;
     return { w: el.naturalWidth, h: el.naturalHeight };
   }, []);
+
+  // 🔄 회전 후 이미지 치수가 바뀌면 뷰(줌/팬) 초기화
+  useEffect(() => {
+    setView({ scale: 1, x: 0, y: 0 });
+  }, [dataUrl]);
 
   // Esc 닫기 + 배경 스크롤 잠금
   useEffect(() => {
@@ -215,7 +220,23 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose }) {
           aria-label="Close image viewer"
           title="Close (Esc)"
         >✕</button>
-        <div className="pdf-annotator__lightbox-hint">Click: zoom · Drag: pan · Wheel / Pinch: zoom · Esc: close</div>
+        {onRotate && (
+          <>
+            <button
+              className="pdf-annotator__lightbox-rotate"
+              onClick={() => onRotate(270)}
+              aria-label="Rotate counterclockwise 90°"
+              title="Rotate 90° counterclockwise"
+            >↺</button>
+            <button
+              className="pdf-annotator__lightbox-rotate pdf-annotator__lightbox-rotate--cw"
+              onClick={() => onRotate(90)}
+              aria-label="Rotate clockwise 90°"
+              title="Rotate 90° clockwise"
+            >↻</button>
+          </>
+        )}
+        <div className="pdf-annotator__lightbox-hint">Click: zoom · Drag: pan · Wheel / Pinch: zoom · ↺ ↻: rotate · Esc: close</div>
       </div>
     </div>,
     portalTarget

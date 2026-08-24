@@ -900,6 +900,33 @@
       }
     }
 
+    &-rotate {
+      position: absolute;
+      top: 0.75rem;
+      right: 4rem;                  // ✕ 왼쪽
+      width: 2.75rem;
+      height: 2.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(44, 36, 22, 0.7);
+      color: $c-ink-inverse;
+      font-size: 1.4rem;
+      cursor: pointer;
+      transition: background 0.15s ease;
+
+      &--cw {
+        right: 7.25rem;
+      }
+
+      @media (hover: hover) {
+        &:hover {
+          background: rgba(92, 61, 46, 0.9);
+        }
+      }
+    }
+
     &-hint {
       position: absolute;
       bottom: 0.75rem;

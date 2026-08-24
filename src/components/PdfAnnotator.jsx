@@ -2056,9 +2056,10 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
   };
 
   // 🔄 이미지 90° 회전 — dataUrl 회전 + aspect 역수 + 페이지 안으로 재맞춤 후 저장(동기화)
-  const rotateImage = async () => {
+  // 풀스크린 라이트박스에서만 호출 — deg 270 = ↺ CCW, deg 90 = ↻ CW
+  const rotateImageBy = async (deg) => {
     try {
-      const rotated = await rotateImageDataUrl(annotation.dataUrl, 90);
+      const rotated = await rotateImageDataUrl(annotation.dataUrl, deg);
       const newAspect = 1 / (annotation.aspect || 1);
       const el = document.querySelector(`[data-page="${annotation.pageNumber}"]`) || pageEl;
       const canvasRect = getPageCanvasRect(el);
@@ -2147,14 +2148,6 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
       )}
       {!eraseMode && (
         <button
-          className="pdf-annotator__image-note-rotate"
-          onClick={(e) => { e.stopPropagation(); rotateImage(); }}
-          title="Rotate 90°"
-          aria-label="Rotate 90°"
-        >🔄</button>
-      )}
-      {!eraseMode && (
-        <button
           className="pdf-annotator__image-note-close"
           onClick={(e) => { e.stopPropagation(); setOpen(false); }}
           title="Collapse image"
@@ -2166,6 +2159,7 @@ function ImageOverlay({ annotation, pageEl, onSave, onDelete, eraseMode }) {
         <ImageLightbox
           dataUrl={annotation.dataUrl}
           onClose={() => setLightbox(false)}
+          onRotate={rotateImageBy}
         />
       )}
     </div>
