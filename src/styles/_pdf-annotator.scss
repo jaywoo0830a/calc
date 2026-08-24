@@ -783,6 +783,28 @@
       }
     }
 
+    &-rotate {
+      position: absolute;
+      top: 1.5rem;
+      left: 0;
+      width: 1.5rem;
+      height: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(44, 36, 22, 0.7);
+      color: $c-ink-inverse;
+      font-size: $fs-step--2;
+      border-radius: 0 $radius-sm $radius-sm 0;
+      cursor: pointer;
+
+      @media (hover: hover) {
+        &:hover {
+          background: rgba(92, 61, 46, 0.9);
+        }
+      }
+    }
+
     &-close {
       position: absolute;
       top: 0;
