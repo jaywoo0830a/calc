@@ -87,6 +87,23 @@ db.exec(`
     created_at  TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_bookmarks_file ON bookmarks(file_path);
+
+  -- 삭제 전파용 톰스톤 (기기 간 동기화 — 삭제된 항목이 되살아나지 않게)
+  CREATE TABLE IF NOT EXISTS pdf_tombstones (
+    id         TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL,
+    file_path  TEXT NOT NULL,
+    deleted_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_tombstones_file ON pdf_tombstones(file_path);
+
+  -- 👣 페이지 따라가기 (교육용) — 파일별 최신 위치 (기기 식별 포함)
+  CREATE TABLE IF NOT EXISTS pdf_positions (
+    file_path  TEXT PRIMARY KEY,
+    page       INTEGER NOT NULL DEFAULT 1,
+    device     TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL
+  );
 `);
 
 // ── 마이그레이션: problems.solved_at 추가 (구버전 DB용) ─────────────────
@@ -329,7 +346,29 @@ export const vocabAliases = {
     db.prepare('DELETE FROM vocab_aliases WHERE word = ? AND alias = ?').run(word, alias);
   },
 };
+/** 👣 PDF 페이지 위치 — 교육용 따라가기 (기기 간 동기화) */
+export const pdfPosition = {
+  get(filePath) {
+    const r = db.prepare('SELECT file_path AS filePath, page, device, updated_at AS updatedAt FROM pdf_positions WHERE file_path = ?').get(filePath);
+    return r || null;
+  },
+  upsert(filePath, page, device) {
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO pdf_positions (file_path, page, device, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(file_path) DO UPDATE SET page = excluded.page, device = excluded.device, updated_at = excluded.updated_at
+    `).run(filePath, Number(page) || 1, String(device || ''), now);
+    return { filePath, page: Number(page) || 1, device: String(device || ''), updatedAt: now };
+  },
+};
+
 /** PDF 주석(하이라이트/밑줄/코멘트) — 클라우드 동기화 (기기 간 동일 표시) */
+function pruneTombstones() {
+  const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  db.prepare('DELETE FROM pdf_tombstones WHERE deleted_at < ?').run(cutoff);
+}
+
 export const annotations = {
   list(filePath) {
     const rows = db.prepare(
@@ -349,7 +388,19 @@ export const annotations = {
       rect: JSON.parse(r.rect || '{}'),
       dataUrl: r.data_url || '',
       aspect: Number(r.aspect) || 0,
+      updatedAt: r.updated_at,
     }));
+  },
+  meta(filePath) {
+    pruneTombstones();
+    return {
+      items: db.prepare(
+        'SELECT id, updated_at AS updatedAt FROM annotations WHERE file_path = ?'
+      ).all(filePath),
+      tombstones: db.prepare(
+        "SELECT id, deleted_at AS deletedAt FROM pdf_tombstones WHERE kind = 'annotation' AND file_path = ?"
+      ).all(filePath),
+    };
   },
   upsert({ id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count, dataUrl, aspect }) {
     const now = new Date().toISOString();
@@ -378,6 +429,8 @@ export const annotations = {
         VALUES (@id, @filePath, @pageNumber, @type, @color, @style, @text, @rect, @status, @attempts, @wrong_count, @dataUrl, @aspect, @now, @now)
       `).run({ ...data, now });
     }
+    // 재생성 시 삭제 톰스톤 제거 (다른 기기가 삭제를 반영하지 않도록)
+    db.prepare("DELETE FROM pdf_tombstones WHERE id = ? AND kind = 'annotation'").run(id);
     return {
       id, filePath, pageNumber, type, color, style, text, rect,
       status: String(status || ''),
@@ -385,12 +438,25 @@ export const annotations = {
       wrong_count: Number(wrong_count) || 0,
       dataUrl: String(dataUrl || ''),
       aspect: Number(aspect) || 0,
+      updatedAt: now,
     };
   },
   remove(id) {
+    const row = db.prepare('SELECT file_path FROM annotations WHERE id = ?').get(id);
     db.prepare('DELETE FROM annotations WHERE id = ?').run(id);
+    if (row) {
+      db.prepare(
+        "INSERT OR REPLACE INTO pdf_tombstones (id, kind, file_path, deleted_at) VALUES (?, 'annotation', ?, ?)"
+      ).run(id, row.file_path, new Date().toISOString());
+    }
   },
   removeByFile(filePath) {
+    const ids = db.prepare('SELECT id FROM annotations WHERE file_path = ?').all(filePath);
+    const now = new Date().toISOString();
+    const ins = db.prepare(
+      "INSERT OR REPLACE INTO pdf_tombstones (id, kind, file_path, deleted_at) VALUES (?, 'annotation', ?, ?)"
+    );
+    for (const r of ids) ins.run(r.id, filePath, now);
     db.prepare('DELETE FROM annotations WHERE file_path = ?').run(filePath);
   },
 };
@@ -402,6 +468,15 @@ export const bookmarks = {
       'SELECT id, file_path AS filePath, page_number AS pageNumber, title, created_at AS createdAt FROM bookmarks WHERE file_path = ? ORDER BY page_number ASC'
     ).all(filePath);
   },
+  meta(filePath) {
+    pruneTombstones();
+    return {
+      items: this.list(filePath),
+      tombstones: db.prepare(
+        "SELECT id, deleted_at AS deletedAt FROM pdf_tombstones WHERE kind = 'bookmark' AND file_path = ?"
+      ).all(filePath),
+    };
+  },
   upsert({ id, filePath, pageNumber, title }) {
     const now = new Date().toISOString();
     const exists = db.prepare('SELECT id FROM bookmarks WHERE id = ?').get(id);
@@ -412,12 +487,25 @@ export const bookmarks = {
       db.prepare('INSERT INTO bookmarks (id, file_path, page_number, title, created_at) VALUES (@id, @filePath, @pageNumber, @title, @now)')
         .run({ id, filePath, pageNumber, title, now });
     }
+    db.prepare("DELETE FROM pdf_tombstones WHERE id = ? AND kind = 'bookmark'").run(id);
     return { id, filePath, pageNumber, title, createdAt: now };
   },
   remove(id) {
+    const row = db.prepare('SELECT file_path FROM bookmarks WHERE id = ?').get(id);
     db.prepare('DELETE FROM bookmarks WHERE id = ?').run(id);
+    if (row) {
+      db.prepare(
+        "INSERT OR REPLACE INTO pdf_tombstones (id, kind, file_path, deleted_at) VALUES (?, 'bookmark', ?, ?)"
+      ).run(id, row.file_path, new Date().toISOString());
+    }
   },
   removeByFile(filePath) {
+    const ids = db.prepare('SELECT id FROM bookmarks WHERE file_path = ?').all(filePath);
+    const now = new Date().toISOString();
+    const ins = db.prepare(
+      "INSERT OR REPLACE INTO pdf_tombstones (id, kind, file_path, deleted_at) VALUES (?, 'bookmark', ?, ?)"
+    );
+    for (const r of ids) ins.run(r.id, filePath, now);
     db.prepare('DELETE FROM bookmarks WHERE file_path = ?').run(filePath);
   },
 };

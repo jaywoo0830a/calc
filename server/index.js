@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { problems, archives, archivesDir, vocab, vocabAliases, annotations, bookmarks } from './db.js';
+import { problems, archives, archivesDir, vocab, vocabAliases, annotations, bookmarks, pdfPosition } from './db.js';
 import { CONFIG } from './config.js';
 const app = express();
 // 이미지 주석(dataURL) 수용 한도 — 10MB 바이너리 ≈ 13.4MB base64 + 여유
@@ -583,6 +583,17 @@ app.get('/annotations', (req, res) => {
   }
 });
 
+// 실시간 동기화용 경량 메타 (id·updatedAt + 삭제 톰스톤) — 전체 dataUrl을 매번 보내지 않음
+app.get('/annotations/meta', (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ error: 'file query param required' });
+    res.json(annotations.meta(file));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/annotations', (req, res) => {
   try {
     const { id, filePath, pageNumber, type, color, style, text, rect, status, attempts, wrong_count, dataUrl, aspect } = req.body || {};
@@ -645,6 +656,17 @@ app.get('/bookmarks', (req, res) => {
   }
 });
 
+// 실시간 동기화용 메타 (목록 + 삭제 톰스톤) — 북마크는 가벼워 전체 포함
+app.get('/bookmarks/meta', (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ error: 'file query param required' });
+    res.json(bookmarks.meta(file));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/bookmarks', (req, res) => {
   try {
     const { id, filePath, pageNumber, title } = req.body || {};
@@ -676,6 +698,27 @@ app.delete('/bookmarks', requireClearToken, (req, res) => {
     if (!file) return res.status(400).json({ error: 'file query param required' });
     bookmarks.removeByFile(file);
     res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── 👣 PDF 페이지 위치 — 교육용 따라가기 ──────────────────────────────────────
+app.get('/pdf-position', (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ error: 'file query param required' });
+    res.json(pdfPosition.get(file));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/pdf-position', (req, res) => {
+  try {
+    const { file, page, device } = req.body || {};
+    if (!file) return res.status(400).json({ error: 'file required' });
+    res.json(pdfPosition.upsert(String(file), Number(page) || 1, String(device || '')));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -233,9 +233,25 @@ async function localDeleteAnnotation(id) {
 export async function getAnnotations(filePath) {
   try {
     const res = await annotationRequest('?file=' + encodeURIComponent(filePath));
-    return await res.json();
+    const list = await res.json();
+    // 서버 목록을 로컬 캐시에도 기록 (오프라인 폴백 대비)
+    for (const a of list) {
+      try { await localPutAnnotation({ ...a, updatedAt: a.updatedAt || new Date().toISOString() }); } catch { /* 무시 */ }
+    }
+    return list;
   } catch {
     return localGetAnnotations(filePath);
+  }
+}
+
+/** 실시간 동기화용 경량 메타 — 서버 미도달 시 null (폴링 스킵) */
+export async function annotationsMeta(filePath) {
+  try {
+    const res = await fetch('/api/annotations/meta?file=' + encodeURIComponent(filePath));
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
   }
 }
 
@@ -324,9 +340,50 @@ async function localDeleteBookmark(id) {
 export async function getBookmarks(filePath) {
   try {
     const res = await bookmarkRequest('?file=' + encodeURIComponent(filePath));
-    return await res.json();
+    const list = await res.json();
+    for (const b of list) {
+      try { await localPutBookmark({ ...b, createdAt: b.createdAt || new Date().toISOString() }); } catch { /* 무시 */ }
+    }
+    return list;
   } catch {
     return localGetBookmarks(filePath);
+  }
+}
+
+/** 실시간 동기화용 메타 — 서버 미도달 시 null (폴링 스킵) */
+export async function bookmarksMeta(filePath) {
+  try {
+    const res = await fetch('/api/bookmarks/meta?file=' + encodeURIComponent(filePath));
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================
+// 👣 PDF 페이지 위치 — 교육용 따라가기 (기기 간 동기화)
+// ============================================================
+
+/** 내 현재 페이지를 서버에 보고 (따라가기 OFF일 때만 호출) */
+export async function reportPdfPosition(filePath, page, device) {
+  try {
+    await fetch('/api/pdf-position', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: filePath, page, device }),
+    });
+  } catch { /* 오프라인 무시 */ }
+}
+
+/** 다른 기기의 최신 페이지 조회 — 없거나 오프라인이면 null */
+export async function getPdfPosition(filePath) {
+  try {
+    const res = await fetch('/api/pdf-position?file=' + encodeURIComponent(filePath));
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
   }
 }
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } fr
 import { createPortal } from 'react-dom';
 import { getRangeSelectState, subscribeRangeSelect } from '../lib/rangeSelectState.js';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark } from '../lib/storage.js';
+import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark, annotationsMeta, bookmarksMeta, reportPdfPosition, getPdfPosition } from '../lib/storage.js';
 import { api } from '../lib/api.js';
 import { fitImageRect } from '../lib/imageRect.js';
 import { autoCropDataUrl, rotateImageDataUrl } from '../lib/docScan.js';
@@ -400,6 +400,113 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   useEffect(() => {
     if (!filePath) return;
     getBookmarks(filePath).then(setBookmarks).catch(() => {});
+  }, [filePath]);
+
+  // ── 📡 PDF 주석 실시간 동기화 (폰 ↔ 태블릿) — 3초 폴링 ──
+  // 서버가 진실의 원천: 메타 비교 → 변경 시 전체 당겨오기 + 오프라인 저장분 재업로드.
+  // 삭제는 톰스톤으로 전파되어 되살아나지 않는다.
+  const annotationsRef = useRef([]);
+
+  // ── 👣 페이지 따라가기 (교육용) — follow ON이면 다른 기기의 페이지를 따라감 ──
+  const [follow, setFollow] = useState(false);
+  const followRef = useRef(false);
+  useEffect(() => { followRef.current = follow; }, [follow]);
+  const deviceIdRef = useRef(null);
+  if (deviceIdRef.current == null) {
+    let d = '';
+    try { d = localStorage.getItem('calc-device-id') || ''; } catch {}
+    if (!d) {
+      d = 'dev_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      try { localStorage.setItem('calc-device-id', d); } catch {}
+    }
+    deviceIdRef.current = d;
+  }
+
+  // follow OFF일 때 내 페이지를 보고 (리더 기기)
+  useEffect(() => {
+    if (!filePath || !numPages || followRef.current) return;
+    reportPdfPosition(filePath, currentPage, deviceIdRef.current);
+  }, [filePath, currentPage, numPages]);
+
+  // follow ON일 때 리더의 페이지를 2초마다 따라감
+  useEffect(() => {
+    if (!filePath) return;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped || typeof document === 'undefined' || document.hidden) return;
+      if (!followRef.current) return;
+      const pos = await getPdfPosition(filePath);
+      if (!pos || !pos.page || pos.device === deviceIdRef.current) return;
+      if (pos.page >= 1 && pos.page <= numPages && pos.page !== currentPageRef.current) {
+        goToPage(pos.page);
+      }
+    };
+    const id = setInterval(tick, 2000);
+    return () => { stopped = true; clearInterval(id); };
+  }, [filePath, numPages, goToPage]);
+
+  // currentPage를 항상 최신으로 유지하는 ref (follow 틱에서 사용)
+  const currentPageRef = useRef(currentPage);
+  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
+
+  useEffect(() => {
+    if (!filePath) return;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped || typeof document === 'undefined' || document.hidden) return;
+      // ── 어노테이션 ──
+      try {
+        const meta = await annotationsMeta(filePath);
+        if (meta) {
+          const items = new Map((meta.items || []).map((m) => [m.id, m.updatedAt]));
+          const tombs = new Map((meta.tombstones || []).map((t) => [t.id, t.deletedAt]));
+          const local = annotationsRef.current;
+          const pushes = [];
+          const survivors = local.filter((a) => {
+            const t = tombs.get(a.id);
+            if (t && (!a.updatedAt || a.updatedAt < t)) return false; // 다른 기기에서 삭제됨
+            if (!items.has(a.id) && (!t || (a.updatedAt && a.updatedAt > t))) {
+              pushes.push(saveAnnotation(a).catch(() => null)); // 오프라인 저장분 재업로드
+            }
+            return true;
+          });
+          if (survivors.length !== local.length) setAnnotations(survivors);
+          const changed = survivors.some((a) => items.get(a.id) !== (a.updatedAt || undefined))
+            || survivors.length !== items.size;
+          if (pushes.length) await Promise.all(pushes);
+          if (changed) {
+            const remote = await getAnnotations(filePath);
+            setAnnotations(remote);
+          }
+        }
+      } catch { /* 네트워크 오류 무시 — 다음 틱에 재시도 */ }
+      // ── 북마크 ──
+      try {
+        const meta = await bookmarksMeta(filePath);
+        if (meta) {
+          const items = meta.items || [];
+          const tombs = new Map((meta.tombstones || []).map((t) => [t.id, t.deletedAt]));
+          const local = bookmarksRef.current;
+          const pushes = [];
+          const survivors = local.filter((b) => {
+            const t = tombs.get(b.id);
+            if (t && (!b.createdAt || b.createdAt < t)) return false;
+            if (!items.some((s) => s.id === b.id)) {
+              pushes.push(saveBookmark(b).catch(() => null));
+            }
+            return true;
+          });
+          if (survivors.length !== local.length) setBookmarks(survivors);
+          if (pushes.length) await Promise.all(pushes);
+          const remote = await getBookmarks(filePath);
+          const sig = (l) => JSON.stringify(l.map((x) => [x.id, x.pageNumber, x.createdAt || '']).sort());
+          if (sig(remote) !== sig(bookmarksRef.current)) setBookmarks(remote);
+        }
+      } catch { /* 무시 */ }
+    };
+    tick();
+    const id = setInterval(tick, 3000);
+    return () => { stopped = true; clearInterval(id); };
   }, [filePath]);
 
   // ── 현재 문서의 푼/틀린 문제 (서버 DB) — 풀스크린 포함 접근 ──
@@ -1024,6 +1131,14 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             title={isBookmarked ? 'Remove bookmark from this page' : 'Add bookmark to this page'}
           >
             {isBookmarked ? '🔖 Bookmarked' : '🏷️ Bookmark'}
+          </button>
+          {/* 👣 교육용 따라가기 — ON이면 다른 기기의 페이지를 따라감 (리더 기기는 OFF 유지) */}
+          <button
+            className={'pdf-annotator__tool' + (follow ? ' pdf-annotator__tool--active' : '')}
+            onClick={() => setFollow((v) => !v)}
+            title="Follow the other device's page — for teaching (leader device keeps this OFF)"
+          >
+            👣 {follow ? 'Following' : 'Follow'}
           </button>
           {toc && (
             <button
