@@ -17,13 +17,19 @@ WORKDIR /app
 COPY server/package.json ./
 RUN npm install --legacy-peer-deps \
     && npm rebuild better-sqlite3 # ABI 일치 보장 (캐시된 레이어 재사용 대비)
-COPY server/ .
-RUN pip3 install --break-system-packages --no-cache-dir -r requirements-scan.txt \
-    && pip3 install --break-system-packages --no-cache-dir \
-        --extra-index-url https://download.pytorch.org/whl/cpu -r requirements-rectify.txt \
-    && python3 -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()" # ONNX 모델 미리 다운로드(첫 호출 지연 제거)
+
+# ── Python 의존성 — requirements 파일이 바뀔 때만 재설치 ──
+# (COPY server/ ./ 보다 앞에 둬야 코드 수정으로 pip 캐시가 깨지지 않음)
+COPY server/requirements-scan.txt server/requirements-rectify.txt ./
+RUN pip3 install --break-system-packages --no-cache-dir -r requirements-scan.txt
 # extra-index-url이어야 PyPI 패키지(typing-extensions 등)가 정상 해석됨.
 # '+cpu' 정확 핀으로 CUDA 휠 혼입 방지. (--index-url 단독 지정 시 flit_core 에러)
+RUN pip3 install --break-system-packages --no-cache-dir \
+        --extra-index-url https://download.pytorch.org/whl/cpu -r requirements-rectify.txt
+# ONNX 모델 미리 다운로드(첫 호출 지연 제거)
+RUN python3 -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()"
+
+COPY server/ ./
 # DocGeoNet 가중치(~100MB)는 git에 없음: server/models/docgeonet/{DocGeoNet,preprocess}.pth
 # — 볼륨 마운트하거나 빌드 시 수동 다운로드. 없으면 스캔은 워프까지만 수행(정류 스킵).
 
