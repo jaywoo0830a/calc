@@ -19,7 +19,6 @@ import sys
 from PIL import Image
 
 from scan_core import (
-    expand_quad,
     monotone_hull,
     order_corners,
     quad_area,
@@ -124,7 +123,7 @@ def _try_rectify(img):
         return None
 
 
-def run(image_path, max_dim=1600, pad_x=0.0, pad_y=0.0):
+def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0):
     try:
         img = Image.open(image_path).convert('RGB')
     except Exception:
@@ -143,9 +142,6 @@ def run(image_path, max_dim=1600, pad_x=0.0, pad_y=0.0):
 
     k = 1.0 / scale
     corners = [[x * k, y * k] for x, y in quad]
-    # 가로/세로 확장 비율 (종이 여백을 크롭에 더 포함) — 0이면 원본 그대로
-    if pad_x > 0.0 or pad_y > 0.0:
-        corners = expand_quad(corners, pad_x, pad_y, w, h)
     out = warp_quad(img, corners, max_dim)
 
     # 4) DocGeoNet 정류 — 공식 레시피 (선택적)
@@ -159,6 +155,12 @@ def run(image_path, max_dim=1600, pad_x=0.0, pad_y=0.0):
         s = max_dim / float(m)
         out = out.resize((max(2, int(out.width * s)), max(2, int(out.height * s))), Image.LANCZOS)
 
+    # 5) 가로/세로 늘이기 — 처리된 이미지에 비율 적용 (0 = 순정 그대로)
+    if stretch_x > 0.0 or stretch_y > 0.0:
+        nw = max(2, int(round(out.width * (1.0 + stretch_x))))
+        nh = max(2, int(round(out.height * (1.0 + stretch_y))))
+        out = out.resize((nw, nh), Image.LANCZOS)
+
     buf = io.BytesIO()
     out.save(buf, format='JPEG', quality=90)
     data_url = 'data:image/jpeg;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
@@ -168,12 +170,12 @@ def run(image_path, max_dim=1600, pad_x=0.0, pad_y=0.0):
 
 def main():
     if len(sys.argv) < 2:
-        print(json.dumps({"ok": False, "reason": "usage: scan.py <image_path> [maxDim] [padX] [padY]"}))
+        print(json.dumps({"ok": False, "reason": "usage: scan.py <image_path> [maxDim] [stretchX] [stretchY]"}))
         return
     max_dim = int(sys.argv[2]) if len(sys.argv) > 2 else 1600
-    pad_x = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
-    pad_y = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0
-    print(json.dumps(run(sys.argv[1], max_dim, pad_x, pad_y)))
+    stretch_x = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
+    stretch_y = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0
+    print(json.dumps(run(sys.argv[1], max_dim, stretch_x, stretch_y)))
 
 
 if __name__ == '__main__':

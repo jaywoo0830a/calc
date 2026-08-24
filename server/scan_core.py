@@ -143,19 +143,3 @@ def quad_area(corners):
         x2, y2 = corners[(i + 1) % len(corners)]
         s += x1 * y2 - x2 * y1
     return abs(s) / 2.0
-
-
-def expand_quad(corners, fx, fy, w, h):
-    """4각형을 중심 기준 가로 (1+fx)·세로 (1+fy) 배로 확장 후 이미지 경계 클램프.
-
-    fx=0.1이면 가로 폭이 10% 늘어남 (종이 여백을 크롭에 포함할 때 사용).
-    """
-    cx = sum(p[0] for p in corners) / 4.0
-    cy = sum(p[1] for p in corners) / 4.0
-    out = []
-    for x, y in corners:
-        out.append((
-            max(0.0, min(w - 1.0, cx + (x - cx) * (1.0 + fx))),
-            max(0.0, min(h - 1.0, cy + (y - cy) * (1.0 + fy))),
-        ))
-    return out

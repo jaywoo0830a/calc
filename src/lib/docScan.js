@@ -7,14 +7,14 @@ const BASE = '/api';
 
 /**
  * dataUrl 이미지에서 문서/보드 영역을 자동 인식해 원근 보정 크롭
- * @param {object} [opts] { maxDim=1600, padX=0, padY=0 (크롭 확장 비율 0~0.5) }
+ * @param {object} [opts] { maxDim=1600, stretchX=0, stretchY=0 (처리된 이미지 늘이기 비율 0~0.5) }
  * @returns {Promise<{dataUrl: string, aspect: number, method: string} | {skipped: true}>}
  */
-export async function autoCropDataUrl(dataUrl, { maxDim = 1600, padX = 0, padY = 0 } = {}) {
+export async function autoCropDataUrl(dataUrl, { maxDim = 1600, stretchX = 0, stretchY = 0 } = {}) {
   const res = await fetch(BASE + '/scan', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dataUrl, maxDim, padX, padY }),
+    body: JSON.stringify({ dataUrl, maxDim, stretchX, stretchY }),
   });
   if (!res.ok) {
     let msg = `scan failed (${res.status})`;

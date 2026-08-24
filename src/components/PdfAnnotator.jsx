@@ -129,12 +129,12 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [autoCrop, setAutoCrop] = useState(true);  // ✂️ 문서/보드 자동 인식 크롭 (기본 켜짐)
   const autoCropRef = useRef(true);
   useEffect(() => { autoCropRef.current = autoCrop; }, [autoCrop]);
-  const [padX, setPadX] = useState(0);   // ↔ 크롭 가로 확장 비율 (0~0.5)
-  const [padY, setPadY] = useState(0);   // ↕ 크롭 세로 확장 비율 (0~0.5)
-  const padXRef = useRef(0);
-  const padYRef = useRef(0);
-  useEffect(() => { padXRef.current = padX; }, [padX]);
-  useEffect(() => { padYRef.current = padY; }, [padY]);
+  const [stretchX, setStretchX] = useState(0);   // ↔ 처리된 이미지 가로 늘이기 (0~0.5)
+  const [stretchY, setStretchY] = useState(0);   // ↕ 처리된 이미지 세로 늘이기 (0~0.5)
+  const stretchXRef = useRef(0);
+  const stretchYRef = useRef(0);
+  useEffect(() => { stretchXRef.current = stretchX; }, [stretchX]);
+  useEffect(() => { stretchYRef.current = stretchY; }, [stretchY]);
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -749,8 +749,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         try {
           setToast('✂️ Detecting board edges…');
           const res = await autoCropDataUrl(dataUrl, {
-            padX: padXRef.current,
-            padY: padYRef.current,
+            stretchX: stretchXRef.current,
+            stretchY: stretchYRef.current,
           });
           if (res && res.dataUrl) {
             finalUrl = res.dataUrl;
@@ -949,7 +949,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
               {val.label}
             </button>
           ))}
-          {/* ✂️ 이미지 툴 선택 시 문서 자동 크롭 토글 + 여백 확장 조절 */}
+          {/* ✂️ 이미지 툴 선택 시 문서 자동 크롭 토글 + 결과 늘이기 조절 */}
           {tool === 'image' && (
             <>
               <button
@@ -961,19 +961,19 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
               </button>
               {autoCrop && (
                 <>
-                  <label className="pdf-annotator__tune" title="Crop width expansion — includes more paper margin">
+                  <label className="pdf-annotator__tune" title="Stretch the processed image horizontally">
                     ↔ <input
                       type="range" min="0" max="0.5" step="0.05"
-                      value={padX}
-                      onChange={(e) => setPadX(Number(e.target.value))}
-                    /><span>{Math.round(padX * 100)}%</span>
+                      value={stretchX}
+                      onChange={(e) => setStretchX(Number(e.target.value))}
+                    /><span>+{Math.round(stretchX * 100)}%</span>
                   </label>
-                  <label className="pdf-annotator__tune" title="Crop height expansion — includes more paper margin">
+                  <label className="pdf-annotator__tune" title="Stretch the processed image vertically">
                     ↕ <input
                       type="range" min="0" max="0.5" step="0.05"
-                      value={padY}
-                      onChange={(e) => setPadY(Number(e.target.value))}
-                    /><span>{Math.round(padY * 100)}%</span>
+                      value={stretchY}
+                      onChange={(e) => setStretchY(Number(e.target.value))}
+                    /><span>+{Math.round(stretchY * 100)}%</span>
                   </label>
                 </>
               )}
