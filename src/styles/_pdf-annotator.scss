@@ -112,34 +112,6 @@
     }
   }
 
-  // 📐 정류 강도 / 🫧 부드러움 슬라이더 (이미지 툴 전용)
-  &__tune {
-    display: inline-flex;
-    align-items: center;
-    gap: $sp-1;
-    padding: $sp-1 $sp-2;
-    border: $border-thin solid rgba(255, 255, 255, 0.2);
-    border-radius: $radius-md;
-    background: rgba(255, 254, 247, 0.15);
-    color: $c-ink-soft;
-    font-size: $fs-step--2;
-    font-weight: $fw-semibold;
-    white-space: nowrap;
-
-    input[type='range'] {
-      width: 4.5rem;
-      accent-color: $c-accent;
-      cursor: pointer;
-    }
-
-    span {
-      min-width: 2.2rem;
-      text-align: right;
-      color: $c-ink;
-      font-variant-numeric: tabular-nums;
-    }
-  }
-
   &__fullscreen-btn {
     width: 2rem;
     height: 2rem;

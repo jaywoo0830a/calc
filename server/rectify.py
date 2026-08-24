@@ -3,18 +3,19 @@
 
 원저자: Hao Feng (fh2019ustc/DocGeoNet)
 라이선스: 비상업용 (server/docgeonet/LICENSE.md) — 출처 표시 + 동일 조건.
-이 파일은 원본 inference.py를 서버 통합용으로 수정한 것이다.
+이 파일은 원본 inference.py를 CPU에서 그대로 재현한 것이다.
 
-동작:
-  U2-Net-P(문서 마스크) → DocGeoNet(역방향 플로우 bm) → F.grid_sample 워프
+동작 (공식 레시피 그대로):
+  입력 → 256×256 리사이즈 → U2-Net-P 마스크 → DocGeoNet bm 플로우
+  → 원본 해상도로 cv2.resize + cv2.blur(3×3) → F.grid_sample 워프
 입력 PIL.Image → 출력 PIL.Image (같은 크기, RGB)
 모델/가중치가 없으면 None (scan.py가 기존 크롭 결과로 폴백).
 """
-import io
 import json
 import os
 import sys
 
+import cv2
 import numpy as np
 from PIL import Image
 
@@ -78,65 +79,33 @@ def _load():
     return _net
 
 
-def _resize_flow(ch, w, h):
-    """플로우 채널 [-1,1]을 float 그대로 리사이즈 (uint8 양자화 없음)."""
-    return np.asarray(Image.fromarray(ch.astype(np.float32), 'F')
-                      .resize((w, h), Image.BILINEAR), dtype=np.float32)
+def rectify(img):
+    """PIL 이미지 → 정류된 PIL 이미지 (공식 inference.py 레시피 그대로).
 
-
-def _box_blur(arr, radius):
-    """numpy 박스 블러 (radius=1 → 3×3, 원본 cv2.blur와 동일 계열)."""
-    if radius <= 0:
-        return arr
-    k = 2 * radius + 1
-    p = np.pad(arr, ((radius, radius), (radius, radius)), mode='edge')
-    c = p.cumsum(axis=0).cumsum(axis=1)
-    return (c[k:, k:] - c[k:, :-k] - c[:-k, k:] + c[:-k, :-k]) / float(k * k)
-
-
-def _identity_flow(h, w):
-    """align_corners=True 좌표계의 항등 그리드 (x=열, y=행)."""
-    xs = np.linspace(-1.0, 1.0, w, dtype=np.float32)
-    ys = np.linspace(-1.0, 1.0, h, dtype=np.float32)
-    return np.stack([np.tile(xs, (h, 1)), np.tile(ys[:, None], (1, w))])  # (2, h, w)
-
-
-def rectify(img, max_side=1600, strength=1.0, smooth=1):
-    """PIL 이미지 → 정류된 PIL 이미지. 모델/가중치 없거나 실패 시 None.
-
-    strength: 정류 강도 — 0=원본 그대로, 1=모델 전체 적용(기본), 1.5=과적용
-    smooth:   플로우 박스 블러 반경(px) — 클수록 부드러운 워프 (기본 1)
+    모델/가중치 없거나 실패 시 None.
     """
     net = _load()
     if net is None:
         return None
-    s = min(2.0, max(0.0, float(strength)))
-    if s == 0.0:
-        return img  # 정류 꺼짐 — 항등 변환
     try:
-        w0, h0 = img.size
-        scale = min(1.0, max_side / float(max(w0, h0)))
-        if scale < 1.0:
-            img = img.resize((max(2, int(w0 * scale)), max(2, int(h0 * scale))), Image.LANCZOS)
-        w, h = img.size
-        im_ori = np.asarray(img.convert('RGB'), dtype=np.float32) / 255.0
-        im256 = np.asarray(img.resize((256, 256), Image.BILINEAR), dtype=np.float32) / 255.0
-        im = torch.from_numpy(im256.transpose(2, 0, 1)).float().unsqueeze(0)
+        im_ori = np.array(img.convert('RGB'))[:, :, :3] / 255.0
+        h, w, _ = im_ori.shape
+        im = cv2.resize(im_ori, (256, 256))
+        im = im.transpose(2, 0, 1)
+        im = torch.from_numpy(im).float().unsqueeze(0)
         with torch.no_grad():
-            bm = net(im)[0].numpy()  # (2, 256, 256)
-        # 플로우를 원본 해상도로 확대 (float 그대로)
-        bm = np.stack([_resize_flow(bm[0], w, h), _resize_flow(bm[1], w, h)])
-        # 정류 강도 — 항등 그리드와 블렌드
-        if s != 1.0:
-            idf = _identity_flow(h, w)
-            bm = idf + (bm - idf) * s
-        # 부드러움 — 박스 블러
-        if smooth:
-            r = max(0, int(smooth))
-            bm = np.stack([_box_blur(bm[0], r), _box_blur(bm[1], r)])
-        grid = torch.from_numpy(np.stack([bm[0], bm[1]], axis=2)).unsqueeze(0).float()
-        src = torch.from_numpy(im_ori.transpose(2, 0, 1)).unsqueeze(0).float()
-        out = F.grid_sample(src, grid, align_corners=True)
+            bm = net(im)
+            bm = bm.cpu()
+        # 공식 그대로: bm을 원본 크기로 확대 후 3×3 블러
+        bm0 = cv2.resize(bm[0, 0].numpy(), (w, h))
+        bm1 = cv2.resize(bm[0, 1].numpy(), (w, h))
+        bm0 = cv2.blur(bm0, (3, 3))
+        bm1 = cv2.blur(bm1, (3, 3))
+        lbl = torch.from_numpy(np.stack([bm0, bm1], axis=2)).unsqueeze(0)
+        out = F.grid_sample(
+            torch.from_numpy(im_ori).permute(2, 0, 1).unsqueeze(0).float(),
+            lbl, align_corners=True)
+        # 공식은 cv2.imwrite(BGR 저장)용 [:, :, ::-1] 변환 — 여기선 PIL(RGB)이라 생략
         out = (out[0] * 255.0).permute(1, 2, 0).numpy().clip(0, 255).astype(np.uint8)
         return Image.fromarray(out, 'RGB')
     except Exception:

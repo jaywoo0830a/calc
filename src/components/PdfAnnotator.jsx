@@ -129,12 +129,6 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [autoCrop, setAutoCrop] = useState(true);  // ✂️ 문서/보드 자동 인식 크롭 (기본 켜짐)
   const autoCropRef = useRef(true);
   useEffect(() => { autoCropRef.current = autoCrop; }, [autoCrop]);
-  const [dewarp, setDewarp] = useState(1);   // 📐 정류 강도 (0~1.5, 1=기본)
-  const [smooth, setSmooth] = useState(1);   // 🫧 워프 블러 반경 (0~5px)
-  const dewarpRef = useRef(1);
-  const smoothRef = useRef(1);
-  useEffect(() => { dewarpRef.current = dewarp; }, [dewarp]);
-  useEffect(() => { smoothRef.current = smooth; }, [smooth]);
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -748,10 +742,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       if (autoCropRef.current) {
         try {
           setToast('✂️ Detecting board edges…');
-          const res = await autoCropDataUrl(dataUrl, {
-            dewarp: dewarpRef.current,
-            smooth: smoothRef.current,
-          });
+          const res = await autoCropDataUrl(dataUrl);
           if (res && res.dataUrl) {
             finalUrl = res.dataUrl;
             finalAspect = res.aspect;
@@ -949,31 +940,15 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
               {val.label}
             </button>
           ))}
-          {/* ✂️ 이미지 툴 선택 시 문서 자동 크롭 토글 + 정류 튜닝 */}
+          {/* ✂️ 이미지 툴 선택 시 문서 자동 크롭 토글 */}
           {tool === 'image' && (
-            <>
-              <button
-                className={'pdf-annotator__tool' + (autoCrop ? ' pdf-annotator__tool--active' : '')}
-                onClick={() => setAutoCrop((v) => !v)}
-                title="Auto-detect the board/paper edges and crop like a document scanner"
-              >
-                ✂️ Auto-crop
-              </button>
-              <label className="pdf-annotator__tune" title="Straightening strength — 0=off, 100%=full dewarp, 150%=stronger">
-                📐 <input
-                  type="range" min="0" max="1.5" step="0.05"
-                  value={dewarp}
-                  onChange={(e) => setDewarp(Number(e.target.value))}
-                /><span>{Math.round(dewarp * 100)}%</span>
-              </label>
-              <label className="pdf-annotator__tune" title="Flow smoothness (blur radius)">
-                🫧 <input
-                  type="range" min="0" max="5" step="1"
-                  value={smooth}
-                  onChange={(e) => setSmooth(Number(e.target.value))}
-                /><span>{smooth}px</span>
-              </label>
-            </>
+            <button
+              className={'pdf-annotator__tool' + (autoCrop ? ' pdf-annotator__tool--active' : '')}
+              onClick={() => setAutoCrop((v) => !v)}
+              title="Auto-detect the board/paper edges and crop like a document scanner"
+            >
+              ✂️ Auto-crop
+            </button>
           )}
         </div>
         {/* Color pickers — hidden for highlight/underline (use selection trigger) */}
