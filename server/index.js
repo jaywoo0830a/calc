@@ -727,8 +727,8 @@ app.post('/pdf-position', (req, res) => {
 // health check
 app.get('/health', (_, res) => res.json({ ok: true }));
 
-// ── ✂️ 문서 자동 인식 크롭 (RapidOCR + DocGeoNet 백엔드) ───────────────────
-// dataUrl 이미지 → scan.py(텍스트 껍질 4각 → QUAD 워프 → DocGeoNet 정류)
+// ── ✂️ 문서 자동 인식 크롭 (LiteObject/doc-scanner) ─────────────────────────
+// dataUrl 이미지 → scan.py(4각형 탐지 → four_point_transform 원근 펼치기)
 const serverDir = dirname(fileURLToPath(import.meta.url));
 const venvPython = join(serverDir, '.venv', 'bin', 'python');
 const PYTHON = existsSync(venvPython) ? venvPython : (process.env.SERVER_PYTHON || 'python3');
