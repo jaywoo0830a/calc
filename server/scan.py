@@ -108,7 +108,13 @@ def yolo_quad(img):
 def warp_quad(img, corners, max_dim):
     corners = shrink_quad(corners, 0.012)
     ow, oh = size_for_quad(corners, max_dim)
-    data = tuple(round(c) for p in corners for c in p)
+    # ⚠️ PIL QUAD는 (TL, BL, BR, TR) 시계 방향 순서를 기대한다.
+    #    (TL, TR, BR, BL)을 넣으면 좌우 반전된다. — 코너 색상 테스트로 확인함.
+    tl, tr, br, bl = corners
+    data = (round(tl[0]), round(tl[1]),
+            round(bl[0]), round(bl[1]),
+            round(br[0]), round(br[1]),
+            round(tr[0]), round(tr[1]))
     out = img.transform((ow, oh), Image.QUAD, data,
                         resample=Image.BICUBIC, fillcolor=(255, 255, 255))
     return out
