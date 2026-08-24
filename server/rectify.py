@@ -79,14 +79,16 @@ def _load():
     return _net
 
 
-def rectify(img):
-    """PIL 이미지 → 정류된 PIL 이미지 (공식 inference.py 레시피 그대로).
+def rectify_flow(img):
+    """공식 레시피 정류 + 플로우 편차 크기.
 
-    모델/가중치 없거나 실패 시 None.
+    반환: (정류된 PIL 이미지 또는 None, 플로우 편차 mag)
+      - None: 모델/가중치 없음, 실패, 또는 사실상 항등(mag < 0.003)
+      - mag: 항등 그리드 대비 mean-abs 편차 (클수록 왜곡이 큼) — 판정용
     """
     net = _load()
     if net is None:
-        return None
+        return (None, 0.0)
     try:
         im_ori = np.array(img.convert('RGB'))[:, :, :3] / 255.0
         h, w, _ = im_ori.shape
@@ -102,21 +104,27 @@ def rectify(img):
         bm0 = cv2.blur(bm0, (3, 3))
         bm1 = cv2.blur(bm1, (3, 3))
         # 평평한 문서: 플로우가 항등에 가까우면 정류 결과를 버린다 —
-        # 불필요한 미세 왜곡을 만들지 않기 위해 (scan.py는 원본을 그대로 사용)
+        # 불필요한 미세 왜곡을 만들지 않기 위해 (scan.py가 판정에 사용)
         id_x = np.linspace(-1.0, 1.0, w, dtype=np.float32)[None, :]
         id_y = np.linspace(-1.0, 1.0, h, dtype=np.float32)[:, None]
         mag = float(np.abs(bm0 - id_x).mean() + np.abs(bm1 - id_y).mean())
-        if mag < 0.01:
-            return None
+        if mag < 0.003:
+            return (None, mag)
         lbl = torch.from_numpy(np.stack([bm0, bm1], axis=2)).unsqueeze(0)
         out = F.grid_sample(
             torch.from_numpy(im_ori).permute(2, 0, 1).unsqueeze(0).float(),
             lbl, align_corners=True)
         # 공식은 cv2.imwrite(BGR 저장)용 [:, :, ::-1] 변환 — 여기선 PIL(RGB)이라 생략
         out = (out[0] * 255.0).permute(1, 2, 0).numpy().clip(0, 255).astype(np.uint8)
-        return Image.fromarray(out, 'RGB')
+        return (Image.fromarray(out, 'RGB'), mag)
     except Exception:
-        return None
+        return (None, 0.0)
+
+
+def rectify(img):
+    """PIL 이미지 → 정류된 PIL 이미지. 모델/가중치 없거나 실패/항등이면 None."""
+    out, _ = rectify_flow(img)
+    return out
 
 
 def main():

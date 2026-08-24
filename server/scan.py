@@ -13,6 +13,7 @@
 import base64
 import io
 import json
+import math
 import os
 import sys
 
@@ -158,13 +159,36 @@ def warp_quad(img, corners, max_dim):
     return out
 
 
-def _try_rectify(img):
-    """DocGeoNet 정류 — 가중치/모듈 없으면 None (조용히 폴백)."""
+def _try_rectify_flow(img):
+    """DocGeoNet 정류 — (결과 또는 None, 플로우 편차 mag) 반환. 모듈 없으면 None."""
     try:
-        from rectify import rectify
-        return rectify(img)
+        from rectify import rectify_flow
+        return rectify_flow(img)
     except Exception:
         return None
+
+
+def _text_curvature(img):
+    """텍스트 줄 곡률(도) — 상자 기울기의 중앙값 대비 최대 편차.
+
+    곡면(책 펼침)이나 잔여 원근이 있으면 줄마다 기울기가 달라진다.
+    평평한 문서는 모든 상자가 거의 같은 각도(≈0°). 반환: 최대 편차(도).
+    """
+    boxes = _ocr_boxes(img)
+    if not boxes or len(boxes) < 3:
+        return 0.0
+
+    def edge_ang(a, b):
+        d = math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))
+        if d > 90.0:
+            d -= 180.0
+        if d < -90.0:
+            d += 180.0
+        return d
+
+    angles = [(edge_ang(b[0], b[1]) + edge_ang(b[3], b[2])) / 2.0 for b in boxes]
+    med = _median(angles)
+    return max(abs(a - med) for a in angles)
 
 
 def _unrotate_point(p, deg, W, H):
@@ -224,11 +248,19 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
     corners = [[x * k, y * k] for x, y in quad]
     out = warp_quad(img, corners, max_dim)
 
-    # 4) DocGeoNet 정류 — 공식 레시피 (선택적, 항등에 가까우면 자동 스킵)
-    rect = _try_rectify(out)
-    if rect is not None:
-        out = rect
-        method += '+geo'
+    # 4) DocGeoNet 정류 — 공식 레시피 + 3단 판정
+    #    mag ≥ 0.05   : 확실한 왜곡 → 적용
+    #    mag < 0.003  : 평평 → 스킵 (빠른 경로)
+    #    그 사이       : 텍스트 줄 곡률(>4°)로 판정 — 약한 휘어짐도 놓치지 않음
+    r = _try_rectify_flow(out)
+    if r is not None:
+        rect, mag = r
+        apply = mag >= 0.05
+        if rect is not None and not apply and mag >= 0.003:
+            apply = _text_curvature(out) > 4.0
+        if rect is not None and apply:
+            out = rect
+            method += '+geo'
 
     m = max(out.width, out.height)
     if m > max_dim:
