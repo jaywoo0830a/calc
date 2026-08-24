@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""scan — 모델 기반 문서 스캐너 (OpenCV 의존성 없음)
+"""scan — 모델 기반 문서 스캐너
 
 파이프라인:
   1) RapidOCR(ONNX) 텍스트 탐지 (960px, 실패 시 1440px/90°회전 재시도)
   2) 옆으로 눕힌 문서(주축 ±60° 초과)는 강제 회전 경로로
   3) 오탐 상자 제거(MAD) → 볼록 껍질 → 4각형(이분 탐색, 실패 시 극점 모서리)
-  4) PIL QUAD 원근 변환 — 사다리꼴(원근) 보정 (휜 문서 정류는 비활성)
+  4) 명암 경계 기반 문서/화면 사각형 — 텍스트 껍질을 감싸면 그 경계로 채택
+     (텍스트 위치만 보는 OCR의 한계를 보완 — 실제 사다리꼴 경계 보정)
+  5) PIL QUAD 원근 변환 (휜 문서 정류는 비활성)
 
 사용: python3 scan.py <image_path> [maxDim=1600] [stretchX] [stretchY] [rotate]
-출력: JSON {"ok": true, "dataUrl": ..., "aspect": ..., "method": "dl"|"dl-rotNN"|"yolo"}
+출력: JSON {"ok": true, "dataUrl": ..., "aspect": ..., "method": "dl"|"dl-rotNN"|"yolo"|"+edge"}
 """
 import base64
 import io
@@ -190,6 +192,81 @@ def _dominant_angle(img):
     return _median(angles)
 
 
+def _point_in_quad(p, q):
+    """점이 볼록 4각형 내부(경계 포함)에 있는지 — 변별 외적 부호 검사."""
+    x, y = p
+    sign = None
+    for i in range(4):
+        x1, y1 = q[i]
+        x2, y2 = q[(i + 1) % 4]
+        c = (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1)
+        if abs(c) < 1e-9:
+            continue
+        if sign is None:
+            sign = c > 0
+        elif (c > 0) != sign:
+            return False
+    return True
+
+
+def edge_quad(img):
+    """명암 경계 기반 문서/화면 4각형 탐지 (텍스트 없이도 동작). 실패 시 None.
+
+    배경보다 밝은 문서(종이·화면)를 적응형/Otsu 이진화로 분리 →
+    가장 큰 외곽 윤곽을 4각형 근사. cv2는 rapidocr 의존성으로 제공됨.
+    반환 좌표는 입력 이미지 좌표계.
+    """
+    try:
+        import cv2
+        import numpy as np
+    except Exception:
+        return None
+    arr = np.asarray(img.convert('RGB'))
+    s = 1.0
+    if max(arr.shape[0], arr.shape[1]) > 800:
+        s = 800.0 / max(arr.shape[0], arr.shape[1])
+        arr = cv2.resize(arr, (max(2, int(arr.shape[1] * s)), max(2, int(arr.shape[0] * s))),
+                         interpolation=cv2.INTER_AREA)
+    gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    H, W = gray.shape
+    masks = [
+        cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                              cv2.THRESH_BINARY_INV, 41, 15),
+    ]
+    _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    masks.append(otsu)
+    best = None
+    best_area = 0.0
+    for m in masks:
+        m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+        contours, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area < W * H * 0.12 or area > W * H * 0.99:
+                continue
+            peri = cv2.arcLength(c, True)
+            poly = None
+            for eps in (0.02, 0.03, 0.05, 0.08):
+                p = cv2.approxPolyDP(c, eps * peri, True)
+                if len(p) == 4:
+                    poly = p
+                    break
+            if poly is None:
+                poly = cv2.boxPoints(cv2.minAreaRect(c))
+            if poly is None or area <= best_area:
+                continue
+            pts = [(float(p[0][0]), float(p[0][1])) for p in poly]
+            try:
+                best = order_corners(pts)
+                best_area = area
+            except ValueError:
+                best = None
+    if best is None:
+        return None
+    return [[x / s, y / s] for x, y in best]
+
+
 def _unrotate_point(p, deg, W, H):
     """PIL rotate(deg, expand=True)는 반시계 회전 — 회전된 좌표를 원본으로 되돌린다."""
     x, y = p
@@ -213,6 +290,10 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
     scale = min(1.0, 960.0 / max(w, h))
     small = img.resize((max(2, int(w * scale)), max(2, int(h * scale))), Image.LANCZOS) if scale < 1.0 else img
     method = 'dl'
+    edge_src = small          # 경계 탐지에 쓸 이미지
+    edge_to_small = 1.0       # edge_src → small 좌표 변환 배율
+    rot_deg = 0
+
     quad = text_quad(small)
     # 옆으로 눕힌 문서 — 부분 탐지가 통과하는 것을 차단하고 회전 재시도로
     if quad is not None:
@@ -231,8 +312,10 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
                 if ang is not None and abs(ang) > 60.0:
                     q = None
                 else:
-                    quad = q
-                    scale = hs
+                    edge_src = big
+                    edge_to_small = scale / hs
+                    r = scale / hs
+                    quad = [[x * r, y * r] for x, y in q]  # big → small 좌표
 
     # 3) 회전 재시도 — 가로/세로로 잘못 찍힌 사진 자동 교정 (실패 경로에서만)
     if quad is None:
@@ -244,6 +327,8 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
                 quad = [_unrotate_point(p, deg, Ws, Hs) for p in q]
                 quad = order_corners(quad)
                 method = 'dl-rot' + str(deg)
+                edge_src = rot
+                rot_deg = deg
                 break
 
     if quad is None:
@@ -251,6 +336,22 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
         method = 'yolo'
     if quad is None:
         return {"ok": False, "reason": "no document detected"}
+
+    # 4) 실제 문서/화면 경계 사각형 — 텍스트 껍질을 감싸는 가장 큰 사각형 채택
+    eq = edge_quad(edge_src)
+    if eq is not None:
+        if rot_deg:
+            Ws, Hs = small.size
+            eq = [_unrotate_point(p, rot_deg, Ws, Hs) for p in eq]
+            eq = order_corners(eq)
+        elif edge_to_small != 1.0:
+            r = edge_to_small
+            eq = [[x * r, y * r] for x, y in eq]
+        cx = sum(p[0] for p in quad) / 4.0
+        cy = sum(p[1] for p in quad) / 4.0
+        if _point_in_quad((cx, cy), eq) and quad_area(eq) >= quad_area(quad) * 0.9:
+            quad = eq
+            method += '-edge'
 
     k = 1.0 / scale
     corners = [[x * k, y * k] for x, y in quad]
