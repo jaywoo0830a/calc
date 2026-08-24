@@ -101,6 +101,13 @@ def rectify(img):
         bm1 = cv2.resize(bm[0, 1].numpy(), (w, h))
         bm0 = cv2.blur(bm0, (3, 3))
         bm1 = cv2.blur(bm1, (3, 3))
+        # 평평한 문서: 플로우가 항등에 가까우면 정류 결과를 버린다 —
+        # 불필요한 미세 왜곡을 만들지 않기 위해 (scan.py는 원본을 그대로 사용)
+        id_x = np.linspace(-1.0, 1.0, w, dtype=np.float32)[None, :]
+        id_y = np.linspace(-1.0, 1.0, h, dtype=np.float32)[:, None]
+        mag = float(np.abs(bm0 - id_x).mean() + np.abs(bm1 - id_y).mean())
+        if mag < 0.01:
+            return None
         lbl = torch.from_numpy(np.stack([bm0, bm1], axis=2)).unsqueeze(0)
         out = F.grid_sample(
             torch.from_numpy(im_ori).permute(2, 0, 1).unsqueeze(0).float(),

@@ -2,13 +2,13 @@
 """scan — 모델 기반 문서 스캐너 (OpenCV 의존성 없음)
 
 파이프라인:
-  1) RapidOCR(ONNX) 텍스트 탐지 — 배경·조명과 무관하게 글자 위치를 찾음
-  2) 글자 상자들의 볼록 껍질 → 사각형 단순화(RDP) → 종이/보드 4각형
+  1) RapidOCR(ONNX) 텍스트 탐지 (960px, 실패 시 1440px/90°회전 재시도)
+  2) 오탐 상자 제거(MAD) → 볼록 껍질 → 4각형 단순화(이분 탐색) → 종이 4각형
   3) PIL QUAD 원근 변환으로 워프 (자체 학습 YOLO 모델이 있으면 우선 사용)
-  4) DocGeoNet(ECCV 2022) 정류 — 공식 inference 레시피 (가중치 존재 시)
+  4) DocGeoNet(ECCV 2022) 정류 — 공식 레시피, 플로우가 항등에 가까우면 자동 스킵
 
-사용: python3 scan.py <image_path> [maxDim=1600]
-출력: JSON {"ok": true, "dataUrl": ..., "aspect": ..., "method": "dl"|"yolo"|"dl+geo"|"yolo+geo"}
+사용: python3 scan.py <image_path> [maxDim=1600] [stretchX] [stretchY] [rotate]
+출력: JSON {"ok": true, "dataUrl": ..., "aspect": ..., "method": "dl"|"dl-rot90"|"yolo"|...+geo}
 """
 import base64
 import io
@@ -39,21 +39,59 @@ def load_ocr():
     return _ocr
 
 
-def text_quad(img):
-    """RapidOCR 텍스트 상자 → 종이 4각형 (탐지 실패 시 None)."""
+def _ocr_boxes(img):
+    """RapidOCR → 텍스트 상자 목록 (각 상자 = 4점). 실패/미탐지 시 [] 또는 None."""
     try:
         result, _ = load_ocr()(img)
     except Exception:
         return None
     if not result:
-        return None
-    pts = []
-    for item in result:
-        for x, y in item[0]:
-            pts.append((float(x), float(y)))
-    if len(pts) < 3:
+        return []
+    return [[(float(x), float(y)) for x, y in item[0]] for item in result]
+
+
+def _median(vals):
+    s = sorted(vals)
+    n = len(s)
+    return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2.0
+
+
+def _filter_outliers(boxes, img_w, img_h):
+    """본문 클러스터에서 멀리 떨어진 오탐(간판·화면·배경 글자) 제거.
+
+    상자 중심의 중앙값 + MAD(MAD × 4, 최소 이미지의 15%)를 벗어나면 제외.
+    너무 많이 걸러지면(3개 미만) 원래 목록을 돌려준다.
+    """
+    if len(boxes) < 5:
+        return boxes
+    cxs, cys = [], []
+    for b in boxes:
+        xs = [p[0] for p in b]
+        ys = [p[1] for p in b]
+        cxs.append(sum(xs) / len(xs))
+        cys.append(sum(ys) / len(ys))
+    mx, my = _median(cxs), _median(cys)
+    mad_x = _median([abs(c - mx) for c in cxs]) or 1.0
+    mad_y = _median([abs(c - my) for c in cys]) or 1.0
+    lim_x = max(4.0 * mad_x, img_w * 0.15)
+    lim_y = max(4.0 * mad_y, img_h * 0.15)
+    keep = [b for b, cx, cy in zip(boxes, cxs, cys)
+            if abs(cx - mx) <= lim_x and abs(cy - my) <= lim_y]
+    return keep if len(keep) >= 3 else boxes
+
+
+def text_quad(img):
+    """RapidOCR 텍스트 상자 → 종이 4각형 (탐지 실패 시 None)."""
+    boxes = _ocr_boxes(img)
+    if not boxes:
         return None
     w, h = img.size
+    boxes = _filter_outliers(boxes, w, h)
+    pts = []
+    for b in boxes:
+        pts.extend(b)
+    if len(pts) < 3:
+        return None
     hull = monotone_hull(pts)
     quad = simplify_to_quad(hull)
     if quad:
@@ -129,17 +167,53 @@ def _try_rectify(img):
         return None
 
 
+def _unrotate_point(p, deg, W, H):
+    """PIL rotate(deg, expand=True)는 반시계 회전 — 회전된 좌표를 원본으로 되돌린다."""
+    x, y = p
+    if deg == 90:
+        return (W - 1.0 - y, x)
+    if deg == 270:
+        return (y, H - 1.0 - x)
+    if deg == 180:
+        return (W - 1.0 - x, H - 1.0 - y)
+    return (x, y)
+
+
 def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
     try:
         img = Image.open(image_path).convert('RGB')
     except Exception:
         return {"ok": False, "reason": "cannot read image"}
     w, h = img.size
-    scale = min(1.0, 720.0 / max(w, h))
-    small = img.resize((max(2, int(w * scale)), max(2, int(h * scale))), Image.LANCZOS) if scale < 1.0 else img
 
+    # 1) 기본 탐지 — 960px (720보다 작은 글씨까지 잡음)
+    scale = min(1.0, 960.0 / max(w, h))
+    small = img.resize((max(2, int(w * scale)), max(2, int(h * scale))), Image.LANCZOS) if scale < 1.0 else img
     method = 'dl'
     quad = text_quad(small)
+
+    # 2) 고해상도 재시도 — 먼 거리/작은 글씨 (실패 경로에서만)
+    if quad is None:
+        hs = min(1.0, 1440.0 / max(w, h))
+        if hs > scale:
+            big = img.resize((max(2, int(w * hs)), max(2, int(h * hs))), Image.LANCZOS)
+            q = text_quad(big)
+            if q is not None:
+                quad = q
+                scale = hs
+
+    # 3) 회전 재시도 — 가로/세로로 잘못 찍힌 사진 자동 교정 (실패 경로에서만)
+    if quad is None:
+        Ws, Hs = small.size
+        for deg in (90, 270, 180):
+            rot = small.rotate(deg, expand=True)
+            q = text_quad(rot)
+            if q is not None:
+                quad = [_unrotate_point(p, deg, Ws, Hs) for p in q]
+                quad = order_corners(quad)
+                method = 'dl-rot' + str(deg)
+                break
+
     if quad is None:
         quad = yolo_quad(small)
         method = 'yolo'
@@ -150,7 +224,7 @@ def run(image_path, max_dim=1600, stretch_x=0.0, stretch_y=0.0, rotate=0):
     corners = [[x * k, y * k] for x, y in quad]
     out = warp_quad(img, corners, max_dim)
 
-    # 4) DocGeoNet 정류 — 공식 레시피 (선택적)
+    # 4) DocGeoNet 정류 — 공식 레시피 (선택적, 항등에 가까우면 자동 스킵)
     rect = _try_rectify(out)
     if rect is not None:
         out = rect

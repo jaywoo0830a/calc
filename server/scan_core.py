@@ -120,18 +120,36 @@ def _rdp(pts, eps):
     return [a, b]
 
 
-def simplify_to_quad(hull, min_eps=1.0, max_eps=80.0, steps=10):
-    """볼록 껍질을 점진적으로 단순화해 4점 사각형 근사.
-    실패 시 None."""
+def simplify_to_quad(hull, min_eps=1.0, max_eps=80.0):
+    """볼록 껍질을 4점 사각형으로 단순화.
+
+    RDP가 남기는 점 수는 eps에 단조 감소하므로 이분 탐색으로
+    정확히 4점이 되는 eps를 찾는다 (선형 스윕이 5→3으로 건너뛰며 놓치던 경우 포착).
+    실패 시 None.
+    """
     if len(hull) <= 4:
         return list(hull) if len(hull) == 4 else None
-    for i in range(steps):
-        eps = min_eps + (max_eps - min_eps) * i / max(1, steps - 1)
-        poly = _rdp(hull, eps)
-        if len(poly) == 4:
-            return poly
-        if len(poly) < 4:
-            break
+
+    def count(eps):
+        return len(_rdp(hull, eps))
+
+    n_lo, n_hi = count(min_eps), count(max_eps)
+    if n_lo < 4 or n_hi > 4:
+        return None  # 이 범위에서 4점이 나오지 않음
+    if n_lo == 4:
+        return _rdp(hull, min_eps)
+    if n_hi == 4:
+        return _rdp(hull, max_eps)
+    lo, hi = min_eps, max_eps
+    for _ in range(40):
+        mid = (lo + hi) / 2.0
+        n = count(mid)
+        if n == 4:
+            return _rdp(hull, mid)
+        if n > 4:
+            lo = mid
+        else:
+            hi = mid
     return None
 
 
