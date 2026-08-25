@@ -9,7 +9,7 @@ import { clampPan, pinchView, zoomAt, toggleZoom } from '../lib/zoomView.js';
  * ─ Esc / ✕ / 배경 클릭: 닫기
  * 드래그 중에는 React 상태를 거치지 않고 DOM을 직접 조작한다 (ImageOverlay와 동일 전략).
  */
-export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, onPrev, onNext }) {
+export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, onPrev, onNext, counter = '' }) {
   const portalTarget = useFullscreenPortal();
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const stageRef = useRef(null);
@@ -224,6 +224,7 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
           aria-label="Close image viewer"
           title="Close (Esc)"
         >✕</button>
+        {counter && <div className="pdf-annotator__lightbox-counter">{counter}</div>}
         {onPrev && (
           <button
             className="pdf-annotator__lightbox-prev"
@@ -256,7 +257,7 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
             >↻</button>
           </>
         )}
-        <div className="pdf-annotator__lightbox-hint">Click: zoom · Drag: pan · Wheel / Pinch: zoom · ↺ ↻: rotate · Esc: close</div>
+        <div className="pdf-annotator__lightbox-hint">Click: zoom · Drag: pan · Wheel / Pinch: zoom · {onRotate ? '↺ ↻: rotate · ' : ''}Esc: close</div>
       </div>
     </div>,
     portalTarget

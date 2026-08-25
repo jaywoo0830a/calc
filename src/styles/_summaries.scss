@@ -79,6 +79,29 @@
     font-weight: $fw-normal;
   }
 
+  &__doc-meta {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+  }
+
+  // 📖 문서별 책 보기 버튼
+  &__read {
+    border: $border-thin solid $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    color: $c-accent;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    padding: 0.1rem 0.7rem;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { background: rgba(92, 61, 46, 0.1); }
+    }
+  }
+
   &__grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppNav from '../components/AppNav.jsx';
+import ImageLightbox from '../components/ImageLightbox.jsx';
 import { getAllSummaries, deleteAnnotation } from '../lib/storage.js';
 import { setPendingSummary } from '../lib/summaryJump.js';
 
@@ -13,6 +14,7 @@ const docName = (fp) => String(fp || '').split('/').pop() || 'Document';
 export default function Summaries() {
   const [items, setItems] = useState(null); // null = 로딩 중
   const [loadError, setLoadError] = useState(false);
+  const [book, setBook] = useState(null);  // 📖 책 보기 { filePath, index }
   const navigate = useNavigate();
 
   const refresh = useCallback(() => {
@@ -71,7 +73,14 @@ export default function Summaries() {
             <section key={fp} className="summaries__group">
               <header className="summaries__doc">
                 <span>📕 {docName(fp)}</span>
-                <span className="summaries__doc-count">{list.length}</span>
+                <span className="summaries__doc-meta">
+                  <span className="summaries__doc-count">{list.length}</span>
+                  <button
+                    className="summaries__read"
+                    onClick={() => setBook({ filePath: fp, index: 0 })}
+                    title="Read this document's summaries like a book"
+                  >📖 Read</button>
+                </span>
               </header>
               <div className="summaries__grid">
                 {list.map((s) => (
@@ -108,6 +117,22 @@ export default function Summaries() {
           ))}
         </div>
       )}
+      {book && (() => {
+        const list = (items || []).filter((s) => s.filePath === book.filePath);
+        const s = list[book.index];
+        if (!s) return null;
+        const range = `p.${s.rangeStart || s.pageNumber}–${s.rangeEnd || s.pageNumber}`;
+        return (
+          <ImageLightbox
+            dataUrl={s.dataUrl}
+            alt={range}
+            counter={`${book.index + 1} / ${list.length} · ${range}`}
+            onClose={() => setBook(null)}
+            onPrev={book.index > 0 ? () => setBook((b) => ({ ...b, index: b.index - 1 })) : null}
+            onNext={book.index < list.length - 1 ? () => setBook((b) => ({ ...b, index: b.index + 1 })) : null}
+          />
+        );
+      })()}
     </main>
   );
 }
