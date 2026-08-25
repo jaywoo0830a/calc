@@ -1098,6 +1098,84 @@
     .pdf-annotator__nav { display: none; }
   }
 
+  // ── ✛ 터치 조준선 — 코멘트 배치 위치 정밀 조정 (터치 기기) ──
+  &__comment-aim {
+    position: fixed;
+    z-index: 320;
+    width: 3rem;
+    height: 3rem;
+    margin: -1.5rem 0 0 -1.5rem; // left/top이 중심점
+    touch-action: none;
+    cursor: move;
+
+    &-cross {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.7rem;
+      font-weight: 700;
+      color: $c-accent;
+      pointer-events: none;
+      text-shadow: 0 0 0.35rem rgba(255, 254, 247, 0.95), 0 1px 2px rgba(44, 36, 22, 0.4);
+    }
+
+    &-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px dashed rgba(92, 61, 46, 0.55);
+      animation: commentAimPulse 1.2s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    &-actions {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 0.5rem);
+      transform: translateX(-50%);
+      display: flex;
+      gap: 0.5rem;
+
+      button {
+        width: 2.3rem;
+        height: 2.3rem;
+        border-radius: 50%;
+        border: $border-thin solid rgba(212, 201, 181, 0.55);
+        background: rgba(255, 254, 247, 0.92);
+        color: $c-ink-soft;
+        font-size: 0.95rem;
+        cursor: pointer;
+        box-shadow: $shadow-sm;
+
+        &:first-child { color: #3d5a40; border-color: rgba(61, 90, 64, 0.45); }
+        &:last-child { color: $c-error; border-color: rgba(181, 67, 58, 0.4); }
+      }
+    }
+
+    &-hint {
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 0.5rem);
+      transform: translateX(-50%);
+      white-space: nowrap;
+      background: rgba(255, 254, 247, 0.92);
+      border: $border-thin solid $c-rule;
+      border-radius: 999px;
+      padding: 0.25rem 0.7rem;
+      font-size: $fs-step--2;
+      color: $c-ink-soft;
+      box-shadow: $shadow-sm;
+      pointer-events: none;
+    }
+  }
+
+  @keyframes commentAimPulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.9; }
+  }
+
   &__comment-actions {
     display: flex;
     gap: $sp-1;
