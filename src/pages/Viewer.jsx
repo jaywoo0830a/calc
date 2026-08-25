@@ -253,6 +253,8 @@ export default function Viewer() {
         setSelectedPath(state.selectedPath);
         if (state.scrollPositions) scrollPositions.current = state.scrollPositions;
         if (state.pdfState) pdfState.current = state.pdfState;
+        // 탭 전환 후 돌아왔을 때 PDF가 1페이지로 초기화되지 않도록 시작 페이지 복원
+        setPdfInitialPage((state.pdfState || {})[posKey(state.selectedPath)]?.page || null);
       };
 
       const renderDoc = async (zip, blobs) => {

@@ -129,6 +129,8 @@
   }
 
   &__stored-name {
+    flex: 1;
+    min-width: 0;
     font-size: $fs-step--1;
     color: $c-ink-soft;
     overflow: hidden;

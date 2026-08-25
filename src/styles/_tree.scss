@@ -20,9 +20,7 @@
     cursor: pointer;
     transition: all $transition-fast;
     color: $c-ink-soft;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 0; // 긴 파일명이 옆으로 밀고 넘치지 않게
 
     @media (hover: hover) {
       &:hover {
@@ -67,6 +65,8 @@
 
   // ---- Tree name -------------------------------------------
   &__name {
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import AppNav from '../components/AppNav.jsx';
@@ -163,6 +163,9 @@ export default function Concepts() {
   const [collapsed, setCollapsed] = useState(() => new Set()); // 접힌 노드 id (UI 전용)
   const [expandedId, setExpandedId] = useState(null); // 클릭으로 내용 펼친 노드 (한 번에 하나)
   const [contentAnchor, setContentAnchor] = useState(null); // { id, left, top } — 플로팅 카드 위치
+  const [cardPos, setCardPos] = useState(null); // { id, left, top } — 실측 후 뷰포트 클램프 좌표
+  const cardRef = useRef(null);
+  const lastTapRef = useRef({ id: null, t: 0 }); // 터치 더블 탭 감지 (dblclick 없는 기기)
   // 🧠 Test 모드 (회상 연습) — 비파괴(서버 변경 없음)
   const [testPick, setTestPick] = useState(false);   // 범위 선택 중 (노드 탭 = 그 서브트리)
   const [testType, setTestType] = useState('label'); // 'label'(A)=모든 라벨만 | 'deep'(B)=빈 라벨+CLEAR
@@ -297,6 +300,18 @@ export default function Concepts() {
       window.removeEventListener('resize', reposition);
     };
   }, [contentAnchor && contentAnchor.id]);
+
+  // 플로팅 카드 — 실제 크기 측정 후 뷰포트 안으로 클램프 (모든 기기 안정 포지션)
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!el || !contentAnchor) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let left = contentAnchor.left, top = contentAnchor.top;
+    if (r.right > vw - 8) left = Math.max(8, vw - r.width - 8);
+    if (r.bottom > vh - 8) top = Math.max(8, vh - r.height - 8);
+    setCardPos((prev) => (prev && prev.left === left && prev.top === top ? prev : { id: contentAnchor.id, left, top }));
+  });
 
   // 플로팅 카드 바깥 클릭 → 닫기 (해당 노드 행 클릭은 유지)
   useEffect(() => {
@@ -559,7 +574,19 @@ export default function Concepts() {
             + (dragId === node.id ? ' concepts__row--dragging' : '')
             + (hint ? ` concepts__row--drop-${hint}` : '')}
           data-node-id={node.id}
-          onClick={(e) => { if (testPick) startTest(node.id); else toggleExpand(node.id, e.currentTarget); }}
+          onClick={(e) => {
+            if (testPick) { startTest(node.id); return; }
+            // 터치 더블 탭 감지 — dblclick이 없는 모바일/태블릿에서 편집 진입
+            const now = Date.now();
+            const last = lastTapRef.current;
+            if (last.id === node.id && now - last.t < 350) {
+              lastTapRef.current = { id: null, t: 0 };
+              startEdit(record);
+              return;
+            }
+            lastTapRef.current = { id: node.id, t: now };
+            toggleExpand(node.id, e.currentTarget);
+          }}
           onDoubleClick={() => { if (!testPick) startEdit(record); }}
           draggable
           onDragStart={(e) => {
@@ -1056,8 +1083,9 @@ export default function Concepts() {
         const node = (items || []).find((c) => c.id === contentAnchor.id);
         if (!node) return null;
         const parts = parseClear(node.summary);
+        const pos = cardPos && cardPos.id === contentAnchor.id ? cardPos : contentAnchor;
         return createPortal(
-          <div className="concepts__float-card" style={{ left: contentAnchor.left, top: contentAnchor.top }}>
+          <div className="concepts__float-card" ref={cardRef} style={{ left: pos.left, top: pos.top }}>
             <div className="concepts__float-card-head">
               <span className="concepts__float-card-title">{node.label}</span>
               <button

@@ -165,7 +165,7 @@ $guide-color: $c-rule;
   &__list {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+    overflow: auto;      // 계층이 깊어지면 x/y 양축 스크롤
     display: flex;
     flex-direction: column;
     gap: $sp-3;
@@ -176,7 +176,8 @@ $guide-color: $c-rule;
     background: $c-page;
     border: $border-thin solid $c-rule;
     border-radius: $radius-md;
-    overflow: hidden;
+    width: max-content;  // 깊은 계층이 콘텐츠 폭만큼 확장 → 가로 스크롤 대상
+    min-width: 100%;
     padding: $sp-3 $sp-4; // 노드와 카드(캔버스) 사이 여백
   }
 
@@ -187,6 +188,7 @@ $guide-color: $c-rule;
     padding: $sp-2 $sp-3;
     background: $c-page-dark;
     border-bottom: $border-thin solid $c-rule;
+    border-radius: $radius-md $radius-md 0 0; // 그룹의 라운드 코너에 맞춤
     font-size: $fs-step--1;
     font-weight: $fw-semibold;
     color: $c-ink;

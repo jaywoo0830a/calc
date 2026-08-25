@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { getRangeSelectState, subscribeRangeSelect } from '../lib/rangeSelectState.js';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -101,6 +101,21 @@ function compressImageFile(file) {
   });
 }
 
+// 메모화된 PDF 페이지 — 주석 저장 등 부모 상태 변경으로 인한 캔버스 재렌더(깜빡임) 방지.
+// pageNumber/width/textLayer/onRenderSuccess가 바뀔 때만 react-pdf <Page>를 다시 그린다.
+const PdfPageMemo = memo(function PdfPageMemo({ pageNumber, width, textLayer, onRenderSuccess }) {
+  return (
+    <Page
+      pageNumber={pageNumber}
+      width={width}
+      devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
+      renderTextLayer={textLayer}
+      renderAnnotationLayer={true}
+      onRenderSuccess={onRenderSuccess}
+    />
+  );
+});
+
 export default function PdfAnnotator({ url, filePath, initialPage, initialScrollTop }) {
   const [numPages, setNumPages] = useState(0);
   const [annotations, setAnnotations] = useState([]);
@@ -114,6 +129,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [zoomLevel, setZoomLevel] = useState(1); // 0.5–2.0 (50%–200%)
   const [chromeVisible, setChromeVisible] = useState(true);
   const [pageRenderTick, setPageRenderTick] = useState(0); // bumps on each Page render → forces annotation recalculation
+  // 안정적인 onRenderSuccess 콜백 — PdfPageMemo가 매 렌더 재마운트되지 않게
+  const handleRenderSuccess = useCallback(() => setPageRenderTick((t) => t + 1), []);
   const [bookmarks, setBookmarks] = useState([]);  // { id, filePath, pageNumber, title?, createdAt }
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [openCommentId, setOpenCommentId] = useState(null); // READ 모드에서 내용을 연 코멘트 마커
@@ -1746,13 +1763,11 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                   cursor: (tool === 'highlight' || tool === 'underline' || rangeActive) ? 'text' : tool === 'concept' ? 'crosshair' : undefined,
                 }}
               >
-                <Page
+                <PdfPageMemo
                   pageNumber={pageNumber}
                   width={pageW}
-                  devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
-                  renderTextLayer={tool === 'highlight' || tool === 'underline' || rangeActive}
-                  renderAnnotationLayer={true}
-                  onRenderSuccess={() => setPageRenderTick(t => t + 1)}
+                  textLayer={tool === 'highlight' || tool === 'underline' || rangeActive}
+                  onRenderSuccess={handleRenderSuccess}
                 />
                 {/* Annotation overlay */}
                 {annos.map((a) => (a.type === 'image' || a.type === 'summary') ? (
