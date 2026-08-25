@@ -281,28 +281,77 @@ $guide-color: $c-rule;
     &:hover { color: $c-accent; background: rgba(92, 61, 46, 0.08); }
   }
 
-  // ── 클릭으로 펼친 내용 (아코디언 — 한 번에 하나) ──
-  &__content {
-    margin: 0.3rem 0 0.5rem 2.6rem; // 상태 점 아래 정렬 (이름보다 덜 들여씀)
-    max-width: 42rem;
+  // ── 노드 클릭 → 플로팅 내용 카드 (portal → body, 노드 옆에 큼직하게) ──
+  &__float-card {
+    position: fixed;
+    z-index: 2000;
+    width: min(24rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-left: 0.2rem solid $c-accent;
+    border-radius: $radius-md;
+    box-shadow: 0 0.75rem 2.5rem rgba(44, 36, 22, 0.28);
+    padding: $sp-3;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    align-items: flex-start;
+    gap: $sp-2;
   }
 
-  &__content-summary {
-    margin: 0;
-    font-size: $fs-step--1;
-    color: $c-ink-soft;
-    line-height: 1.45;
+  &__float-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: $sp-2;
+  }
+
+  &__float-card-title {
+    flex: 1;
+    font-size: $fs-step-1;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+  }
+
+  &__float-card-close {
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    color: $c-ink-faint;
+    font-size: 0.8rem;
+    padding: 0.2rem;
+    cursor: pointer;
+
+    &:hover { color: $c-ink; }
+  }
+
+  &__float-card-summary {
+    font-size: $fs-step-0;
+    color: $c-ink;
+    line-height: 1.55;
     white-space: pre-line; // CLEAR 프레임 줄바꿈 유지
   }
 
-  &__content-empty {
-    margin: 0;
-    font-size: $fs-step--2;
+  &__float-card-empty {
+    font-size: $fs-step--1;
     color: $c-ink-faint;
+  }
+
+  &__float-card-foot {
+    display: flex;
+  }
+
+  &__float-card-page {
+    border: $border-thin solid $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    color: $c-accent;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: $sp-1 $sp-3;
+    cursor: pointer;
+    transition: border-color $transition-fast;
+
+    &:hover { border-color: $c-accent; }
   }
 
   // ── 트리 구조: 접기 토글 + 클래식 org-chart 커넥터 ──
@@ -526,7 +575,7 @@ $guide-color: $c-rule;
     background: $c-page;
     border: $border-thin solid $c-rule;
     border-radius: $radius-md;
-    max-width: 42rem; // 노드와 어울리는 폭으로 제한
+    max-width: 48rem; // 노드와 어울리는 폭으로 제한
 
     &-label, &-parent, &-page {
       border: $border-thin solid $c-rule;
@@ -541,16 +590,16 @@ $guide-color: $c-rule;
       &:focus { border-color: $c-accent; outline: none; }
     }
 
-    // CLEAR 프레임 5개 선택 입력 — 저장 시 Summary로 병합
+    // CLEAR 프레임 5개 선택 입력 — 넉넉한 textarea, 저장 시 Summary로 병합
     &-clear {
       display: flex;
       flex-direction: column;
-      gap: 0.35rem;
+      gap: 0.5rem;
     }
 
     &-clear-row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: $sp-2;
     }
 
@@ -560,6 +609,7 @@ $guide-color: $c-rule;
       font-size: $fs-step--2;
       color: $c-ink-faint;
       text-align: right;
+      padding-top: $sp-2;
     }
 
     &-clear-input {
@@ -571,7 +621,10 @@ $guide-color: $c-rule;
       color: $c-ink;
       font-family: $ff;
       font-size: $fs-step--1;
-      padding: $sp-1 $sp-2;
+      line-height: 1.5;
+      padding: $sp-2;
+      min-height: 3.4rem;
+      resize: vertical;
 
       &:focus { border-color: $c-accent; outline: none; }
     }

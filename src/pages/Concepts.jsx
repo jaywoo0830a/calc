@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import AppNav from '../components/AppNav.jsx';
 import { getAllConcepts, saveConcept, deleteConcept } from '../lib/storage.js';
@@ -88,6 +89,20 @@ function findTreeNode(roots, id) {
   return null;
 }
 
+/** 플로팅 내용 카드 앵커 — 노드 오른쪽(없으면 왼쪽, 그래도 없으면 뷰포트 클램프) */
+function anchorFor(el, id) {
+  const r = el.getBoundingClientRect();
+  const CARD_W = 384, GAP = 12;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let left;
+  if (r.right + GAP + CARD_W <= vw) left = r.right + GAP;
+  else if (r.left - GAP - CARD_W >= 0) left = r.left - GAP - CARD_W;
+  else left = Math.max(12, Math.min(r.left, vw - CARD_W - 12));
+  const cardH = Math.min(380, vh - 24);
+  const top = Math.max(12, Math.min(r.top, vh - 12 - cardH));
+  return { id, left, top };
+}
+
 /**
  * 드래그 앤 드롭 배치 — before/after(대상과 같은 부모의 형제 위치) 또는
  * inside(대상의 마지막 자식). 사이클은 reparentNode가 검증(throw)한다.
@@ -118,6 +133,7 @@ export default function Concepts() {
   const [editing, setEditing] = useState(null);  // { id, filePath, label, summary, status, parent, pageNumber }
   const [collapsed, setCollapsed] = useState(() => new Set()); // 접힌 노드 id (UI 전용)
   const [expandedId, setExpandedId] = useState(null); // 클릭으로 내용 펼친 노드 (한 번에 하나)
+  const [contentAnchor, setContentAnchor] = useState(null); // { id, left, top } — 플로팅 카드 위치
   // 🧠 Test 모드 (회상 연습) — 비파괴(서버 변경 없음)
   const [testPick, setTestPick] = useState(false);   // 범위 선택 중 (노드 탭 = 그 서브트리)
   const [test, setTest] = useState(null);            // { rootId, answers:{}, scored, missed[], retryIds }
@@ -147,6 +163,7 @@ export default function Concepts() {
   // 문서/필터가 바뀌면 열려 있던 내용·편집·자식 추가·테스트 UI를 닫는다
   useEffect(() => {
     setExpandedId(null);
+    setContentAnchor(null);
     setEditing(null);
     setAddingChild(null);
     setChildLabel('');
@@ -217,16 +234,62 @@ export default function Concepts() {
     });
   }, []);
 
-  // 행 클릭 → 내용 펼침/접힘 (아코디언 — 한 번에 하나만)
-  const toggleExpand = useCallback((id) => {
-    setExpandedId((prev) => (prev === id ? null : id));
-  }, []);
+  // 행 클릭 → 내용 펼침/접힘 — 플로팅 카드(한 번에 하나만)
+  const toggleExpand = useCallback((id, el) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+      setContentAnchor(null);
+      return;
+    }
+    setExpandedId(id);
+    if (el) setContentAnchor(anchorFor(el, id));
+  }, [expandedId]);
+
+  // 플로팅 카드 — 스크롤/리사이즈 시 노드에 붙어 따라감
+  useEffect(() => {
+    if (!contentAnchor) return;
+    const id = contentAnchor.id;
+    const reposition = () => {
+      const el = document.querySelector(`[data-node-id="${id}"]`);
+      if (!el) return;
+      const a = anchorFor(el, id);
+      setContentAnchor((prev) => (prev && (prev.left !== a.left || prev.top !== a.top) ? a : prev));
+    };
+    document.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      document.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [contentAnchor && contentAnchor.id]);
+
+  // 플로팅 카드 바깥 클릭 → 닫기 (해당 노드 행 클릭은 유지)
+  useEffect(() => {
+    if (!contentAnchor) return;
+    const onDown = (e) => {
+      if (e.target.closest('.concepts__float-card')) return;
+      if (e.target.closest(`[data-node-id="${contentAnchor.id}"]`)) return;
+      setExpandedId(null);
+      setContentAnchor(null);
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [contentAnchor]);
+
+  // 펼친 노드가 삭제되면 카드 닫기
+  useEffect(() => {
+    if (expandedId && items && !items.some((c) => c.id === expandedId)) {
+      setExpandedId(null);
+      setContentAnchor(null);
+    }
+  }, [expandedId, items]);
 
   // ── 🧠 Test 모드 ──
   const startTest = useCallback((rootId) => {
     setTest({ rootId, answers: {}, scored: false, missed: [], retryIds: null });
     setTestPick(false);
     setExpandedId(null);
+    setContentAnchor(null);
     setTestInput(null);
     setTestText('');
   }, []);
@@ -309,6 +372,8 @@ export default function Concepts() {
   }, [addingChild, testInput]);
 
   const startEdit = useCallback((c) => {
+    setExpandedId(null);
+    setContentAnchor(null);
     setEditing({
       id: c.id, filePath: c.filePath, label: c.label || '', parts: parseClear(c.summary),
       status: c.status || STATUS.UNKNOWN, parent: c.parentId || '',
@@ -399,7 +464,8 @@ export default function Concepts() {
           className={'concepts__row'
             + (dragId === node.id ? ' concepts__row--dragging' : '')
             + (hint ? ` concepts__row--drop-${hint}` : '')}
-          onClick={testPick ? () => startTest(node.id) : () => toggleExpand(node.id)}
+          data-node-id={node.id}
+          onClick={(e) => { if (testPick) startTest(node.id); else toggleExpand(node.id, e.currentTarget); }}
           onDoubleClick={() => { if (!testPick) startEdit(record); }}
           draggable
           onDragStart={(e) => {
@@ -454,13 +520,6 @@ export default function Concepts() {
             title={`Go to source page ${node.pageNumber}`}
           >p.{node.pageNumber}</button>
         </div>
-        {expandedId === node.id && (
-          <div className="concepts__content">
-            {node.summary
-              ? <p className="concepts__content-summary">{node.summary}</p>
-              : <p className="concepts__content-empty">No notes yet — double-click to edit.</p>}
-          </div>
-        )}
         {addingChild && addingChild.id === node.id && (
           <div className="concepts__add-child">
             <input
@@ -499,8 +558,9 @@ export default function Concepts() {
               {CLEAR_KEYS.map((k) => (
                 <div className="concepts__editor-clear-row" key={k}>
                   <label className="concepts__editor-clear-label">{k}</label>
-                  <input
+                  <textarea
                     className="concepts__editor-clear-input"
+                    rows={2}
                     placeholder={CLEAR_PLACEHOLDERS[k]}
                     value={editing.parts[k]}
                     onChange={(e) => setEditing((v) => ({ ...v, parts: { ...v.parts, [k]: e.target.value } }))}
@@ -728,7 +788,7 @@ export default function Concepts() {
             {!test && !testPick && items.some((c) => c.filePath === selectedFp) && (
               <button
                 className="concepts__test-btn"
-                onClick={() => { setTestPick(true); setExpandedId(null); }}
+                onClick={() => { setTestPick(true); setExpandedId(null); setContentAnchor(null); }}
                 title="Recall practice — blank the labels and fill them in"
               >Test</button>
             )}
@@ -823,6 +883,33 @@ export default function Concepts() {
           </div>
         </>
       )}
+      {contentAnchor && (() => {
+        const node = (items || []).find((c) => c.id === contentAnchor.id);
+        if (!node) return null;
+        return createPortal(
+          <div className="concepts__float-card" style={{ left: contentAnchor.left, top: contentAnchor.top }}>
+            <div className="concepts__float-card-head">
+              <span className="concepts__float-card-title">{node.label}</span>
+              <button
+                className="concepts__float-card-close"
+                onClick={() => { setExpandedId(null); setContentAnchor(null); }}
+                title="Close"
+              >✕</button>
+            </div>
+            {node.summary
+              ? <div className="concepts__float-card-summary">{node.summary}</div>
+              : <div className="concepts__float-card-empty">No notes yet — double-click to edit.</div>}
+            <div className="concepts__float-card-foot">
+              <button
+                className="concepts__float-card-page"
+                onClick={() => openConcept({ filePath: node.filePath, pageNumber: node.pageNumber, label: node.label })}
+                title={`Go to source page ${node.pageNumber}`}
+              >p.{node.pageNumber}</button>
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
     </main>
   );
 }
