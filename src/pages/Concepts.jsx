@@ -117,6 +117,21 @@ function anchorFor(el, id) {
   return { id, left, top };
 }
 
+/** 테스트 범위 id 목록 (순수) — 전체 또는 서브트리 */
+function testScopeOf(items, filePath, t) {
+  if (!t || !items || !filePath) return [];
+  const map = conceptsToMap((items || []).filter((c) => c.filePath === filePath));
+  if (t.retryIds) return t.retryIds;
+  if (!t.rootId) return Object.keys(map);
+  const roots = buildTree(map);
+  const sub = findTreeNode(roots, t.rootId);
+  if (!sub) return [];
+  const out = [];
+  const walk = (n) => { out.push(n.id); (n.children || []).forEach(walk); };
+  walk(sub);
+  return out;
+}
+
 /**
  * 드래그 앤 드롭 배치 — before/after(대상과 같은 부모의 형제 위치) 또는
  * inside(대상의 마지막 자식). 사이클은 reparentNode가 검증(throw)한다.
@@ -150,7 +165,8 @@ export default function Concepts() {
   const [contentAnchor, setContentAnchor] = useState(null); // { id, left, top } — 플로팅 카드 위치
   // 🧠 Test 모드 (회상 연습) — 비파괴(서버 변경 없음)
   const [testPick, setTestPick] = useState(false);   // 범위 선택 중 (노드 탭 = 그 서브트리)
-  const [test, setTest] = useState(null);            // { rootId, answers:{}, scored, missed[], retryIds }
+  const [testType, setTestType] = useState('label'); // 'label'(A)=모든 라벨만 | 'deep'(B)=빈 라벨+CLEAR
+  const [test, setTest] = useState(null);            // { type, rootId, blankIds[], answers:{id:{label,summary}}, scored, missed[], retryIds }
   const [testInput, setTestInput] = useState(null);  // 답 입력 중인 노드 id
   const [testText, setTestText] = useState('');
   const [gate, setGate] = useState(null);            // { id, openedAt } — 새 노드 5분 학습 게이트
@@ -305,24 +321,40 @@ export default function Concepts() {
 
   // ── 🧠 Test 모드 ──
   const startTest = useCallback((rootId) => {
-    setTest({ rootId, answers: {}, scored: false, missed: [], retryIds: null });
+    const ids = testScopeOf(items, selectedFp, { rootId, retryIds: null });
+    let blankIds;
+    if (testType === 'deep') {
+      const shuffled = ids.slice().sort(() => Math.random() - 0.5);
+      blankIds = shuffled.slice(0, Math.max(1, Math.ceil(ids.length / 2))); // 라벨 절반 정도 랜덤 비움
+    } else {
+      blankIds = ids.slice(); // A — 전부 빈칸
+    }
+    setTest({
+      type: testType, rootId, blankIds,
+      answers: {}, scored: false, missed: [], retryIds: null,
+    });
     setTestPick(false);
     setExpandedId(null);
     setContentAnchor(null);
     setTestInput(null);
     setTestText('');
-  }, []);
+  }, [items, selectedFp, testType]);
 
   const beginAnswer = useCallback((id) => {
     if (!test || test.scored) return;
     setTestInput(id);
-    setTestText(test.answers[id] || '');
+    setTestText((test.answers[id] || {}).label || '');
   }, [test]);
 
   const submitAnswer = useCallback(() => {
     if (!testInput) return;
     const v = testText.trim();
-    if (v) setTest((t) => (t ? { ...t, answers: { ...t.answers, [testInput]: v } } : t));
+    if (v) {
+      setTest((t) => (t ? {
+        ...t,
+        answers: { ...t.answers, [testInput]: { ...(t.answers[testInput] || {}), label: v } },
+      } : t));
+    }
     setTestInput(null);
     setTestText('');
   }, [testInput, testText]);
@@ -698,16 +730,8 @@ export default function Concepts() {
 
   const testScope = useMemo(() => {
     if (!test) return [];
-    if (test.retryIds) return test.retryIds;
-    if (!test.rootId) return Object.keys(testDocMap);
-    const roots = buildTree(testDocMap);
-    const sub = findTreeNode(roots, test.rootId);
-    if (!sub) return [];
-    const out = [];
-    const walk = (n) => { out.push(n.id); (n.children || []).forEach(walk); };
-    walk(sub);
-    return out;
-  }, [test, testDocMap]);
+    return test.retryIds || test.blankIds || [];
+  }, [test]);
 
   const testRoots = useMemo(() => {
     if (!test || test.retryIds) return null;
@@ -717,18 +741,36 @@ export default function Concepts() {
     return sub ? [sub] : [];
   }, [test, testDocMap]);
 
+  // 빈 노드 완료 여부 — A(라벨만)는 라벨 필수, B(deep)는 요약까지(원 요약 있을 때)
+  const testNodeDone = useCallback((id) => {
+    const a = test.answers[id] || {};
+    if (!(a.label || '').trim()) return false;
+    if (test.type !== 'deep') return true;
+    const hasSum = String(testDocMap[id]?.summary || '').trim();
+    return !hasSum || !!(a.summary || '').trim();
+  }, [test, testDocMap]);
+
+  const answeredCount = test ? testScope.filter(testNodeDone).length : 0;
+
   // 라운드 종료 채점 — 정답은 여기서 처음 공개 (라운드 중 숨김)
   const finishTest = useCallback(() => {
     setTest((t) => {
       if (!t || t.scored) return t;
-      const missed = testScope.filter((id) => norm(testDocMap[id]?.label) !== norm(t.answers[id]));
+      const missed = testScope.filter((id) => {
+        const a = t.answers[id] || {};
+        const labelOk = norm(testDocMap[id]?.label) === norm(a.label);
+        if (t.type !== 'deep') return !labelOk; // A — 라벨만
+        const sumOk = (a.summary || '').trim() === String(testDocMap[id]?.summary || '').trim();
+        return !labelOk || !sumOk; // B — 라벨+요약
+      });
       return { ...t, scored: true, missed };
     });
   }, [testScope, testDocMap]);
 
   const retryTest = useCallback(() => {
     setTest((t) => (t ? {
-      rootId: t.rootId, answers: {}, scored: false, missed: [], retryIds: t.missed,
+      type: t.type, rootId: t.rootId, blankIds: t.blankIds,
+      answers: {}, scored: false, missed: [], retryIds: t.missed,
     } : t));
     setTestInput(null);
     setTestText('');
@@ -737,19 +779,41 @@ export default function Concepts() {
   // 전부 채워지면 자동 채점
   useEffect(() => {
     if (!test || test.scored || testScope.length === 0) return;
-    if (testScope.every((id) => (test.answers[id] || '').trim())) finishTest();
-  }, [test, testScope, finishTest]);
+    if (testScope.every(testNodeDone)) finishTest();
+  }, [test, testScope, testNodeDone, finishTest]);
 
-  // ── 🧠 Test 행 (라벨 빈칸·입력·채점 표시) ──
+  // ── 🧠 Test 행 — 빈 노드는 라벨+요약을 채우고, 나머지 노드는 단서로 유지 ──
   const renderTestRow = (node, fp, isLast = false) => {
     if (!node) return null;
     const kids = node.children || [];
-    const ans = test.answers[node.id] || '';
-    const correct = test.scored && norm(ans) === norm(node.label);
+    const blanked = (test.retryIds || test.blankIds || []).includes(node.id);
+    const ans = test.answers[node.id] || {};
+    const labelText = ans.label || '';
+    const sumText = ans.summary || '';
+    if (!blanked) {
+      // 단서 노드 — 라벨만 보여줌 (요약은 빈 노드 채점에만 사용)
+      return (
+        <div key={node.id} className={'concepts__item' + (isLast ? ' concepts__item--last' : '')}>
+          <div className="concepts__row concepts__row--test">
+            <span className="concepts__toggle-spacer" />
+            <span className="concepts__status" style={{ background: STATUS_COLORS[node.status] }} />
+            <span className="concepts__name">{node.label}</span>
+          </div>
+          {kids.length > 0 && (
+            <div className="concepts__children">
+              {kids.map((ch, i) => renderTestRow(ch, fp, i === kids.length - 1))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    const labelOk = test.scored && norm(labelText) === norm(node.label);
+    const sumOk = test.scored && sumText.trim() === String(node.summary || '').trim();
+    const ok = test.scored && labelOk && (test.type !== 'deep' || sumOk);
     const cls = 'concepts__row concepts__row--test'
       + (test.scored
-        ? (correct ? ' concepts__row--correct' : ' concepts__row--wrong')
-        : (ans ? ' concepts__row--answered' : ' concepts__row--blank'));
+        ? (ok ? ' concepts__row--correct' : ' concepts__row--wrong')
+        : (labelText ? ' concepts__row--answered' : ' concepts__row--blank'));
     return (
       <div key={node.id} className={'concepts__item' + (isLast ? ' concepts__item--last' : '')}>
         <div className={cls} onClick={() => beginAnswer(node.id)}>
@@ -757,23 +821,23 @@ export default function Concepts() {
           <span className="concepts__status" style={{ background: STATUS_COLORS[node.status] }} />
           {test.scored ? (
             <>
-              <span className={'concepts__test-mark' + (correct ? ' concepts__test-mark--ok' : ' concepts__test-mark--no')}>
-                {correct ? '✓' : '✗'}
+              <span className={'concepts__test-mark' + (ok ? ' concepts__test-mark--ok' : ' concepts__test-mark--no')}>
+                {ok ? '✓' : '✗'}
               </span>
               <span className="concepts__test-label">
                 <span className="concepts__name">{node.label}</span>
-                {!correct && <span className="concepts__test-you">you: {ans || '—'}</span>}
+                {!labelOk && <span className="concepts__test-you">you: {labelText || '—'}</span>}
               </span>
             </>
           ) : (
-            <span className="concepts__name">{ans}</span>
+            <span className="concepts__name">{labelText}</span>
           )}
         </div>
         {testInput === node.id && !test.scored && (
           <div className="concepts__add-child concepts__test-input">
             <input
               autoFocus
-              placeholder="Recall…"
+              placeholder="Recall the label…"
               title="Enter = answer · Esc = cancel"
               value={testText}
               onChange={(e) => setTestText(e.target.value)}
@@ -788,6 +852,29 @@ export default function Concepts() {
               aria-label="Cancel"
               onClick={() => { setTestInput(null); setTestText(''); }}
             >✕</button>
+          </div>
+        )}
+        {test.type === 'deep' && !test.scored && (
+          <textarea
+            className="concepts__test-detail-input"
+            rows={4}
+            placeholder={'Core: …\nLink: …\nExample: …\nAntithesis: …\nRestate: …'}
+            value={sumText}
+            onChange={(e) => setTest((t) => (t ? {
+              ...t,
+              answers: { ...t.answers, [node.id]: { ...(t.answers[node.id] || {}), summary: e.target.value } },
+            } : t))}
+          />
+        )}
+        {test.type === 'deep' && test.scored && (
+          <div className="concepts__test-detail">
+            <div className="concepts__test-detail-answer">{node.summary}</div>
+            {!sumOk && (
+              <div className="concepts__test-detail-you">
+                <span className="concepts__test-detail-you-label">You wrote</span>
+                <span>{sumText || '—'}</span>
+              </div>
+            )}
           </div>
         )}
         {kids.length > 0 && (
@@ -859,9 +946,16 @@ export default function Concepts() {
             {!test && !testPick && items.some((c) => c.filePath === selectedFp) && (
               <button
                 className="concepts__test-btn"
-                onClick={() => { setTestPick(true); setExpandedId(null); setContentAnchor(null); }}
-                title="Recall practice — blank the labels and fill them in"
+                onClick={() => { setTestType('label'); setTestPick(true); setExpandedId(null); setContentAnchor(null); }}
+                title="A — every label is blanked; recall the labels only"
               >Test</button>
+            )}
+            {!test && !testPick && items.some((c) => c.filePath === selectedFp) && (
+              <button
+                className="concepts__test-btn"
+                onClick={() => { setTestType('deep'); setTestPick(true); setExpandedId(null); setContentAnchor(null); }}
+                title="B — some labels are blanked; recall each label and its CLEAR notes"
+              >Deep test</button>
             )}
           </div>
 
@@ -872,7 +966,7 @@ export default function Concepts() {
                 <span className="concepts__test-bar-count">
                   {test.scored
                     ? `Score — ${testScope.length - (test.missed || []).length} / ${testScope.length}`
-                    : `Test — ${Object.keys(test.answers).length} / ${testScope.length} filled`}
+                    : `${test.type === 'deep' ? 'Deep test' : 'Test'} — ${answeredCount} / ${testScope.length} filled`}
                   {test.retryIds ? ' · round 2' : ''}
                 </span>
                 <span className="concepts__test-bar-actions">
@@ -896,7 +990,11 @@ export default function Concepts() {
             <>
               {testPick && (
                 <div className="concepts__test-bar">
-                  <span className="concepts__test-bar-count">Test — tap a branch to test its subtree</span>
+                  <span className="concepts__test-bar-count">
+                    {testType === 'deep'
+                      ? 'Deep test — tap a branch to test its labels and notes'
+                      : 'Test — tap a branch to test its labels'}
+                  </span>
                   <span className="concepts__test-bar-actions">
                     <button className="concepts__test-btn" onClick={() => startTest(null)}>Whole document</button>
                     <button className="concepts__test-btn" onClick={() => setTestPick(false)}>Cancel</button>

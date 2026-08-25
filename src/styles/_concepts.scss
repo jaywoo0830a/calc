@@ -539,6 +539,56 @@ $guide-color: $c-rule;
     color: #b5433a;
   }
 
+  // Detail test — 요약 정확 재타이핑 입력/채점
+  &__test-detail-input {
+    margin: 0.3rem 0 0.3rem 2.6rem;
+    display: block;
+    width: min(100%, 36rem);
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    line-height: 1.5;
+    padding: $sp-2;
+    resize: vertical;
+
+    &:focus { border-color: $c-accent; outline: none; }
+  }
+
+  &__test-detail {
+    margin: 0.3rem 0 0 2.6rem;
+    max-width: 36rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  &__test-detail-answer {
+    font-size: $fs-step--1;
+    color: $c-ink;
+    line-height: 1.5;
+    white-space: pre-line;
+  }
+
+  &__test-detail-you {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    font-size: $fs-step--1;
+    color: #b5433a;
+    white-space: pre-line;
+  }
+
+  &__test-detail-you-label {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: $c-ink-faint;
+  }
+
   // ── 드래그 앤 드롭 피드백 ──
   &__row--dragging { opacity: 0.4; }
 
