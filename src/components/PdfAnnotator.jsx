@@ -953,6 +953,14 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     const pageEl = pageRefs.current[pending.pageNumber] || document.querySelector(`[data-page="${pending.pageNumber}"]`);
     const canvasRect = getPageCanvasRect(pageEl);
     const pageAspect = canvasRect ? canvasRect.height / canvasRect.width : 1.4;
+    // 📒 요약 범위 — 역전(start > end)이면 교환해서 항상 start ≤ end 유지
+    let rangeStart = 0;
+    let rangeEnd = 0;
+    if (opts.kind === 'summary') {
+      rangeStart = Number(opts.rangeStart) || 0;
+      rangeEnd = Number(opts.rangeEnd) || 0;
+      if (rangeStart > rangeEnd) [rangeStart, rangeEnd] = [rangeEnd, rangeStart];
+    }
     const annotation = {
       filePath,
       pageNumber: pending.pageNumber,
@@ -960,8 +968,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       dataUrl,
       aspect,
       scanner: scanner || '', // 어떤 디텍터가 스캔했는지 (ml | classic | manual)
-      rangeStart: opts.kind === 'summary' ? (Number(opts.rangeStart) || 0) : 0,
-      rangeEnd: opts.kind === 'summary' ? (Number(opts.rangeEnd) || 0) : 0,
+      rangeStart,
+      rangeEnd,
       rect: fitImageRect({ x: pending.x, y: pending.y, w: 0.4 }, aspect, pageAspect),
     };
     const saved = await saveAnnotation(annotation);
@@ -995,14 +1003,16 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       // 📐 scanic — 스캔 영역 지정 모달 (모서리 드래그 → Apply → 원근 보정)
       // setTool(null)의 effect가 pendingImageRef를 비우므로 세션용 ref에 보관
       scanPendingRef.current = pending;
-      // 📒 요약 범위 자동 제안 — 이전 요약의 끝 페이지 다음부터 현재 페이지까지
+      // 📒 요약 범위 자동 제안 — 이전 요약의 끝 페이지 다음부터 현재 페이지까지.
+      // 같은 페이지에 여러 요약을 쌓으면 역전(start > end)되지 않게 클램프한다.
       const lastEnd = annotations
         .filter((a) => a.type === 'summary')
         .reduce((m, s) => Math.max(m, Number(s.rangeEnd) || s.pageNumber || 0), 0);
+      const rangeEnd = pending.pageNumber;
       setScanImage({
         dataUrl,
         aspect,
-        suggestedRange: { start: lastEnd ? lastEnd + 1 : 1, end: pending.pageNumber },
+        suggestedRange: { start: lastEnd ? Math.min(lastEnd + 1, rangeEnd) : 1, end: rangeEnd },
       });
     } catch {
       pendingImageRef.current = null;
