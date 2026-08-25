@@ -14,13 +14,22 @@
   // ---- Navigation — ruled tabs ----------------------------
   &__nav {
     display: flex;
-    flex-wrap: wrap;                     // 탭이 많아지면 줄바꿈 (가로 스크롤 없음)
+    flex-wrap: nowrap;                   // 한 줄 유지 — 넘치면 가로 스크롤
+    flex-shrink: 0;                      // 세로 flex 컨테이너에서 눌리지 않게
     gap: $sp-0;
     margin-bottom: $sp-2;
     padding: $sp-1;
     background: $c-page;
     border: $border-thin solid $c-rule;
     border-radius: $radius-md;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: $c-rule transparent;
+
+    &::-webkit-scrollbar { height: 0.25rem; }
+    &::-webkit-scrollbar-thumb { background: $c-rule; border-radius: 0.125rem; }
+    &::-webkit-scrollbar-track { background: transparent; }
   }
 
   &__nav-tab {
@@ -618,11 +627,11 @@
 }
 
 // ============================================================
-// 좁은 화면 (≤768px): 탭은 줄바꿈으로 배치된다
+// 좁은 화면 (≤768px): 탭은 내용 크기 유지 → 넘치면 가로 스크롤
 // ============================================================
 @media (max-width: $bp-md) {
   .calculator__nav-tab {
-    flex: 1 1 30%;   // 9개 탭 → 3 + 3 + 3 세 줄로 균등 배치
+    min-width: max-content;
   }
 }
 
