@@ -209,6 +209,22 @@ export default function Concepts() {
     }
   }, [addingChild, childLabel, items, commitDoc]);
 
+  // 자식 추가 입력 — 바깥 클릭/Esc로 닫기 (안 없어지는 UI 방지)
+  useEffect(() => {
+    if (!addingChild) return;
+    const close = () => { setAddingChild(null); setChildLabel(''); };
+    const onDown = (e) => {
+      if (!e.target.closest('.concepts__add-child')) close();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [addingChild]);
+
   const startEdit = useCallback((c) => {
     setEditing({
       id: c.id, filePath: c.filePath, label: c.label || '', summary: c.summary || '',
@@ -377,10 +393,20 @@ export default function Concepts() {
                 if (e.key === 'Escape') { setAddingChild(null); setChildLabel(''); }
               }}
             />
+            <button
+              className="concepts__add-child-cancel"
+              title="Cancel"
+              aria-label="Cancel"
+              onClick={() => { setAddingChild(null); setChildLabel(''); }}
+            >✕</button>
           </div>
         )}
         {editing && editing.id === node.id && (
-          <div className="concepts__editor concepts__editor--inline" data-edit-id={node.id}>
+          <div
+            className="concepts__editor concepts__editor--inline"
+            data-edit-id={node.id}
+            onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }}
+          >
             <input
               autoFocus
               className="concepts__editor-label"
@@ -400,13 +426,12 @@ export default function Concepts() {
                 {REVIEW_PRIORITY.map((s) => (
                   <button
                     key={s}
-                    className={'concepts__filter' + (editing.status === s ? ' concepts__filter--active' : '')}
+                    className={'concepts__filter concepts__filter--swatch' + (editing.status === s ? ' concepts__filter--active' : '')}
+                    style={{ background: STATUS_COLORS[s] }}
                     onClick={() => setEditing((v) => ({ ...v, status: s }))}
                     title={STATUS_LABELS[s]}
                     aria-label={STATUS_LABELS[s]}
-                  >
-                    <span className="concepts__dot" style={{ background: STATUS_COLORS[s] }} />
-                  </button>
+                  />
                 ))}
               </div>
               <input
@@ -460,13 +485,12 @@ export default function Concepts() {
       {REVIEW_PRIORITY.map((s) => (
         <button
           key={s}
-          className={'concepts__filter' + (filter === s ? ' concepts__filter--active' : '')}
+          className={'concepts__filter concepts__filter--swatch' + (filter === s ? ' concepts__filter--active' : '')}
+          style={{ background: STATUS_COLORS[s] }}
           onClick={() => setFilter(filter === s ? 'all' : s)}
           title={STATUS_LABELS[s] + (s === STATUS.UNKNOWN ? ' — review first' : '')}
           aria-label={STATUS_LABELS[s]}
-        >
-          <span className="concepts__dot" style={{ background: STATUS_COLORS[s] }} />
-        </button>
+        />
       ))}
     </div>
   );

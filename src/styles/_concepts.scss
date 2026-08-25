@@ -49,6 +49,7 @@ $guide-color: $c-rule;
   &__filters {
     display: flex;
     gap: $sp-1;
+    align-items: center;
     margin-left: $sp-2;
   }
 
@@ -56,7 +57,7 @@ $guide-color: $c-rule;
     font-size: $fs-step--2;
     color: $c-ink-soft;
     padding: $sp-1 $sp-2;
-    border: $border-thin solid $c-rule;
+    border: none;
     border-radius: 999px;
     background: transparent;
     cursor: pointer;
@@ -64,8 +65,23 @@ $guide-color: $c-rule;
 
     &--active {
       background: $c-accent;
-      border-color: $c-accent;
       color: $c-ink-inverse;
+    }
+  }
+
+  // 상태 필터/편집 칩 = 순수 색 원 (테두리·배경 없이 색만 — 인라인 background 사용)
+  &__filter--swatch {
+    flex-shrink: 0;
+    width: 1.15rem;
+    height: 1.15rem;
+    padding: 0;
+    border-radius: 50%;
+    transition: transform $transition-fast;
+
+    &:hover { transform: scale(1.15); }
+
+    &.concepts__filter--active {
+      transform: scale(1.3);
     }
   }
 
@@ -395,6 +411,9 @@ $guide-color: $c-rule;
   // ── 인라인 자식 추가 입력 (노드와 같은 알약 스타일) ──
   &__add-child {
     margin: 0.3rem 0 0.3rem 2.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
 
     input {
       display: block;
@@ -413,6 +432,24 @@ $guide-color: $c-rule;
         outline: none;
         box-shadow: 0 0.0625rem 0.25rem rgba(92, 61, 46, 0.18);
       }
+    }
+
+    &-cancel {
+      flex-shrink: 0;
+      width: 1.6rem;
+      height: 1.6rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: $border-thin solid $c-rule;
+      border-radius: 50%;
+      background: transparent;
+      color: $c-ink-faint;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: border-color $transition-fast, color $transition-fast;
+
+      &:hover { border-color: $c-error; color: $c-error; }
     }
   }
 
