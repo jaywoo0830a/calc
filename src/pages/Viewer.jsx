@@ -163,6 +163,8 @@ export default function Viewer() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const viewerRef = useRef(null);
+  const nativeFsRef = useRef(false); // 네이티브 풀스크린으로 진입했는지 (fullscreenchange 동기화용)
   const [storedZips, setStoredZips] = useState([]);
   const [storedOpen, setStoredOpen] = useState(false); // Saved archives — 기본 접힘
   const [toc, setToc] = useState([]);
@@ -387,6 +389,33 @@ export default function Viewer() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [fullscreen]);
+
+  // 마크다운 풀스크린 — 네이티브 Fullscreen API 우선, 실패/iOS는 CSS 폴백(viewer--fullscreen)
+  const toggleFullscreen = useCallback(() => {
+    if (fullscreen) {
+      nativeFsRef.current = false;
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+      setFullscreen(false);
+      return;
+    }
+    setFullscreen(true); // CSS 폴백 즉시 적용
+    const el = viewerRef.current;
+    if (el && el.requestFullscreen) {
+      el.requestFullscreen().then(() => { nativeFsRef.current = true; }).catch(() => { nativeFsRef.current = false; });
+    }
+  }, [fullscreen]);
+
+  // 브라우저 UI(ESC 등)로 풀스크린을 나가면 상태 동기화
+  useEffect(() => {
+    const onFs = () => {
+      if (nativeFsRef.current && !document.fullscreenElement) {
+        nativeFsRef.current = false;
+        setFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
 
   const indexImages = useCallback(async (zip) => {
     const blobs = {};
@@ -1036,7 +1065,7 @@ export default function Viewer() {
   useEffect(() => () => { registerRecentNavigate(null); clearRecent(); }, []);
 
   return (
-    <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')} style={readabilityVars}>
+    <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')} style={readabilityVars} ref={viewerRef}>
       {!fullscreen && <AppNav />}
       {!fullscreen && (
         <div className="viewer__upload"
@@ -1196,7 +1225,7 @@ export default function Viewer() {
         {(rendered || pdfUrl) && (
           <button
             className="viewer__fullscreen-btn"
-            onClick={() => setFullscreen(!fullscreen)}
+            onClick={toggleFullscreen}
             aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >

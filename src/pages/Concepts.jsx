@@ -168,6 +168,8 @@ export default function Concepts() {
   const lastTapRef = useRef({ id: null, t: 0 }); // 터치 더블 탭 감지 (dblclick 없는 기기)
   const [treeFull, setTreeFull] = useState(false); // 트리 전체화면 (뷰어 전체화면과 동일한 몰입)
   const [treeZoom, setTreeZoom] = useState(1);    // 전체화면 줌 0.6–2.0
+  const overlayRef = useRef(null);
+  const nativeFsRef = useRef(false); // 네이티브 풀스크린 진입 여부 (fullscreenchange 동기화용)
   // 🧠 Test 모드 (회상 연습) — 비파괴(서버 변경 없음)
   const [testPick, setTestPick] = useState(false);   // 범위 선택 중 (노드 탭 = 그 서브트리)
   const [testType, setTestType] = useState('label'); // 'label'(A)=모든 라벨만 | 'deep'(B)=빈 라벨+CLEAR
@@ -355,6 +357,33 @@ export default function Concepts() {
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
   }, [treeFull]);
+
+  // 트리 전체화면 — 네이티브 Fullscreen API 우선, 실패/iOS는 CSS 오버레이 폴백
+  useEffect(() => {
+    if (!treeFull) return;
+    const el = overlayRef.current;
+    if (el && el.requestFullscreen) {
+      el.requestFullscreen().then(() => { nativeFsRef.current = true; }).catch(() => { nativeFsRef.current = false; });
+    }
+  }, [treeFull]);
+
+  // 브라우저 UI(ESC 등)로 풀스크린을 나가면 상태 동기화
+  useEffect(() => {
+    const onFs = () => {
+      if (nativeFsRef.current && !document.fullscreenElement) {
+        nativeFsRef.current = false;
+        setTreeFull(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+
+  const exitTreeFull = useCallback(() => {
+    nativeFsRef.current = false;
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    setTreeFull(false);
+  }, []);
 
   // ── 🧠 Test 모드 ──
   const startTest = useCallback((rootId) => {
@@ -1119,14 +1148,14 @@ export default function Concepts() {
         </>
       )}
       {treeFull && !test && createPortal(
-        <div className="concepts__fullscreen">
+        <div className="concepts__fullscreen" ref={overlayRef}>
           <div className="concepts__fullscreen-bar">
             <span className="concepts__fullscreen-title">📕 {docName(selectedFp)}</span>
             <button className="concepts__test-btn" onClick={() => setTreeZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(1)))} title="Zoom out">−</button>
             <span className="concepts__fullscreen-zoom">{Math.round(treeZoom * 100)}%</span>
             <button className="concepts__test-btn" onClick={() => setTreeZoom((z) => Math.min(2.0, +(z + 0.1).toFixed(1)))} title="Zoom in">+</button>
             <button className="concepts__test-btn" onClick={() => setTreeZoom(1)} title="Reset zoom">1:1</button>
-            <button className="concepts__test-btn" onClick={() => setTreeFull(false)} title="Exit fullscreen (Esc)">✕ Exit</button>
+            <button className="concepts__test-btn" onClick={exitTreeFull} title="Exit fullscreen (Esc)">✕ Exit</button>
           </div>
           <div className="concepts__list concepts__list--detail concepts__fullscreen-scroll">
             <div style={{ width: `${treeZoom * 100}%` }}>

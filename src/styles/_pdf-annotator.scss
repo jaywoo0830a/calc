@@ -1787,9 +1787,9 @@
 
     &__nav {
       gap: 0.25rem;
-      padding: $sp-1 $sp-2 $sp-1 14.5rem; // 왼쪽은 ✂️/🕘/📋/⏱/🎲 자리 확보
+      padding: $sp-1 $sp-2;
       margin: 0 $sp-1 $sp-1 $sp-1;
-      justify-content: flex-start;
+      justify-content: center;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: none;
@@ -1827,6 +1827,14 @@
     &__zoom-label {
       display: none;
     }
+  }
+
+  // 풀스크린: 플로팅 FAB 행(✂️🕘📋⚡⏱🎲, z-450) 위로 네비를 들어 올려
+  // ◀ 페이지 버튼이 가려지지 않게 한다 (FAB 행 높이 2.5rem + 여백만큼).
+  // FAB는 어노테이터 컨테이너 내부에 렌더되어 네이티브 풀스크린에서도
+  // 계속 보이므로 네이티브/폴백 공통으로 올린다.
+  .pdf-annotator--fullscreen .pdf-annotator__nav {
+    margin: 0 $sp-1 calc($sp-2 + 2.5rem + $sp-2 + env(safe-area-inset-bottom, 0px)) $sp-1;
   }
 }
 
