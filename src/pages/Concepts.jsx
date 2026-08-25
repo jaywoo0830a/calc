@@ -85,7 +85,7 @@ function hasClearFormat(text) {
 }
 
 // ── 🧠 학습 마찰 게이트: 새 노드(빈 summary)는 연속 5분 + 최소 2섹션 채워야 저장 ──
-const STUDY_GATE_MS = 5 * 60 * 1000;
+const STUDY_GATE_MS = 3 * 60 * 1000;
 const STUDY_GATE_MIN_SECTIONS = 2;
 
 const fmtMs = (ms) => {
@@ -176,7 +176,7 @@ export default function Concepts() {
   const [test, setTest] = useState(null);            // { type, rootId, blankIds[], answers:{id:{label,summary}}, scored, missed[], retryIds }
   const [testInput, setTestInput] = useState(null);  // 답 입력 중인 노드 id
   const [testText, setTestText] = useState('');
-  const [gate, setGate] = useState(null);            // { id, openedAt } — 새 노드 5분 학습 게이트
+  const [gate, setGate] = useState(null);            // { id, openedAt } — 새 노드 3분 학습 게이트
   const [, setTick] = useState(0);                   // 게이트 카운트다운 리렌더 틱
   const draftRef = useRef({});                       // 게이트 노드 초안 보존 (닫아도 유지, 타이머만 리셋)
   const [dragId, setDragId] = useState(null);     // 드래그 중인 노드 id
@@ -678,7 +678,24 @@ export default function Concepts() {
         <select
           className="concepts__editor-parent"
           value={editing.parent}
-          onChange={(e) => setEditing((v) => ({ ...v, parent: e.target.value }))}
+          onChange={(e) => {
+            const v = e.target.value;
+            setEditing((prev) => (prev ? { ...prev, parent: v } : prev));
+            // 게이트 중에는 트리 구조 변경(부모 이동)을 즉시 반영 — 학습 제한 우회
+            // (＋ Add child / × Delete / DnD는 원래 제한 없음. 부모만 Save에 묶여 있었음)
+            if (gate && gate.id === editing.id) {
+              const map = docMap(items, editing.filePath);
+              if (map[editing.id] && map[editing.id].parent !== v) {
+                try {
+                  const newMap = reparentNode(map, editing.id, v ? String(v) : null);
+                  commitDoc(editing.filePath, map, newMap);
+                } catch {
+                  // 사이클 등 검증 실패 — select를 원래 부모로 되돌림
+                  setEditing((prev) => (prev ? { ...prev, parent: map[editing.id]?.parent || '' } : prev));
+                }
+              }
+            }
+          }}
           title="Parent concept"
         >
           <option value="">— top level —</option>
