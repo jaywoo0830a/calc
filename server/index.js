@@ -716,6 +716,15 @@ app.get('/concepts', (req, res) => {
   }
 });
 
+// ── 📒 요약 주석 모아보기 (Summaries 탭용 — 전체 문서, 범위순) ─────────────────
+app.get('/summaries', (req, res) => {
+  try {
+    res.json(annotations.listSummaries());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // 실시간 동기화용 경량 메타 (id·updatedAt + 삭제 톰스톤)
 app.get('/concepts/meta', (req, res) => {
   try {

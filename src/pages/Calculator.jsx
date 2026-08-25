@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import AppNav from '../components/AppNav.jsx';
 import Display from '../components/Display.jsx';
 import Keypad from '../components/Keypad.jsx';
 import { useCalculator, SI_PREFIX_KEYS } from '../hooks/useCalculator.js';
@@ -75,18 +75,7 @@ export default function Calculator() {
 
   return (
     <main className={'calculator' + (calc.sciMode ? ' calculator--sci' : '')} onKeyDown={handleKeyDown} tabIndex={-1}>
-      <nav className="calculator__nav">
-        <span className="calculator__nav-tab calculator__nav-tab--active">Calc</span>
-        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
-        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
-        <Link to="/math" className="calculator__nav-tab">Math Space</Link>
-        <Link to="/fields" className="calculator__nav-tab">Fields</Link>
-        <Link to="/units" className="calculator__nav-tab">Units</Link>
-        <Link to="/relation" className="calculator__nav-tab">Relation</Link>
-        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
-        <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
-        <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
-      </nav>
+      <AppNav />
       <Display expression={calc.expression} result={calc.result} temp={calc.temp} />
       <div className="calculator__toolbar">
         <div className="calculator__mode-switch" role="group" aria-label="Calculator mode">

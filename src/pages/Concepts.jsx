@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import AppNav from '../components/AppNav.jsx';
 import { getAllConcepts, saveConcept, deleteConcept } from '../lib/storage.js';
 import { setPendingConcept } from '../lib/conceptJump.js';
 import { conceptsToMap } from '../components/PdfAnnotator.jsx';
@@ -206,18 +207,7 @@ export default function Concepts() {
 
   return (
     <main className="concepts">
-      <nav className="calculator__nav">
-        <Link to="/" className="calculator__nav-tab">Calc</Link>
-        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
-        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
-        <Link to="/math" className="calculator__nav-tab">Math Space</Link>
-        <Link to="/fields" className="calculator__nav-tab">Fields</Link>
-        <Link to="/units" className="calculator__nav-tab">Units</Link>
-        <Link to="/relation" className="calculator__nav-tab">Relation</Link>
-        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
-        <span className="calculator__nav-tab calculator__nav-tab--active">Concepts</span>
-        <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
-      </nav>
+      <AppNav />
 
       <div className="concepts__head">
         <h1 className="concepts__title">🧭 Concepts</h1>

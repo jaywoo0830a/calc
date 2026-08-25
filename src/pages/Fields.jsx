@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import AppNav from '../components/AppNav.jsx';
 import { fieldAt, forceOnChargeScene, sceneField, plateField, fieldLineCount, potentialCorners, contourPaths, traceFieldLine } from '../lib/electrostatics.js';
 import { screenOffset } from '../lib/canvasMath.js';
 
@@ -708,18 +708,7 @@ export default function Fields() {
 
   return (
     <main className="fields">
-      <nav className="calculator__nav">
-        <Link to="/" className="calculator__nav-tab">Calc</Link>
-        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
-        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
-        <Link to="/math" className="calculator__nav-tab">Math Space</Link>
-        <span className="calculator__nav-tab calculator__nav-tab--active">Fields</span>
-        <Link to="/units" className="calculator__nav-tab">Units</Link>
-        <Link to="/relation" className="calculator__nav-tab">Relation</Link>
-        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
-        <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
-        <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
-      </nav>
+      <AppNav />
 
       <div className="fields__panel">
         <div className="fields__chips" role="group" aria-label="Mode, tools and overlays">

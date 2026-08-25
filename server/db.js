@@ -395,30 +395,42 @@ function pruneTombstones() {
   db.prepare('DELETE FROM pdf_tombstones WHERE deleted_at < ?').run(cutoff);
 }
 
+function mapAnnotationRow(r) {
+  return {
+    id: r.id,
+    filePath: r.file_path,
+    pageNumber: r.page_number,
+    type: r.type,
+    color: r.color,
+    style: r.style,
+    text: r.text,
+    status: r.status || '',
+    attempts: Number(r.attempts) || 0,
+    wrong_count: Number(r.wrong_count) || 0,
+    rect: JSON.parse(r.rect || '{}'),
+    dataUrl: r.data_url || '',
+    aspect: Number(r.aspect) || 0,
+    scanner: r.scanner || '',
+    rangeStart: Number(r.range_start) || 0,
+    rangeEnd: Number(r.range_end) || 0,
+    updatedAt: r.updated_at,
+  };
+}
+
 export const annotations = {
   list(filePath) {
     const rows = db.prepare(
       'SELECT * FROM annotations WHERE file_path = ? ORDER BY page_number ASC, created_at ASC'
     ).all(filePath);
-    return rows.map((r) => ({
-      id: r.id,
-      filePath: r.file_path,
-      pageNumber: r.page_number,
-      type: r.type,
-      color: r.color,
-      style: r.style,
-      text: r.text,
-      status: r.status || '',
-      attempts: Number(r.attempts) || 0,
-      wrong_count: Number(r.wrong_count) || 0,
-      rect: JSON.parse(r.rect || '{}'),
-      dataUrl: r.data_url || '',
-      aspect: Number(r.aspect) || 0,
-      scanner: r.scanner || '',
-      rangeStart: Number(r.range_start) || 0,
-      rangeEnd: Number(r.range_end) || 0,
-      updatedAt: r.updated_at,
-    }));
+    return rows.map(mapAnnotationRow);
+  },
+
+  /** 📒 요약 주석만 전체 문서에서 (Summaries 탭용 — 문서별/범위순) */
+  listSummaries() {
+    const rows = db.prepare(
+      "SELECT * FROM annotations WHERE type = 'summary' ORDER BY file_path ASC, range_start ASC, created_at ASC"
+    ).all();
+    return rows.map(mapAnnotationRow);
   },
   meta(filePath) {
     pruneTombstones();

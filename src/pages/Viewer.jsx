@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import AppNav from '../components/AppNav.jsx';
 import { marked } from 'marked';
 import { pushRecent, clearRecent, registerRecentNavigate } from '../lib/recentHistory.js';
 import { takePendingProblem } from '../lib/problemJump.js';
 import { takePendingConcept } from '../lib/conceptJump.js';
+import { takePendingSummary } from '../lib/summaryJump.js';
 import katex from 'katex';
 import JSZip from 'jszip';
 import hljs from 'highlight.js';
@@ -791,8 +792,8 @@ export default function Viewer() {
     setProblemsOpen(false);
   }, [imageBlobs, setContent, switchToZipDoc, selectedPath, rendered, queueJump]);
 
-  // ── 🧭 Concepts 탭에서 넘어온 개념 노드 점프 (PDF 전용 앵커) ──
-  const jumpToConceptNode = useCallback((c) => {
+  // ── 🧭/📒 탭에서 넘어온 문서+페이지 점프 (개념·요약 공용, PDF 전용 앵커) ──
+  const jumpToDocumentPage = useCallback((c) => {
     const path = c?.filePath;
     const page = Number(c?.pageNumber) || 1;
     if (!path) return;
@@ -1005,7 +1006,19 @@ export default function Viewer() {
     const t = setTimeout(() => {
       const c = pendingConceptRef.current;
       pendingConceptRef.current = null;
-      if (c) jumpToConceptNode(c);
+      if (c) jumpToDocumentPage(c);
+    }, 400);
+    return () => clearTimeout(t);
+  }, []);
+
+  // 📒 Summaries 탭에서 넘어온 요약 → 마운트 후 해당 페이지로 점프
+  const pendingSummaryRef = useRef(takePendingSummary());
+  useEffect(() => {
+    if (!pendingSummaryRef.current) return;
+    const t = setTimeout(() => {
+      const s = pendingSummaryRef.current;
+      pendingSummaryRef.current = null;
+      if (s) jumpToDocumentPage({ filePath: s.filePath, pageNumber: s.pageNumber });
     }, 400);
     return () => clearTimeout(t);
   }, []);
@@ -1015,20 +1028,7 @@ export default function Viewer() {
 
   return (
     <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')} style={readabilityVars}>
-      {!fullscreen && (
-        <nav className="calculator__nav">
-          <Link to="/" className="calculator__nav-tab">Calc</Link>
-          <span className="calculator__nav-tab calculator__nav-tab--active">Viewer</span>
-          <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
-          <Link to="/math" className="calculator__nav-tab">Math Space</Link>
-          <Link to="/fields" className="calculator__nav-tab">Fields</Link>
-          <Link to="/units" className="calculator__nav-tab">Units</Link>
-          <Link to="/relation" className="calculator__nav-tab">Relation</Link>
-          <Link to="/problems" className="calculator__nav-tab">Problems</Link>
-          <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
-          <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
-        </nav>
-      )}
+      {!fullscreen && <AppNav />}
       {!fullscreen && (
         <div className="viewer__upload"
           onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && f.name.endsWith('.zip')) loadZip(f); }}

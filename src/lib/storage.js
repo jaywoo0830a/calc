@@ -249,6 +249,17 @@ export async function getAnnotations(filePath) {
   }
 }
 
+/** 📒 요약 주석만 전체 문서에서 (Summaries 탭용 — 실패 시 null) */
+export async function getAllSummaries() {
+  try {
+    const res = await fetch('/api/summaries');
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /** 실시간 동기화용 경량 메타 — 서버 미도달 시 null (폴링 스킵) */
 export async function annotationsMeta(filePath) {
   try {

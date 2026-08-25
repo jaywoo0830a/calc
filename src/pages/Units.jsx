@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import AppNav from '../components/AppNav.jsx';
 import {
   BASE_UNITS,
   UNITS,
@@ -97,18 +97,7 @@ export default function Units() {
 
   return (
     <main className="units">
-      <nav className="calculator__nav">
-        <Link to="/" className="calculator__nav-tab">Calc</Link>
-        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
-        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
-        <Link to="/math" className="calculator__nav-tab">Math Space</Link>
-        <Link to="/fields" className="calculator__nav-tab">Fields</Link>
-        <span className="calculator__nav-tab calculator__nav-tab--active">Units</span>
-        <Link to="/relation" className="calculator__nav-tab">Relation</Link>
-        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
-        <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
-        <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
-      </nav>
+      <AppNav />
 
       <div className="units__head">
         <h1 className="units__title">⚖ Units</h1>

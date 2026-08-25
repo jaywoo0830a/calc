@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import AppNav from '../components/AppNav.jsx';
 import { parse } from 'mathjs';
 import { analyzePoint, analyzeRange, validateVarName } from '../lib/relation.js';
 import {
@@ -139,18 +139,7 @@ export default function Relation() {
 
   return (
     <main className="relation">
-      <nav className="calculator__nav">
-        <Link to="/" className="calculator__nav-tab">Calc</Link>
-        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
-        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
-        <Link to="/math" className="calculator__nav-tab">Math Space</Link>
-        <Link to="/fields" className="calculator__nav-tab">Fields</Link>
-        <Link to="/units" className="calculator__nav-tab">Units</Link>
-        <span className="calculator__nav-tab calculator__nav-tab--active">Relation</span>
-        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
-        <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
-        <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
-      </nav>
+      <AppNav />
 
       <div className="relation__head">
         <h1 className="relation__title">🔗 Relation Analyzer</h1>

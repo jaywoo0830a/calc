@@ -1,0 +1,163 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: summaries — 요약 필기 모아보기 페이지 (Concepts와 유사)
+// ============================================================
+
+.summaries {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  min-height: 0;
+  gap: $sp-3;
+
+  &__head,
+  &__empty,
+  &__list {
+    width: 100%;
+    max-width: 52rem;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    font-size: $fs-step-1;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+    margin: 0;
+  }
+
+  &__count {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+  }
+
+  &__empty {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+    padding: $sp-3 0;
+  }
+
+  &__list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-3;
+    padding-bottom: $sp-2;
+  }
+
+  &__group {
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    overflow: hidden;
+  }
+
+  &__doc {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-2 $sp-3;
+    background: $c-page-dark;
+    border-bottom: $border-thin solid $c-rule;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+  }
+
+  &__doc-count {
+    color: $c-ink-faint;
+    font-size: $fs-step--2;
+    font-weight: $fw-normal;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: $sp-2;
+    padding: $sp-3;
+  }
+
+  &__card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    cursor: pointer;
+    transition: border-color $transition-fast, background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        border-color: $c-accent;
+        background: $c-page-dark;
+      }
+    }
+  }
+
+  &__thumb {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    border-radius: $radius-sm;
+    background: $c-page-dark;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $sp-1;
+  }
+
+  &__range {
+    font-size: $fs-step--2;
+    color: $c-ink-soft;
+    font-weight: $fw-medium;
+  }
+
+  &__scanner {
+    font-size: $fs-step--2;
+    color: $c-accent;
+    font-weight: $fw-semibold;
+  }
+
+  &__delete {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: rgba(44, 36, 22, 0.6);
+    color: $c-ink-inverse;
+    font-size: $fs-step--1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity $transition-fast;
+
+    @media (hover: hover) {
+      .summaries__card:hover & { opacity: 1; }
+      &:hover { background: $c-error; }
+    }
+
+    // 터치 — 항상 표시
+    @media (hover: none) {
+      opacity: 1;
+    }
+  }
+}

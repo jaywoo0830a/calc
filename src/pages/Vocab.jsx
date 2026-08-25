@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import AppNav from '../components/AppNav.jsx';
 import { api } from '../lib/api.js';
 import { lookupDefinition } from '../lib/dictionary.js';
 import { useClearGate } from '../hooks/useClearGate.js';
@@ -152,18 +152,7 @@ export default function Vocab() {
 
   return (
     <main className="vocab">
-      <nav className="calculator__nav">
-        <Link to="/" className="calculator__nav-tab">Calc</Link>
-        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
-        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
-        <Link to="/math" className="calculator__nav-tab">Math Space</Link>
-        <Link to="/fields" className="calculator__nav-tab">Fields</Link>
-        <Link to="/units" className="calculator__nav-tab">Units</Link>
-        <Link to="/relation" className="calculator__nav-tab">Relation</Link>
-        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
-        <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
-        <span className="calculator__nav-tab calculator__nav-tab--active">Vocab</span>
-      </nav>
+      <AppNav />
 
       <div className="vocab__head">
         <h1 className="vocab__title">📖 Vocabulary</h1>

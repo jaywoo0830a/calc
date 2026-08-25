@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import AppNav from '../components/AppNav.jsx';
 import Plotly from 'plotly.js-dist-min';
 import { create, all } from 'mathjs';
 import { EditorState } from '@codemirror/state';
@@ -166,18 +166,7 @@ Plotly.newPlot(container, [
 
   return (
     <main className="mathspace">
-      <nav className="calculator__nav">
-        <Link to="/" className="calculator__nav-tab">Calc</Link>
-        <Link to="/viewer" className="calculator__nav-tab">Viewer</Link>
-        <Link to="/playground" className="calculator__nav-tab">Three.js</Link>
-        <span className="calculator__nav-tab calculator__nav-tab--active">Math Space</span>
-        <Link to="/fields" className="calculator__nav-tab">Fields</Link>
-        <Link to="/units" className="calculator__nav-tab">Units</Link>
-        <Link to="/relation" className="calculator__nav-tab">Relation</Link>
-        <Link to="/problems" className="calculator__nav-tab">Problems</Link>
-        <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
-        <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
-      </nav>
+      <AppNav />
       <div className="mathspace__examples">
         <button className={'mathspace__chip' + (plotType === 'surface' ? ' mathspace__chip--active' : '')} onClick={() => examples('surface')}>🔮 Surface</button>
         <button className={'mathspace__chip' + (plotType === 'contour' ? ' mathspace__chip--active' : '')} onClick={() => examples('contour')}>🎯 Contour</button>
