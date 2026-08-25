@@ -78,6 +78,7 @@ export default function Problems() {
         <Link to="/units" className="calculator__nav-tab">Units</Link>
         <Link to="/relation" className="calculator__nav-tab">Relation</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Problems</span>
+        <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
         <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
 

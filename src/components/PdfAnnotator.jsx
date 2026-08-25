@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } fr
 import { createPortal } from 'react-dom';
 import { getRangeSelectState, subscribeRangeSelect } from '../lib/rangeSelectState.js';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark, annotationsMeta, bookmarksMeta, reportPdfPosition, getPdfPosition } from '../lib/storage.js';
+import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBookmark, deleteBookmark, annotationsMeta, bookmarksMeta, reportPdfPosition, getPdfPosition, getConcepts, saveConcept, deleteConcept, conceptsMeta } from '../lib/storage.js';
 import { api } from '../lib/api.js';
 import { fitImageRect } from '../lib/imageRect.js';
 import { rotateImageDataUrl, warmMl } from '../lib/docScan.js';
+import { addNode, suggestId, STATUS } from '../lib/conceptMap.js';
 import ScanAreaModal from './ScanAreaModal.jsx';
 import ClearGate from './ClearGate.jsx';
 import { useClearGate } from '../hooks/useClearGate.js';
@@ -39,6 +40,7 @@ const TOOLS = {
   underline: { label: '⎁ Underline', icon: '⎁' },
   comment:   { label: '💬 Comment', icon: '💬' },
   image:     { label: '🖼️ Image', icon: '🖼️' },
+  concept:   { label: '🧭 Concept', icon: '🧭' },
 };
 
 const MAX_IMAGE_MB = 10; // 🖼️ 이미지 업로드 상한
@@ -98,6 +100,36 @@ function compressImageFile(file) {
   });
 }
 
+// ── 🧭 개념 노드 — 서버 레코드 ↔ conceptMap 코어 노드 변환 ──
+export function conceptsToMap(list) {
+  const map = {};
+  for (const c of list) {
+    map[c.id] = {
+      id: c.id,
+      label: c.label || '',
+      summary: c.summary || '',
+      status: c.status || STATUS.UNKNOWN,
+      parent: c.parentId || null,
+      order: Number(c.order) || 0,
+      pageNumber: Number(c.pageNumber) || 1,
+      createdAt: c.createdAt || '',
+      updatedAt: c.updatedAt || '',
+    };
+  }
+  return map;
+}
+
+/** 파일별 고유 id 접두사 — 서로 다른 PDF에서 CN-n이 겹치지 않게 */
+function conceptIdBase(filePath) {
+  let h = 2166136261;
+  const s = String(filePath || '');
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36).slice(0, 6) + '-CN';
+}
+
 export default function PdfAnnotator({ url, filePath, initialPage, initialScrollTop }) {
   const [numPages, setNumPages] = useState(0);
   const [annotations, setAnnotations] = useState([]);
@@ -134,6 +166,12 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [summariesOpen, setSummariesOpen] = useState(false); // 📒 요약 모아보기 사이드바
   const [summariesOnly, setSummariesOnly] = useState(false); // 📒 요약만 보기 모드
   const [browseIndex, setBrowseIndex] = useState(null);      // 📒 요약 브라우즈 라이트박스 인덱스
+  // ── 🧭 개념 노드 (concept map) — 생성 캡처만 담당 (모아보기는 Concepts 탭) ──
+  const [concepts, setConcepts] = useState([]);          // 서버 저장 개념 노드 (flat 목록)
+  const conceptsRef = useRef([]);                        // 폴링/비동기에서 최신 값
+  const [conceptCapture, setConceptCapture] = useState(null); // 캡처 바 위치 { pageNumber, px, py }
+  const [conceptLabel, setConceptLabel] = useState('');
+  const [conceptParent, setConceptParent] = useState('');     // 캡처 시 부모 ('' = 최상위)
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -372,6 +410,11 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       setImageChoice(null);
       pendingImageRef.current = null;
     }
+    if (tool !== 'concept') {
+      setConceptCapture(null);
+      setConceptLabel('');
+      setConceptParent('');
+    }
   }, [tool]);
 
   // Reset detection state on page change — fresh start for new page
@@ -395,6 +438,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     if (!filePath) return;
     getBookmarks(filePath).then(setBookmarks).catch(() => {});
   }, [filePath]);
+
+  // ── Load 🧭 concept nodes (서버 우선, 오프라인 로컬 폴백) ──
+  useEffect(() => {
+    if (!filePath) { setConcepts([]); return; }
+    getConcepts(filePath).then(setConcepts).catch(() => {});
+  }, [filePath]);
+  useEffect(() => { conceptsRef.current = concepts; }, [concepts]);
 
   // ── 📡 PDF 주석 실시간 동기화 (폰 ↔ 태블릿) — 3초 폴링 ──
   // 서버가 진실의 원천: 메타 비교 → 변경 시 전체 당겨오기 + 오프라인 저장분 재업로드.
@@ -497,6 +547,32 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           if (sig(remote) !== sig(bookmarksRef.current)) setBookmarks(remote);
         }
       } catch { /* 무시 */ }
+      // ── 🧭 개념 노드 ──
+      try {
+        const meta = await conceptsMeta(filePath);
+        if (meta) {
+          const items = new Map((meta.items || []).map((m) => [m.id, m.updatedAt]));
+          const tombs = new Map((meta.tombstones || []).map((t) => [t.id, t.deletedAt]));
+          const local = conceptsRef.current;
+          const pushes = [];
+          const survivors = local.filter((c) => {
+            const t = tombs.get(c.id);
+            if (t && (!c.updatedAt || c.updatedAt < t)) return false; // 다른 기기에서 삭제됨
+            if (!items.has(c.id) && (!t || (c.updatedAt && c.updatedAt > t))) {
+              pushes.push(saveConcept(c).catch(() => null)); // 오프라인 저장분 재업로드
+            }
+            return true;
+          });
+          if (survivors.length !== local.length) setConcepts(survivors);
+          const changed = survivors.some((c) => items.get(c.id) !== (c.updatedAt || undefined))
+            || survivors.length !== items.size;
+          if (pushes.length) await Promise.all(pushes);
+          if (changed) {
+            const remote = await getConcepts(filePath);
+            setConcepts(remote);
+          }
+        }
+      } catch { /* 무시 */ }
     };
     tick();
     const id = setInterval(tick, 3000);
@@ -575,6 +651,9 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     setEditingComment(null);
     setEditText('');
     setOpenCommentId(null);
+    setConceptCapture(null);
+    setConceptLabel('');
+    setConceptParent('');
     autoFsRef.current = false; // 새 문서 → 다시 자동 풀스크린 유도
     return () => {
       // 이전 PDF 문서/페이지 참조 해제 (메모리 누수 방지)
@@ -601,6 +680,26 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     const t = setTimeout(() => setToast(null), 2000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // ── 🧭 키보드 단축키: N → 현재 페이지에 개념 캡처 바 (입력 중엔 무시) ──
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'n' && e.key !== 'N') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (!filePath || !numPages) return;
+      setConceptCapture({
+        pageNumber: currentPage,
+        px: Math.min(Math.max(window.innerWidth / 2 - 120, 8), window.innerWidth - 240),
+        py: 72,
+      });
+      setConceptLabel('');
+      setConceptParent('');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [filePath, numPages, currentPage]);
 
   // ── RangeSelect(✂️ Selecting) → 문제 등록 ──
   useEffect(() => {
@@ -835,6 +934,15 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         px: Math.min(Math.max(e.clientX, 8), window.innerWidth - 220),
         py: Math.min(Math.max(e.clientY, 8), window.innerHeight - 90),
       });
+    } else if (tool === 'concept') {
+      // 🧭 개념 노드 — 탭한 페이지에 캡처 바 (라벨 입력 → Enter = 생성)
+      setConceptCapture({
+        pageNumber,
+        px: Math.min(Math.max(e.clientX, 8), window.innerWidth - 240),
+        py: Math.min(Math.max(e.clientY, 8), window.innerHeight - 180),
+      });
+      setConceptLabel('');
+      setConceptParent('');
     }
   }, [tool]);
 
@@ -1060,6 +1168,57 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     goToPage(a.pageNumber);
     setAnnotationFocus({ id: a.id, pageNumber: a.pageNumber });
   }, [goToPage]);
+
+  // ── 🧭 개념 노드 — 코어 연산 후 변경분만 서버에 반영 (순수 diff) ──
+  const persistConceptDiff = useCallback((oldMap, newMap) => {
+    const ops = [];
+    for (const id of Object.keys(oldMap)) {
+      if (!newMap[id]) ops.push(deleteConcept(id));
+    }
+    for (const id of Object.keys(newMap)) {
+      const n = newMap[id];
+      const o = oldMap[id];
+      if (!o
+        || n.label !== o.label || n.summary !== o.summary || n.status !== o.status
+        || n.parent !== o.parent || n.order !== o.order || n.pageNumber !== o.pageNumber) {
+        ops.push(saveConcept({
+          id: n.id, filePath, label: n.label, summary: n.summary, status: n.status,
+          parentId: n.parent || '', pageNumber: n.pageNumber, order: n.order,
+        }));
+      }
+    }
+    return Promise.all(ops);
+  }, [filePath]);
+
+  const commitConceptMap = useCallback((oldMap, newMap) => {
+    setConcepts(Object.values(newMap).map((n) => ({
+      id: n.id, filePath, label: n.label, summary: n.summary, status: n.status,
+      parentId: n.parent || '', pageNumber: n.pageNumber, order: n.order,
+      createdAt: n.createdAt || new Date().toISOString(),
+      updatedAt: n.updatedAt || new Date().toISOString(),
+    })));
+    persistConceptDiff(oldMap, newMap).catch(() => setToast('Concept sync failed — will retry'));
+  }, [filePath, persistConceptDiff]);
+
+  // 캡처 바 → 노드 생성 (status 기본 ○, 부모는 선택값)
+  const submitConcept = useCallback(() => {
+    const cap = conceptCapture;
+    if (!cap) return;
+    const label = conceptLabel.trim();
+    setConceptCapture(null);
+    setConceptLabel('');
+    setConceptParent('');
+    if (!label) return;
+    const map = conceptsToMap(conceptsRef.current);
+    const id = suggestId(map, conceptIdBase(filePath));
+    try {
+      const newMap = addNode(map, { id, label, parent: conceptParent || null, pageNumber: cap.pageNumber });
+      commitConceptMap(map, newMap);
+      setToast('🧭 Concept added');
+    } catch (e) {
+      setToast(String(e.message || e));
+    }
+  }, [conceptCapture, conceptLabel, conceptParent, filePath, commitConceptMap]);
 
   // 점프한 주석이 페이지 렌더 후 DOM에 나타나면 스크롤 + 플래시
   useEffect(() => {
@@ -1594,6 +1753,43 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         </div>
       )}
 
+      {/* 🧭 Concept capture bar — 페이지 탭(Concept 툴) 또는 단축키 N으로 열림 */}
+      {conceptCapture && (
+        <div
+          className="pdf-annotator__comment-input pdf-annotator__concept-capture"
+          style={{
+            position: 'fixed',
+            left: conceptCapture.px,
+            top: conceptCapture.py,
+          }}
+        >
+          <input
+            autoFocus
+            placeholder="Concept name… (Enter = add)"
+            value={conceptLabel}
+            onChange={(e) => setConceptLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitConcept();
+              if (e.key === 'Escape') { setConceptCapture(null); setConceptLabel(''); setConceptParent(''); }
+            }}
+          />
+          <select
+            value={conceptParent}
+            onChange={(e) => setConceptParent(e.target.value)}
+            title="Parent concept"
+          >
+            <option value="">— top level —</option>
+            {concepts.map((c) => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </select>
+          <div className="pdf-annotator__comment-actions">
+            <button onClick={submitConcept}>Add</button>
+            <button onClick={() => { setConceptCapture(null); setConceptLabel(''); setConceptParent(''); }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       {/* PDF Document */}
       <div
         ref={documentRef}
@@ -1671,7 +1867,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
                   maxWidth: (fullscreen || zoomLevel > 1) ? 'none' : undefined,
                   height: (fullscreen || zoomLevel > 1) ? 'auto' : undefined,
                   minHeight: (fullscreen || zoomLevel > 1) ? undefined : undefined,
-                  cursor: (tool === 'highlight' || tool === 'underline' || rangeActive) ? 'text' : undefined,
+                  cursor: (tool === 'highlight' || tool === 'underline' || rangeActive) ? 'text' : tool === 'concept' ? 'crosshair' : undefined,
                 }}
               >
                 <Page

@@ -97,6 +97,7 @@ export default function Playground() {
         <Link to="/units" className="calculator__nav-tab">Units</Link>
         <Link to="/relation" className="calculator__nav-tab">Relation</Link>
         <Link to="/problems" className="calculator__nav-tab">Problems</Link>
+        <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
         <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
       <div className="playground__toggle-bar">

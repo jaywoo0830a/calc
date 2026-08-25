@@ -106,6 +106,7 @@ export default function Units() {
         <span className="calculator__nav-tab calculator__nav-tab--active">Units</span>
         <Link to="/relation" className="calculator__nav-tab">Relation</Link>
         <Link to="/problems" className="calculator__nav-tab">Problems</Link>
+        <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
         <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
       </nav>
 

@@ -8,6 +8,7 @@ import Units from './pages/Units.jsx';
 import Relation from './pages/Relation.jsx';
 import Vocab from './pages/Vocab.jsx';
 import Problems from './pages/Problems.jsx';
+import Concepts from './pages/Concepts.jsx';
 import CustomCursor from './components/CustomCursor.jsx';
 import WordLookup from './components/WordLookup.jsx';
 import RangeSelect from './components/RangeSelect.jsx';
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/units" element={<Units />} />
         <Route path="/relation" element={<Relation />} />
         <Route path="/problems" element={<Problems />} />
+        <Route path="/concepts" element={<Concepts />} />
         <Route path="/vocab" element={<Vocab />} />
       </Routes>
     </BrowserRouter>

@@ -3,10 +3,11 @@
 //    아래에서 /api/archives를 호출한다. (모든 기기에서 같은 라이브러리)
 import { getClearToken } from './api.js';
 const DB_NAME = 'calc-viewer';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_ZIPS = 'zips';
 const STORE_ANNOTATIONS = 'annotations';
 const STORE_BOOKMARKS = 'bookmarks';
+const STORE_CONCEPTS = 'concepts';
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -22,6 +23,10 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains(STORE_BOOKMARKS)) {
         const store = db.createObjectStore(STORE_BOOKMARKS, { keyPath: 'id' });
+        store.createIndex('filePath', 'filePath', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_CONCEPTS)) {
+        const store = db.createObjectStore(STORE_CONCEPTS, { keyPath: 'id' });
         store.createIndex('filePath', 'filePath', { unique: false });
       }
     };
@@ -407,4 +412,120 @@ export async function saveBookmark(bookmark) {
 export async function deleteBookmark(id) {
   try { await localDeleteBookmark(id); } catch {}
   try { await bookmarkRequest('/' + encodeURIComponent(id), { method: 'DELETE' }); } catch { /* 서버 삭제 실패 무시 */ }
+}
+
+// ============================================================
+// 🧭 Concept nodes CRUD — 클라우드(서버) 동기화 + 로컬 오프라인 캐시
+// ============================================================
+
+async function conceptRequest(path, options = {}) {
+  const res = await fetch('/api/concepts' + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  if (!res.ok) {
+    let msg = 'API ' + res.status;
+    try { msg = (await res.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+  return res;
+}
+
+async function localGetConcepts(filePath) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_CONCEPTS, 'readonly')
+      .objectStore(STORE_CONCEPTS).index('filePath').getAll(filePath);
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function localPutConcept(record) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_CONCEPTS, 'readwrite')
+      .objectStore(STORE_CONCEPTS).put(record);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function localDeleteConcept(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_CONCEPTS, 'readwrite')
+      .objectStore(STORE_CONCEPTS).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** 특정 파일의 모든 개념 노드 조회 — 서버가 진실의 원천, 오프라인이면 로컬 */
+export async function getConcepts(filePath) {
+  try {
+    const res = await conceptRequest('?file=' + encodeURIComponent(filePath));
+    const list = await res.json();
+    for (const c of list) {
+      try { await localPutConcept({ ...c, updatedAt: c.updatedAt || new Date().toISOString() }); } catch { /* 무시 */ }
+    }
+    return list;
+  } catch {
+    return localGetConcepts(filePath);
+  }
+}
+
+/** 전체 문서의 개념 노드 조회 (Concepts 탭용 — 서버 전용, 실패 시 null) */
+export async function getAllConcepts() {
+  try {
+    const res = await conceptRequest('');
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** 실시간 동기화용 경량 메타 — 서버 미도달 시 null (폴링 스킵) */
+export async function conceptsMeta(filePath) {
+  try {
+    const res = await fetch('/api/concepts/meta?file=' + encodeURIComponent(filePath));
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** 개념 노드 저장 — 서버 upsert + 로컬 캐시 (오프라인이면 로컬만) */
+export async function saveConcept(concept) {
+  const record = {
+    ...concept,
+    id: concept.id || `${concept.filePath}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    updatedAt: new Date().toISOString(),
+  };
+  try { await localPutConcept(record); } catch { /* 로컬 저장 실패 무시 */ }
+  try {
+    const res = await conceptRequest('', { method: 'POST', body: JSON.stringify(record) });
+    return await res.json();
+  } catch {
+    return record; // 오프라인 — 로컬에만 저장 (다음 접속 시엔 이 기기에만 존재)
+  }
+}
+
+/** 개념 노드 삭제 — 서버 + 로컬 */
+export async function deleteConcept(id) {
+  try { await localDeleteConcept(id); } catch {}
+  try { await conceptRequest('/' + encodeURIComponent(id), { method: 'DELETE' }); } catch { /* 서버 삭제 실패 무시 */ }
+}
+
+/** 특정 파일의 모든 개념 노드 삭제 — 서버 + 로컬 (비밀번호 토큰 필요) */
+export async function deleteAllConcepts(filePath) {
+  const local = await localGetConcepts(filePath);
+  for (const c of local) await localDeleteConcept(c.id);
+  try {
+    await conceptRequest('?file=' + encodeURIComponent(filePath), {
+      method: 'DELETE',
+      headers: { 'X-Clear-Token': getClearToken() || '' },
+    });
+  } catch {}
 }

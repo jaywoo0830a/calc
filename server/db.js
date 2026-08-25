@@ -88,6 +88,21 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_bookmarks_file ON bookmarks(file_path);
 
+  -- 🧭 개념 노드 (concept map) — 계층(parent_id)·이해 상태(status)·페이지 앵커
+  CREATE TABLE IF NOT EXISTS concepts (
+    id          TEXT PRIMARY KEY,
+    file_path   TEXT NOT NULL,
+    label       TEXT NOT NULL DEFAULT '',
+    summary     TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL DEFAULT '○', -- ● ◐ ○ △
+    parent_id   TEXT NOT NULL DEFAULT '',  -- '' = 최상위 노드
+    page_number INTEGER NOT NULL DEFAULT 1,
+    sort_order  INTEGER NOT NULL DEFAULT 0, -- 'order'는 SQL 예약어라 sort_order 사용
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_concepts_file ON concepts(file_path);
+
   -- 삭제 전파용 톰스톤 (기기 간 동기화 — 삭제된 항목이 되살아나지 않게)
   CREATE TABLE IF NOT EXISTS pdf_tombstones (
     id         TEXT PRIMARY KEY,
@@ -528,5 +543,88 @@ export const bookmarks = {
     );
     for (const r of ids) ins.run(r.id, filePath, now);
     db.prepare('DELETE FROM bookmarks WHERE file_path = ?').run(filePath);
+  },
+};
+
+/** 🧭 개념 노드 (concept map) — 클라우드 동기화 (기기 간 동일 개념 지도)
+ *  parent_id = '' → 최상위 노드 (JS에서는 null). children은 클라이언트가 파생.
+ */
+export const concepts = {
+  list(filePath) {
+    if (filePath) {
+      return db.prepare(`
+        SELECT id, file_path AS filePath, label, summary, status,
+               parent_id AS parentId, page_number AS pageNumber,
+               sort_order AS "order", created_at AS createdAt, updated_at AS updatedAt
+        FROM concepts WHERE file_path = ? ORDER BY sort_order ASC, created_at ASC
+      `).all(filePath).map((r) => ({ ...r, parentId: r.parentId || null }));
+    }
+    // 전체 문서의 개념 노드 (Concepts 탭용)
+    return db.prepare(`
+      SELECT id, file_path AS filePath, label, summary, status,
+             parent_id AS parentId, page_number AS pageNumber,
+             sort_order AS "order", created_at AS createdAt, updated_at AS updatedAt
+      FROM concepts ORDER BY file_path ASC, sort_order ASC, created_at ASC
+    `).all().map((r) => ({ ...r, parentId: r.parentId || null }));
+  },
+  meta(filePath) {
+    pruneTombstones();
+    return {
+      items: db.prepare(
+        'SELECT id, updated_at AS updatedAt FROM concepts WHERE file_path = ?'
+      ).all(filePath),
+      tombstones: db.prepare(
+        "SELECT id, deleted_at AS deletedAt FROM pdf_tombstones WHERE kind = 'concept' AND file_path = ?"
+      ).all(filePath),
+    };
+  },
+  upsert({ id, filePath, label, summary, status, parentId, pageNumber, order }) {
+    const now = new Date().toISOString();
+    const data = {
+      id,
+      filePath,
+      label: String(label || '').slice(0, 200),
+      summary: String(summary || '').slice(0, 2000),
+      status: String(status || '○').slice(0, 8),
+      parentId: parentId ? String(parentId) : '',
+      pageNumber: Number(pageNumber) || 1,
+      order: Number.isFinite(Number(order)) ? Number(order) : 0,
+    };
+    const exists = db.prepare('SELECT id FROM concepts WHERE id = ?').get(id);
+    if (exists) {
+      db.prepare(`
+        UPDATE concepts
+        SET file_path = @filePath, label = @label, summary = @summary,
+            status = @status, parent_id = @parentId, page_number = @pageNumber,
+            sort_order = @order, updated_at = @now
+        WHERE id = @id
+      `).run({ ...data, now });
+    } else {
+      db.prepare(`
+        INSERT INTO concepts (id, file_path, label, summary, status, parent_id, page_number, sort_order, created_at, updated_at)
+        VALUES (@id, @filePath, @label, @summary, @status, @parentId, @pageNumber, @order, @now, @now)
+      `).run({ ...data, now });
+    }
+    // 재생성 시 삭제 톰스톤 제거 (다른 기기가 삭제를 반영하지 않도록)
+    db.prepare("DELETE FROM pdf_tombstones WHERE id = ? AND kind = 'concept'").run(id);
+    return { ...data, parentId: data.parentId || null, updatedAt: now };
+  },
+  remove(id) {
+    const row = db.prepare('SELECT file_path FROM concepts WHERE id = ?').get(id);
+    db.prepare('DELETE FROM concepts WHERE id = ?').run(id);
+    if (row) {
+      db.prepare(
+        "INSERT OR REPLACE INTO pdf_tombstones (id, kind, file_path, deleted_at) VALUES (?, 'concept', ?, ?)"
+      ).run(id, row.file_path, new Date().toISOString());
+    }
+  },
+  removeByFile(filePath) {
+    const ids = db.prepare('SELECT id FROM concepts WHERE file_path = ?').all(filePath);
+    const now = new Date().toISOString();
+    const ins = db.prepare(
+      "INSERT OR REPLACE INTO pdf_tombstones (id, kind, file_path, deleted_at) VALUES (?, 'concept', ?, ?)"
+    );
+    for (const r of ids) ins.run(r.id, filePath, now);
+    db.prepare('DELETE FROM concepts WHERE file_path = ?').run(filePath);
   },
 };

@@ -1,0 +1,268 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: concepts — 개념 노드 모아보기 페이지 (Problems/Vocab과 유사)
+// ============================================================
+
+.concepts {
+  display: flex;
+  flex-direction: column;
+  align-items: center; // 와이드 화면에서 중앙 정렬
+  height: 100%;
+  min-height: 0;
+  gap: $sp-3;
+
+  &__head,
+  &__empty,
+  &__list,
+  &__editor {
+    width: 100%;
+    max-width: 52rem; // problems와 동일 상한
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    font-size: $fs-step-1;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+    margin: 0;
+  }
+
+  &__count {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+  }
+
+  &__unknown-count {
+    font-style: normal;
+    color: $c-accent;
+  }
+
+  &__filters {
+    display: flex;
+    gap: $sp-1;
+    margin-left: $sp-2;
+  }
+
+  &__filter {
+    font-size: $fs-step--2;
+    color: $c-ink-soft;
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &--active {
+      background: $c-accent;
+      border-color: $c-accent;
+      color: $c-ink-inverse;
+    }
+  }
+
+  &__empty {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+    padding: $sp-3 0;
+  }
+
+  &__list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-3;
+    padding-bottom: $sp-2;
+  }
+
+  &__group {
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    overflow: hidden;
+  }
+
+  &__doc {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $sp-2 $sp-3;
+    background: $c-page-dark;
+    border-bottom: $border-thin solid $c-rule;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+  }
+
+  &__doc-count {
+    color: $c-ink-faint;
+    font-size: $fs-step--2;
+    font-weight: $fw-normal;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.6rem;
+    border-bottom: $border-thin solid rgba(212, 201, 181, 0.25);
+
+    &:last-child { border-bottom: none; }
+    &:hover { background: $c-page-dark; }
+  }
+
+  &__status {
+    flex-shrink: 0;
+    width: 1.7rem;
+    height: 1.7rem;
+    border: $border-thin solid $c-rule;
+    border-radius: 50%;
+    background: transparent;
+    color: $c-accent;
+    font-size: $fs-step--1;
+    cursor: pointer;
+    line-height: 1;
+
+    &:hover { background: rgba(92, 61, 46, 0.12); }
+  }
+
+  &__label {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    font-family: $ff;
+    padding: 0;
+  }
+
+  &__name {
+    font-size: $fs-step--1;
+    color: $c-ink;
+    font-weight: $fw-medium;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__summary {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  &__page {
+    flex-shrink: 0;
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+  }
+
+  &__actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: 0.15rem;
+
+    button {
+      width: 1.5rem;
+      height: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: $radius-sm;
+      background: transparent;
+      color: $c-ink-faint;
+      font-size: 0.75rem;
+      cursor: pointer;
+
+      &:hover { background: $c-page-dark; color: $c-ink; }
+    }
+  }
+
+  &__editor {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+    padding: $sp-3;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+
+    &-label, &-summary, &-parent, &-page {
+      border: $border-thin solid $c-rule;
+      border-radius: $radius-md;
+      background: $c-page;
+      color: $c-ink;
+      font-family: $ff;
+      font-size: $fs-step--1;
+      padding: $sp-2;
+      resize: vertical;
+
+      &:focus { border-color: $c-accent; outline: none; }
+    }
+
+    &-row {
+      display: flex;
+      gap: $sp-2;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    &-status {
+      display: flex;
+      gap: 0.25rem;
+    }
+
+    &-page {
+      width: 4.5rem;
+    }
+
+    &-parent {
+      flex: 1;
+      min-width: 12rem;
+    }
+
+    &-actions {
+      display: flex;
+      gap: $sp-2;
+      justify-content: flex-end;
+    }
+  }
+
+  &__save {
+    border: none;
+    border-radius: $radius-md;
+    background: $c-accent;
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: $sp-1 $sp-3;
+    cursor: pointer;
+  }
+
+  &__cancel {
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: transparent;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: $sp-1 $sp-3;
+    cursor: pointer;
+  }
+}

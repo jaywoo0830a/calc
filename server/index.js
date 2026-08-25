@@ -7,7 +7,7 @@ import { rm, mkdir, writeFile, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { problems, archives, archivesDir, vocab, vocabAliases, annotations, bookmarks, pdfPosition } from './db.js';
+import { problems, archives, archivesDir, vocab, vocabAliases, annotations, bookmarks, concepts, pdfPosition } from './db.js';
 import { CONFIG } from './config.js';
 const app = express();
 // 이미지 주석(dataURL) 수용 한도 — 10MB 바이너리 ≈ 13.4MB base64 + 여유
@@ -699,6 +699,69 @@ app.delete('/bookmarks', requireClearToken, (req, res) => {
     const file = String(req.query.file || '');
     if (!file) return res.status(400).json({ error: 'file query param required' });
     bookmarks.removeByFile(file);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── 🧭 개념 노드 (concepts) — 클라우드 동기화 ─────────────────────────────────
+// file 파라미터가 없으면 전체 문서의 노드 반환 (Concepts 탭용)
+app.get('/concepts', (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    res.json(concepts.list(file));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 실시간 동기화용 경량 메타 (id·updatedAt + 삭제 톰스톤)
+app.get('/concepts/meta', (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ error: 'file query param required' });
+    res.json(concepts.meta(file));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/concepts', (req, res) => {
+  try {
+    const { id, filePath, label, summary, status, parentId, pageNumber, order } = req.body || {};
+    if (!id || !filePath) return res.status(400).json({ error: 'id and filePath required' });
+    if (!String(label || '').trim()) return res.status(400).json({ error: 'label required' });
+    res.json(concepts.upsert({
+      id: String(id).slice(0, 120),
+      filePath: String(filePath),
+      label: String(label),
+      summary: String(summary || ''),
+      status: String(status || '○'),
+      parentId: parentId ? String(parentId) : '',
+      pageNumber: Number(pageNumber) || 1,
+      order: Number(order) || 0,
+    }));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/concepts/:id', (req, res) => {
+  try {
+    concepts.remove(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 특정 파일의 개념 노드 전체 삭제 (파괴적 — 비밀번호 토큰 필요)
+app.delete('/concepts', requireClearToken, (req, res) => {
+  try {
+    const file = String(req.query.file || '');
+    if (!file) return res.status(400).json({ error: 'file query param required' });
+    concepts.removeByFile(file);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { marked } from 'marked';
 import { pushRecent, clearRecent, registerRecentNavigate } from '../lib/recentHistory.js';
 import { takePendingProblem } from '../lib/problemJump.js';
+import { takePendingConcept } from '../lib/conceptJump.js';
 import katex from 'katex';
 import JSZip from 'jszip';
 import hljs from 'highlight.js';
@@ -790,6 +791,44 @@ export default function Viewer() {
     setProblemsOpen(false);
   }, [imageBlobs, setContent, switchToZipDoc, selectedPath, rendered, queueJump]);
 
+  // ── 🧭 Concepts 탭에서 넘어온 개념 노드 점프 (PDF 전용 앵커) ──
+  const jumpToConceptNode = useCallback((c) => {
+    const path = c?.filePath;
+    const page = Number(c?.pageNumber) || 1;
+    if (!path) return;
+    console.log('[concept-jump] entry', path, '→ p.' + page);
+    const zip = zipRef.current;
+    if (!zip || !zip.files[path] || zip.files[path].dir) {
+      for (const [id, entry] of zipEntries()) {
+        const f = entry.zip.files[path];
+        if (f && !f.dir) { switchToZipDoc(id, path, { jump: { ref: page } }); return; }
+      }
+      api.findArchivesByFile(path).then((found) => {
+        if (found && found.length > 0) {
+          console.log('[concept-jump] server archive found:', found[0].name, path);
+          switchToZipDoc(found[0].id, path, { jump: { ref: page } });
+          return;
+        }
+        console.warn('[concept-jump] document not found in any zip:', path);
+        setMdToast("Couldn't find the document for this concept");
+      }).catch(() => setMdToast("Couldn't find the document for this concept"));
+      return;
+    }
+    const file = zip.files[path];
+    const seq = ++navSeq.current;
+    setSelectedPath(path);
+    setPdfInitialPage(page);
+    file.async('blob').then((blob) => {
+      if (seq !== navSeq.current) return;
+      const url = URL.createObjectURL(blob);
+      pdfBlobUrlsRef.current.add(url);
+      setPdfUrl(url);
+      setRendered('');
+      setToc([]);
+      setLoading(false);
+    });
+  }, [switchToZipDoc]);
+
   // 상태 지정(맞음/틀림) — 같은 상태 재클릭도 "한 번 더 풀었다"로 attempts 기록
   const setProblemStatus = useCallback((p, status) => {
     api.updateProblem(p.id, { status, attempts: p.attempts + 1 }).then(refreshProblems).catch(() => {});
@@ -959,6 +998,18 @@ export default function Viewer() {
     return () => clearTimeout(t);
   }, []);
 
+  // 🧭 Concepts 탭에서 넘어온 개념 → 마운트 후 원 페이지로 점프 (문제와 동일 패턴)
+  const pendingConceptRef = useRef(takePendingConcept());
+  useEffect(() => {
+    if (!pendingConceptRef.current) return;
+    const t = setTimeout(() => {
+      const c = pendingConceptRef.current;
+      pendingConceptRef.current = null;
+      if (c) jumpToConceptNode(c);
+    }, 400);
+    return () => clearTimeout(t);
+  }, []);
+
   // Viewer를 떠나면 핸들러 해제 + 히스토리 정리
   useEffect(() => () => { registerRecentNavigate(null); clearRecent(); }, []);
 
@@ -974,6 +1025,7 @@ export default function Viewer() {
           <Link to="/units" className="calculator__nav-tab">Units</Link>
           <Link to="/relation" className="calculator__nav-tab">Relation</Link>
           <Link to="/problems" className="calculator__nav-tab">Problems</Link>
+          <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
           <Link to="/vocab" className="calculator__nav-tab">Vocab</Link>
         </nav>
       )}

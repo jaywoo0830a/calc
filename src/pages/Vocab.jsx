@@ -161,6 +161,7 @@ export default function Vocab() {
         <Link to="/units" className="calculator__nav-tab">Units</Link>
         <Link to="/relation" className="calculator__nav-tab">Relation</Link>
         <Link to="/problems" className="calculator__nav-tab">Problems</Link>
+        <Link to="/concepts" className="calculator__nav-tab">Concepts</Link>
         <span className="calculator__nav-tab calculator__nav-tab--active">Vocab</span>
       </nav>
 
