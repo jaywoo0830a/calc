@@ -869,3 +869,20 @@ $guide-color: $c-rule;
   margin: 0;
   box-shadow: 0 1rem 3rem rgba(44, 36, 22, 0.35);
 }
+
+// ============================================================
+// 모바일: 편집기 액션 행 줄바꿈 — ＋Add child / ×Delete가
+// 긴 게이트 메시지에 밀려 잘리지 않게 한다
+// ============================================================
+@media (max-width: 767px) {
+  .concepts__editor-actions {
+    flex-wrap: wrap;
+  }
+
+  // 게이트 메시지는 통째로 마지막 줄로 (버튼 행을 밀어내 잘림 방지)
+  .concepts__editor-gate {
+    flex: 1 1 100%;
+    order: 10;
+    white-space: normal;
+  }
+}
