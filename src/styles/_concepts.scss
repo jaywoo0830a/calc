@@ -296,6 +296,7 @@ $guide-color: $c-rule;
     font-size: $fs-step--1;
     color: $c-ink-soft;
     line-height: 1.45;
+    white-space: pre-line; // CLEAR 프레임 줄바꿈 유지
   }
 
   &__content-empty {
@@ -388,6 +389,79 @@ $guide-color: $c-rule;
     }
   }
 
+  // ── 🧠 Test 모드 (회상 연습) ──
+  &__test-btn {
+    border: $border-thin solid $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: $sp-1 $sp-3;
+    cursor: pointer;
+    transition: border-color $transition-fast, color $transition-fast;
+
+    &:hover { border-color: $c-accent; color: $c-accent; }
+  }
+
+  &__test-bar {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    flex-wrap: wrap;
+  }
+
+  &__test-bar-count {
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+  }
+
+  &__test-bar-actions {
+    display: flex;
+    gap: $sp-1;
+    margin-left: auto;
+  }
+
+  // 빈칸(점선) → 채워짐(실선) → 채점(✓/✗ 테두리)
+  &__row--test {
+    cursor: pointer;
+
+    &.concepts__row--blank {
+      border-style: dashed;
+      border-color: $c-rule-light;
+    }
+
+    &.concepts__row--correct { border-color: #3d5a40; }
+    &.concepts__row--wrong { border-color: #b5433a; }
+  }
+
+  &__row--blank .concepts__name::before {
+    content: '· · ·';
+    color: $c-ink-faint;
+  }
+
+  &__test-mark {
+    flex-shrink: 0;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+
+    &--ok { color: #3d5a40; }
+    &--no { color: #b5433a; }
+  }
+
+  &__test-label {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  &__test-you {
+    font-size: $fs-step--2;
+    color: #b5433a;
+  }
+
   // ── 드래그 앤 드롭 피드백 ──
   &__row--dragging { opacity: 0.4; }
 
@@ -454,7 +528,7 @@ $guide-color: $c-rule;
     border-radius: $radius-md;
     max-width: 42rem; // 노드와 어울리는 폭으로 제한
 
-    &-label, &-summary, &-parent, &-page {
+    &-label, &-parent, &-page {
       border: $border-thin solid $c-rule;
       border-radius: $radius-md;
       background: $c-page;
@@ -463,6 +537,41 @@ $guide-color: $c-rule;
       font-size: $fs-step--1;
       padding: $sp-2;
       resize: vertical;
+
+      &:focus { border-color: $c-accent; outline: none; }
+    }
+
+    // CLEAR 프레임 5개 선택 입력 — 저장 시 Summary로 병합
+    &-clear {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    &-clear-row {
+      display: flex;
+      align-items: center;
+      gap: $sp-2;
+    }
+
+    &-clear-label {
+      flex-shrink: 0;
+      width: 5.5rem;
+      font-size: $fs-step--2;
+      color: $c-ink-faint;
+      text-align: right;
+    }
+
+    &-clear-input {
+      flex: 1;
+      min-width: 0;
+      border: $border-thin solid $c-rule;
+      border-radius: $radius-md;
+      background: $c-page;
+      color: $c-ink;
+      font-family: $ff;
+      font-size: $fs-step--1;
+      padding: $sp-1 $sp-2;
 
       &:focus { border-color: $c-accent; outline: none; }
     }

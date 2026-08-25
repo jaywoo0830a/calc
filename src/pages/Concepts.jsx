@@ -37,6 +37,57 @@ function docMap(items, filePath) {
   return conceptsToMap((items || []).filter((c) => c.filePath === filePath));
 }
 
+/** 답안 비교 정규화 — 공백·대소문자 무시 */
+const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+// ── CLEAR 프레임 (뇌과학 기반 요약 틀) — DB 변경 없이 summary 문자열로 병합 ──
+const CLEAR_KEYS = ['Core', 'Link', 'Example', 'Antithesis', 'Restate'];
+
+const CLEAR_PLACEHOLDERS = {
+  Core: 'what is it? (one sentence, your own words)',
+  Link: 'upper / lower / related (⊃ → ↔ ≠)',
+  Example: 'one concrete case',
+  Antithesis: 'what it is NOT · exceptions · boundaries',
+  Restate: 'everything in one sentence',
+};
+
+/** summary 문자열 → CLEAR 섹션 파싱 (헤더 없는 레거시 텍스트는 Core로) */
+function parseClear(text) {
+  const parts = {};
+  CLEAR_KEYS.forEach((k) => { parts[k] = ''; });
+  let last = null;
+  for (const line of String(text || '').split('\n')) {
+    const m = line.match(new RegExp(`^(${CLEAR_KEYS.join('|')}):\\s*(.*)$`));
+    if (m) {
+      last = m[1];
+      if (m[2]) parts[last] = m[2];
+    } else if (last) {
+      parts[last] = (parts[last] ? parts[last] + '\n' : '') + line;
+    } else if (line.trim()) {
+      parts.Core = (parts.Core ? parts.Core + '\n' : '') + line;
+    }
+  }
+  return parts;
+}
+
+/** CLEAR 섹션 → summary 문자열 병합 (빈 섹션 생략) */
+function mergeClear(parts) {
+  return CLEAR_KEYS
+    .filter((k) => String(parts[k] || '').trim())
+    .map((k) => `${k}: ${String(parts[k]).trim()}`)
+    .join('\n');
+}
+
+/** 트리에서 id 노드 탐색 */
+function findTreeNode(roots, id) {
+  for (const n of roots) {
+    if (n.id === id) return n;
+    const f = findTreeNode(n.children || [], id);
+    if (f) return f;
+  }
+  return null;
+}
+
 /**
  * 드래그 앤 드롭 배치 — before/after(대상과 같은 부모의 형제 위치) 또는
  * inside(대상의 마지막 자식). 사이클은 reparentNode가 검증(throw)한다.
@@ -67,6 +118,11 @@ export default function Concepts() {
   const [editing, setEditing] = useState(null);  // { id, filePath, label, summary, status, parent, pageNumber }
   const [collapsed, setCollapsed] = useState(() => new Set()); // 접힌 노드 id (UI 전용)
   const [expandedId, setExpandedId] = useState(null); // 클릭으로 내용 펼친 노드 (한 번에 하나)
+  // 🧠 Test 모드 (회상 연습) — 비파괴(서버 변경 없음)
+  const [testPick, setTestPick] = useState(false);   // 범위 선택 중 (노드 탭 = 그 서브트리)
+  const [test, setTest] = useState(null);            // { rootId, answers:{}, scored, missed[], retryIds }
+  const [testInput, setTestInput] = useState(null);  // 답 입력 중인 노드 id
+  const [testText, setTestText] = useState('');
   const [dragId, setDragId] = useState(null);     // 드래그 중인 노드 id
   const [dropHint, setDropHint] = useState(null); // { id, pos: before|after|inside }
   const [addingChild, setAddingChild] = useState(null); // { id, filePath } — 자식 추가 중인 부모
@@ -88,12 +144,16 @@ export default function Concepts() {
     if (selectedFp && items && !items.some((c) => c.filePath === selectedFp)) setSelectedFp(null);
   }, [selectedFp, items]);
 
-  // 문서/필터가 바뀌면 열려 있던 내용·편집·자식 추가 UI를 닫는다
+  // 문서/필터가 바뀌면 열려 있던 내용·편집·자식 추가·테스트 UI를 닫는다
   useEffect(() => {
     setExpandedId(null);
     setEditing(null);
     setAddingChild(null);
     setChildLabel('');
+    setTest(null);
+    setTestPick(false);
+    setTestInput(null);
+    setTestText('');
   }, [selectedFp, filter]);
 
   // 📡 3초 폴링 — 다른 기기와 동기 (서명 같으면 setState 생략, 저장 중엔 스킵)
@@ -162,6 +222,36 @@ export default function Concepts() {
     setExpandedId((prev) => (prev === id ? null : id));
   }, []);
 
+  // ── 🧠 Test 모드 ──
+  const startTest = useCallback((rootId) => {
+    setTest({ rootId, answers: {}, scored: false, missed: [], retryIds: null });
+    setTestPick(false);
+    setExpandedId(null);
+    setTestInput(null);
+    setTestText('');
+  }, []);
+
+  const beginAnswer = useCallback((id) => {
+    if (!test || test.scored) return;
+    setTestInput(id);
+    setTestText(test.answers[id] || '');
+  }, [test]);
+
+  const submitAnswer = useCallback(() => {
+    if (!testInput) return;
+    const v = testText.trim();
+    if (v) setTest((t) => (t ? { ...t, answers: { ...t.answers, [testInput]: v } } : t));
+    setTestInput(null);
+    setTestText('');
+  }, [testInput, testText]);
+
+  const exitTest = useCallback(() => {
+    setTest(null);
+    setTestPick(false);
+    setTestInput(null);
+    setTestText('');
+  }, []);
+
   // DnD 드롭 — 같은 문서 안에서만 이동 (문서 간 이동은 미지원)
   const onDropNode = useCallback((draggedId, targetId, pos) => {
     const dragged = (items || []).find((c) => c.id === draggedId);
@@ -199,10 +289,13 @@ export default function Concepts() {
     }
   }, [addingChild, childLabel, items, commitDoc]);
 
-  // 자식 추가 입력 — 바깥 클릭/Esc로 닫기 (안 없어지는 UI 방지)
+  // 자식 추가/테스트 답 입력 — 바깥 클릭/Esc로 닫기 (안 없어지는 UI 방지)
   useEffect(() => {
-    if (!addingChild) return;
-    const close = () => { setAddingChild(null); setChildLabel(''); };
+    if (!addingChild && !testInput) return;
+    const close = () => {
+      if (addingChild) { setAddingChild(null); setChildLabel(''); }
+      if (testInput) { setTestInput(null); setTestText(''); }
+    };
     const onDown = (e) => {
       if (!e.target.closest('.concepts__add-child')) close();
     };
@@ -213,11 +306,11 @@ export default function Concepts() {
       document.removeEventListener('pointerdown', onDown, true);
       document.removeEventListener('keydown', onKey, true);
     };
-  }, [addingChild]);
+  }, [addingChild, testInput]);
 
   const startEdit = useCallback((c) => {
     setEditing({
-      id: c.id, filePath: c.filePath, label: c.label || '', summary: c.summary || '',
+      id: c.id, filePath: c.filePath, label: c.label || '', parts: parseClear(c.summary),
       status: c.status || STATUS.UNKNOWN, parent: c.parentId || '',
       pageNumber: Number(c.pageNumber) || 1,
     });
@@ -229,7 +322,7 @@ export default function Concepts() {
     if (!map[editing.id]) { setEditing(null); return; }
     try {
       let newMap = updateNode(map, editing.id, {
-        label: editing.label, summary: editing.summary,
+        label: editing.label, summary: mergeClear(editing.parts || {}),
         status: editing.status, pageNumber: Number(editing.pageNumber) || 1,
       });
       const targetParent = editing.parent ? String(editing.parent) : null;
@@ -306,8 +399,8 @@ export default function Concepts() {
           className={'concepts__row'
             + (dragId === node.id ? ' concepts__row--dragging' : '')
             + (hint ? ` concepts__row--drop-${hint}` : '')}
-          onClick={() => toggleExpand(node.id)}
-          onDoubleClick={() => startEdit(record)}
+          onClick={testPick ? () => startTest(node.id) : () => toggleExpand(node.id)}
+          onDoubleClick={() => { if (!testPick) startEdit(record); }}
           draggable
           onDragStart={(e) => {
             e.dataTransfer.setData('text/plain', node.id);
@@ -402,13 +495,19 @@ export default function Concepts() {
               value={editing.label}
               onChange={(e) => setEditing((v) => ({ ...v, label: e.target.value }))}
             />
-            <textarea
-              className="concepts__editor-summary"
-              rows={2}
-              placeholder="Summary (one sentence)…"
-              value={editing.summary}
-              onChange={(e) => setEditing((v) => ({ ...v, summary: e.target.value }))}
-            />
+            <div className="concepts__editor-clear">
+              {CLEAR_KEYS.map((k) => (
+                <div className="concepts__editor-clear-row" key={k}>
+                  <label className="concepts__editor-clear-label">{k}</label>
+                  <input
+                    className="concepts__editor-clear-input"
+                    placeholder={CLEAR_PLACEHOLDERS[k]}
+                    value={editing.parts[k]}
+                    onChange={(e) => setEditing((v) => ({ ...v, parts: { ...v.parts, [k]: e.target.value } }))}
+                  />
+                </div>
+              ))}
+            </div>
             <div className="concepts__editor-row">
               <div className="concepts__editor-status">
                 {REVIEW_PRIORITY.map((s) => (
@@ -454,6 +553,115 @@ export default function Concepts() {
         {kids.length > 0 && !isCollapsed && (
           <div className="concepts__children">
             {kids.map((child, i) => renderRow(child, fp, i === kids.length - 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── 🧠 Test 모드 파생 데이터 (비파괴) ──
+  const testDocMap = useMemo(
+    () => (selectedFp && items ? docMap(items, selectedFp) : {}),
+    [selectedFp, items]
+  );
+
+  const testScope = useMemo(() => {
+    if (!test) return [];
+    if (test.retryIds) return test.retryIds;
+    if (!test.rootId) return Object.keys(testDocMap);
+    const roots = buildTree(testDocMap);
+    const sub = findTreeNode(roots, test.rootId);
+    if (!sub) return [];
+    const out = [];
+    const walk = (n) => { out.push(n.id); (n.children || []).forEach(walk); };
+    walk(sub);
+    return out;
+  }, [test, testDocMap]);
+
+  const testRoots = useMemo(() => {
+    if (!test || test.retryIds) return null;
+    const roots = buildTree(testDocMap);
+    if (!test.rootId) return roots;
+    const sub = findTreeNode(roots, test.rootId);
+    return sub ? [sub] : [];
+  }, [test, testDocMap]);
+
+  // 라운드 종료 채점 — 정답은 여기서 처음 공개 (라운드 중 숨김)
+  const finishTest = useCallback(() => {
+    setTest((t) => {
+      if (!t || t.scored) return t;
+      const missed = testScope.filter((id) => norm(testDocMap[id]?.label) !== norm(t.answers[id]));
+      return { ...t, scored: true, missed };
+    });
+  }, [testScope, testDocMap]);
+
+  const retryTest = useCallback(() => {
+    setTest((t) => (t ? {
+      rootId: t.rootId, answers: {}, scored: false, missed: [], retryIds: t.missed,
+    } : t));
+    setTestInput(null);
+    setTestText('');
+  }, []);
+
+  // 전부 채워지면 자동 채점
+  useEffect(() => {
+    if (!test || test.scored || testScope.length === 0) return;
+    if (testScope.every((id) => (test.answers[id] || '').trim())) finishTest();
+  }, [test, testScope, finishTest]);
+
+  // ── 🧠 Test 행 (라벨 빈칸·입력·채점 표시) ──
+  const renderTestRow = (node, fp, isLast = false) => {
+    if (!node) return null;
+    const kids = node.children || [];
+    const ans = test.answers[node.id] || '';
+    const correct = test.scored && norm(ans) === norm(node.label);
+    const cls = 'concepts__row concepts__row--test'
+      + (test.scored
+        ? (correct ? ' concepts__row--correct' : ' concepts__row--wrong')
+        : (ans ? ' concepts__row--answered' : ' concepts__row--blank'));
+    return (
+      <div key={node.id} className={'concepts__item' + (isLast ? ' concepts__item--last' : '')}>
+        <div className={cls} onClick={() => beginAnswer(node.id)}>
+          <span className="concepts__toggle-spacer" />
+          <span className="concepts__status" style={{ background: STATUS_COLORS[node.status] }} />
+          {test.scored ? (
+            <>
+              <span className={'concepts__test-mark' + (correct ? ' concepts__test-mark--ok' : ' concepts__test-mark--no')}>
+                {correct ? '✓' : '✗'}
+              </span>
+              <span className="concepts__test-label">
+                <span className="concepts__name">{node.label}</span>
+                {!correct && <span className="concepts__test-you">you: {ans || '—'}</span>}
+              </span>
+            </>
+          ) : (
+            <span className="concepts__name">{ans}</span>
+          )}
+        </div>
+        {testInput === node.id && !test.scored && (
+          <div className="concepts__add-child concepts__test-input">
+            <input
+              autoFocus
+              placeholder="Recall…"
+              title="Enter = answer · Esc = cancel"
+              value={testText}
+              onChange={(e) => setTestText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitAnswer();
+                if (e.key === 'Escape') { setTestInput(null); setTestText(''); }
+              }}
+            />
+            <button
+              className="concepts__add-child-cancel"
+              title="Cancel"
+              aria-label="Cancel"
+              onClick={() => { setTestInput(null); setTestText(''); }}
+            >✕</button>
+          </div>
+        )}
+        {kids.length > 0 && (
+          <div className="concepts__children">
+            {kids.map((ch, i) => renderTestRow(ch, fp, i === kids.length - 1))}
           </div>
         )}
       </div>
@@ -516,21 +724,68 @@ export default function Concepts() {
                 </span>
               );
             })()}
-            {filterChips}
+            {!test && !testPick && filterChips}
+            {!test && !testPick && items.some((c) => c.filePath === selectedFp) && (
+              <button
+                className="concepts__test-btn"
+                onClick={() => { setTestPick(true); setExpandedId(null); }}
+                title="Recall practice — blank the labels and fill them in"
+              >Test</button>
+            )}
           </div>
 
-          {detailItems.length === 0 ? (
-            <div className="concepts__empty">No concepts match this filter.</div>
+          {test ? (
+            // ── 🧠 Test 모드 (비파괴 — 정답은 라운드 끝까지 숨김) ──
+            <>
+              <div className="concepts__test-bar">
+                <span className="concepts__test-bar-count">
+                  {test.scored
+                    ? `Score — ${testScope.length - (test.missed || []).length} / ${testScope.length}`
+                    : `Test — ${Object.keys(test.answers).length} / ${testScope.length} filled`}
+                  {test.retryIds ? ' · round 2' : ''}
+                </span>
+                <span className="concepts__test-bar-actions">
+                  {!test.scored
+                    ? <button className="concepts__test-btn" onClick={finishTest}>Finish &amp; score</button>
+                    : (test.missed && test.missed.length > 0)
+                      ? <button className="concepts__test-btn" onClick={retryTest}>Retry missed ({test.missed.length})</button>
+                      : null}
+                  <button className="concepts__test-btn" onClick={exitTest}>Exit</button>
+                </span>
+              </div>
+              <div className="concepts__list concepts__list--detail">
+                <section className="concepts__group">
+                  {testRoots
+                    ? testRoots.map((root, i) => renderTestRow(root, selectedFp, i === testRoots.length - 1))
+                    : (test.retryIds || []).map((id, i) => renderTestRow(testDocMap[id], selectedFp, i === test.retryIds.length - 1))}
+                </section>
+              </div>
+            </>
           ) : (
-            <div className="concepts__list concepts__list--detail">
-              <section className="concepts__group">
-                {filter === 'all'
-                  ? buildTree(docMap(items, selectedFp)).map((root) => renderRow(root, selectedFp))
-                  : reviewQueue(docMap(items, selectedFp))
-                    .filter((n) => n.status === filter)
-                    .map((n) => renderRow({ ...n, children: [] }, selectedFp))}
-              </section>
-            </div>
+            <>
+              {testPick && (
+                <div className="concepts__test-bar">
+                  <span className="concepts__test-bar-count">Test — tap a branch to test its subtree</span>
+                  <span className="concepts__test-bar-actions">
+                    <button className="concepts__test-btn" onClick={() => startTest(null)}>Whole document</button>
+                    <button className="concepts__test-btn" onClick={() => setTestPick(false)}>Cancel</button>
+                  </span>
+                </div>
+              )}
+              {detailItems.length === 0 ? (
+                <div className="concepts__empty">No concepts match this filter.</div>
+              ) : (
+                <div className="concepts__list concepts__list--detail">
+                  <section className="concepts__group">
+                    {filter === 'all'
+                      ? buildTree(docMap(items, selectedFp)).map((root) => renderRow(root, selectedFp))
+                      : reviewQueue(docMap(items, selectedFp))
+                        .filter((n) => n.status === filter)
+                        .map((n) => renderRow({ ...n, children: [] }, selectedFp))}
+                  </section>
+                </div>
+              )}
+            </>
           )}
         </>
       ) : (
