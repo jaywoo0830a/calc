@@ -226,16 +226,7 @@ $guide-color: $c-rule;
     width: 0.95rem;
     height: 0.95rem;
     border-radius: 50%;
-    border: none;
-    background: $c-rule; // 실제 색은 인라인(상태별)
-    cursor: pointer;
-    box-shadow: 0 0 0 0.2rem transparent;
-    transition: box-shadow $transition-fast, transform $transition-fast;
-
-    &:hover {
-      transform: scale(1.25);
-      box-shadow: 0 0 0 0.2rem rgba(92, 61, 46, 0.12);
-    }
+    background: $c-rule; // 실제 색은 인라인(상태별) — 표시 전용(상태 변경은 더블클릭 편집기에서)
   }
 
   // 상태 색 점 (필터/통계 등에서 기호 대신 사용)

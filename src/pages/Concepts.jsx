@@ -141,16 +141,6 @@ export default function Concepts() {
     Promise.all(ops).catch(() => refresh()).finally(() => { savingRef.current -= 1; });
   }, [refresh]);
 
-  // 상태 순환 ○ → ◐ → ● → △
-  const toggleStatus = useCallback((c) => {
-    const map = docMap(items, c.filePath);
-    const node = map[c.id];
-    if (!node) return;
-    const idx = REVIEW_PRIORITY.indexOf(node.status);
-    const next = REVIEW_PRIORITY[(idx < 0 ? 0 : idx + 1) % REVIEW_PRIORITY.length];
-    commitDoc(c.filePath, map, updateNode(map, c.id, { status: next }));
-  }, [items, commitDoc]);
-
   // 삭제 — 자식은 조부모로 자동 승격 (명세 §4.3)
   const removeItem = useCallback((c) => {
     const map = docMap(items, c.filePath);
@@ -354,12 +344,10 @@ export default function Concepts() {
           ) : (
             <span className="concepts__toggle-spacer" />
           )}
-          <button
+          <span
             className="concepts__status"
             style={{ background: STATUS_COLORS[node.status] }}
-            onClick={(e) => { e.stopPropagation(); toggleStatus(record); }}
-            title={`Status: ${STATUS_LABELS[node.status]} — tap to change`}
-            aria-label={`Status: ${STATUS_LABELS[node.status]}`}
+            title={`Status: ${STATUS_LABELS[node.status]}`}
           />
           <button
             className="concepts__label"
