@@ -1,5 +1,8 @@
 @use 'variables' as *;
 
+// 트리 커넥터 가이드 색 (알약 보더 $c-rule과 같은 톤)
+$guide-color: $c-rule;
+
 // ============================================================
 // Block: concepts — 개념 노드 모아보기 페이지 (Problems/Vocab과 유사)
 // ============================================================
@@ -186,13 +189,14 @@
     gap: 0.5rem;
     width: fit-content;      // 노드는 내용 크기만큼만 (전폭 금지)
     min-width: 12rem;
-    max-width: min(100%, 42rem);
+    max-width: min(calc(100% - 3.5rem), 42rem); // 오른쪽 p.N 칩 공간 예약
     padding: 0.35rem 0.7rem;
-    margin: 0.35rem 0;        // 노드 사이 수직 여백
+    margin: 0;                // 노드 간 여백은 __item 래퍼가 담당
     background: $c-page;
     border: $border-thin solid $c-rule;
     border-radius: 999px; // 라운드 노드 (알약)
     box-shadow: 0 0.0625rem 0.125rem rgba(44, 36, 22, 0.06);
+    cursor: pointer;          // 클릭 = 내용 펼침
     transition: border-color $transition-fast, box-shadow $transition-fast;
 
     &:hover {
@@ -250,44 +254,61 @@
     white-space: nowrap;
   }
 
-  &__summary {
-    font-size: $fs-step--2;
-    color: $c-ink-faint;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
+  // 노드 컨테이너(알약) 바깥 오른쪽에 뜨는 원 페이지 점프 칩
   &__page {
-    flex-shrink: 0;
+    position: absolute;
+    left: calc(100% + 0.4rem);
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: $c-ink-faint;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    padding: 0.1rem 0.4rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color $transition-fast, background $transition-fast;
+
+    &:hover { color: $c-accent; background: rgba(92, 61, 46, 0.08); }
+  }
+
+  // ── 클릭으로 펼친 내용 (아코디언 — 한 번에 하나) ──
+  &__content {
+    margin: 0.3rem 0 0.5rem 2.6rem; // 상태 점 아래 정렬 (이름보다 덜 들여씀)
+    max-width: 42rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    align-items: flex-start;
+  }
+
+  &__content-summary {
+    margin: 0;
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+    line-height: 1.45;
+  }
+
+  &__content-empty {
+    margin: 0;
     font-size: $fs-step--2;
     color: $c-ink-faint;
   }
 
-  &__actions {
-    flex-shrink: 0;
-    display: flex;
-    gap: 0.15rem;
-
-    button {
-      width: 1.5rem;
-      height: 1.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: none;
-      border-radius: $radius-sm;
-      background: transparent;
-      color: $c-ink-faint;
-      font-size: 0.75rem;
-      cursor: pointer;
-
-      &:hover { background: $c-page-dark; color: $c-ink; }
-    }
+  // ── 트리 구조: 접기 토글 + 클래식 org-chart 커넥터 ──
+  // 기하: 가이드 라인은 자식 컨테이너 왼쪽 0.9rem(엘보 폭) 밖에,
+  // 아이템 세그먼트는 풀 높이로 이어지고 마지막 자식은 └로 트림.
+  &__item {
+    position: relative;
+    margin-top: 0.35rem;      // 노드 사이 수직 여백 (__row의 margin 대체)
   }
 
-  // ── 트리 구조: 접기 토글 + 계층 가이드라인 ──
+  &__group > &__item:first-child {
+    margin-top: 0;
+  }
+
   &__toggle {
     flex-shrink: 0;
     width: 1.4rem;
@@ -312,20 +333,51 @@
   }
 
   &__children {
-    margin-left: 1rem;
-    padding-left: 0.9rem;
-    padding-top: 0.2rem;
-    border-left: $border-thin solid rgba(212, 201, 181, 0.8);
+    margin-left: 1.65rem; // 인덴트 (가이드 0.75rem + 엘보 0.9rem)
+  }
 
-    // 부모 노드에서 자식 노드로 이어지는 엘보 커넥터 (트리 엣지)
-    > div > .concepts__row::before {
+  // 자식 아이템: 가이드 세로선(풀 높이) + 가로 엘보
+  &__children > &__item {
+    // 세로 가이드: 아이템 전체 높이 — 형제끼리 이어져 하나의 선이 됨
+    &::before {
+      content: '';
+      position: absolute;
+      left: -0.9rem;
+      top: 0;
+      bottom: 0;
+      border-left: $border-thin solid $guide-color;
+      pointer-events: none;
+    }
+
+    // 첫 자식: 부모 알약 바로 아래까지 끌어올려 끊김 없이 연결
+    &:first-child::before {
+      top: -0.35rem;
+    }
+
+    // 가로 엘보: 가이드 → 알약 중앙
+    > .concepts__row::before {
       content: '';
       position: absolute;
       left: -0.9rem;
       top: 50%;
       width: 0.9rem;
-      border-top: $border-thin solid rgba(212, 201, 181, 0.8);
+      border-top: $border-thin solid $guide-color;
       pointer-events: none;
+    }
+
+    // 마지막 자식: └ 트림 — 선이 알약 중앙에서 멈춤 (밑으로 흐르는 꼬리 없음)
+    &--last {
+      &::before { display: none; }
+
+      > .concepts__row::after {
+        content: '';
+        position: absolute;
+        left: -0.9rem;
+        top: -0.35rem;              // 위 여백(형제 사이 공간) 포함
+        height: calc(50% + 0.35rem);
+        border-left: $border-thin solid $guide-color;
+        pointer-events: none;
+      }
     }
   }
 
@@ -342,7 +394,7 @@
 
   // ── 인라인 자식 추가 입력 (노드와 같은 알약 스타일) ──
   &__add-child {
-    margin: 0.3rem 0 0.3rem 3.3rem;
+    margin: 0.3rem 0 0.3rem 2.6rem;
 
     input {
       display: block;
@@ -412,8 +464,40 @@
       display: flex;
       gap: $sp-2;
       justify-content: flex-end;
+      align-items: center;
     }
   }
+
+  &__editor--inline {
+    margin: 0.3rem 0 0.5rem 2.6rem; // 상태 점 아래 정렬
+    box-shadow: 0 0.25rem 1rem rgba(44, 36, 22, 0.12);
+  }
+
+  &__editor-child,
+  &__editor-delete {
+    border-radius: $radius-md;
+    background: transparent;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: $sp-1 $sp-3;
+    cursor: pointer;
+  }
+
+  &__editor-child {
+    border: $border-thin solid $c-accent;
+    color: $c-accent;
+
+    &:hover { background: rgba(92, 61, 46, 0.1); }
+  }
+
+  &__editor-delete {
+    border: $border-thin solid $c-error;
+    color: $c-error;
+
+    &:hover { background: rgba(181, 67, 58, 0.1); }
+  }
+
+  &__editor-spacer { flex: 1; }
 
   &__save {
     border: none;

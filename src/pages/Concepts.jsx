@@ -4,15 +4,16 @@ import AppNav from '../components/AppNav.jsx';
 import { getAllConcepts, saveConcept, deleteConcept } from '../lib/storage.js';
 import { setPendingConcept } from '../lib/conceptJump.js';
 import {
-  updateNode, reparentNode, moveNode, deleteNode, buildTree,
+  updateNode, reparentNode, deleteNode, buildTree,
   reviewQueue, STATUS, REVIEW_PRIORITY,
   addNode, setOrder, childrenOf, suggestId,
   conceptsToMap, conceptIdBase,
 } from '../lib/conceptMap.js';
 
-// ── 🧭 Concepts — 개념 노드 모아보기 (문서별 트리, 상태 필터, 클릭 → Viewer 점프) ──
+// ── 🧭 Concepts — 개념 노드 모아보기 (문서별 트리, 상태 필터) ──
 // PDF 뷰어의 🧭 Concept 툴/단축키 N으로 만든 개념 노드를 전부 모아 보여준다.
 // 노드만 훑으며 원 페이지로 점프 = 초고속 복습.
+// 행 3원칙: 기본=이름만 · 클릭=내용(요약+p.N) · 더블클릭=편집.
 
 const docName = (fp) => String(fp || '').split('/').pop() || 'Document';
 
@@ -65,6 +66,7 @@ export default function Concepts() {
   const [selectedFp, setSelectedFp] = useState(null); // null = PDF 목록 뷰, 선택 시 디테일 뷰
   const [editing, setEditing] = useState(null);  // { id, filePath, label, summary, status, parent, pageNumber }
   const [collapsed, setCollapsed] = useState(() => new Set()); // 접힌 노드 id (UI 전용)
+  const [expandedId, setExpandedId] = useState(null); // 클릭으로 내용 펼친 노드 (한 번에 하나)
   const [dragId, setDragId] = useState(null);     // 드래그 중인 노드 id
   const [dropHint, setDropHint] = useState(null); // { id, pos: before|after|inside }
   const [addingChild, setAddingChild] = useState(null); // { id, filePath } — 자식 추가 중인 부모
@@ -85,6 +87,14 @@ export default function Concepts() {
   useEffect(() => {
     if (selectedFp && items && !items.some((c) => c.filePath === selectedFp)) setSelectedFp(null);
   }, [selectedFp, items]);
+
+  // 문서/필터가 바뀌면 열려 있던 내용·편집·자식 추가 UI를 닫는다
+  useEffect(() => {
+    setExpandedId(null);
+    setEditing(null);
+    setAddingChild(null);
+    setChildLabel('');
+  }, [selectedFp, filter]);
 
   // 📡 3초 폴링 — 다른 기기와 동기 (서명 같으면 setState 생략, 저장 중엔 스킵)
   useEffect(() => {
@@ -141,13 +151,6 @@ export default function Concepts() {
     commitDoc(c.filePath, map, updateNode(map, c.id, { status: next }));
   }, [items, commitDoc]);
 
-  // 형제 사이 ▲▼ 이동
-  const moveItem = useCallback((c, delta) => {
-    const map = docMap(items, c.filePath);
-    if (!map[c.id]) return;
-    commitDoc(c.filePath, map, moveNode(map, c.id, delta));
-  }, [items, commitDoc]);
-
   // 삭제 — 자식은 조부모로 자동 승격 (명세 §4.3)
   const removeItem = useCallback((c) => {
     const map = docMap(items, c.filePath);
@@ -162,6 +165,11 @@ export default function Concepts() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  }, []);
+
+  // 행 클릭 → 내용 펼침/접힘 (아코디언 — 한 번에 하나만)
+  const toggleExpand = useCallback((id) => {
+    setExpandedId((prev) => (prev === id ? null : id));
   }, []);
 
   // DnD 드롭 — 같은 문서 안에서만 이동 (문서 간 이동은 미지원)
@@ -232,7 +240,7 @@ export default function Concepts() {
     }
   }, [editing, items, commitDoc, refresh]);
 
-  // 행 클릭 → Viewer로 이동 후 원 페이지로 점프
+  // 노드 오른쪽의 p.N 버튼 → Viewer로 이동 후 원 페이지로 점프
   const openConcept = useCallback((c) => {
     setPendingConcept({ filePath: c.filePath, pageNumber: c.pageNumber, label: c.label });
     navigate('/viewer');
@@ -280,18 +288,20 @@ export default function Concepts() {
     return out;
   }, [editing, items]);
 
-  // ── 트리 행 (재귀) — 접기·드래그 앤 드롭·자식 추가·더블클릭 편집 ──
-  const renderRow = (node, fp) => {
+  // ── 트리 행 (재귀) — 기본=이름만 · 클릭=내용 · 더블클릭=편집 ──
+  const renderRow = (node, fp, isLast = false) => {
     const record = { ...node, filePath: fp };
     const kids = node.children || [];
     const isCollapsed = collapsed.has(node.id);
     const hint = dropHint && dropHint.id === node.id ? dropHint.pos : null;
     return (
-      <div key={node.id}>
+      <div key={node.id} className={'concepts__item' + (isLast ? ' concepts__item--last' : '')}>
         <div
           className={'concepts__row'
             + (dragId === node.id ? ' concepts__row--dragging' : '')
             + (hint ? ` concepts__row--drop-${hint}` : '')}
+          onClick={() => toggleExpand(node.id)}
+          onDoubleClick={() => startEdit(record)}
           draggable
           onDragStart={(e) => {
             e.dataTransfer.setData('text/plain', node.id);
@@ -322,7 +332,7 @@ export default function Concepts() {
           {kids.length > 0 ? (
             <button
               className="concepts__toggle"
-              onClick={() => toggleCollapse(node.id)}
+              onClick={(e) => { e.stopPropagation(); toggleCollapse(node.id); }}
               title={isCollapsed ? 'Expand children' : 'Collapse children'}
             >{isCollapsed ? '▸' : '▾'}</button>
           ) : (
@@ -331,28 +341,29 @@ export default function Concepts() {
           <button
             className="concepts__status"
             style={{ background: STATUS_COLORS[node.status] }}
-            onClick={() => toggleStatus(record)}
+            onClick={(e) => { e.stopPropagation(); toggleStatus(record); }}
             title={`Status: ${STATUS_LABELS[node.status]} — tap to change`}
             aria-label={`Status: ${STATUS_LABELS[node.status]}`}
           />
           <button
             className="concepts__label"
-            onClick={() => openConcept(record)}
-            onDoubleClick={() => startEdit(record)}
-            title={node.summary || `Go to source page ${node.pageNumber}`}
+            title={node.summary || 'Click for details · double-click to edit'}
           >
             <span className="concepts__name">{node.label}</span>
-            {node.summary && <span className="concepts__summary">{node.summary}</span>}
           </button>
-          <span className="concepts__page">p.{node.pageNumber}</span>
-          <span className="concepts__actions">
-            <button title="Add child concept" onClick={() => startAddChild(record)}>＋</button>
-            <button title="Move up" onClick={() => moveItem(record, -1)}>▲</button>
-            <button title="Move down" onClick={() => moveItem(record, 1)}>▼</button>
-            <button title="Edit" onClick={() => startEdit(record)}>✏️</button>
-            <button title="Delete (children are kept)" onClick={() => removeItem(record)}>×</button>
-          </span>
+          <button
+            className="concepts__page"
+            onClick={(e) => { e.stopPropagation(); openConcept(record); }}
+            title={`Go to source page ${node.pageNumber}`}
+          >p.{node.pageNumber}</button>
         </div>
+        {expandedId === node.id && (
+          <div className="concepts__content">
+            {node.summary
+              ? <p className="concepts__content-summary">{node.summary}</p>
+              : <p className="concepts__content-empty">No notes yet — double-click to edit.</p>}
+          </div>
+        )}
         {addingChild && addingChild.id === node.id && (
           <div className="concepts__add-child">
             <input
@@ -419,14 +430,17 @@ export default function Concepts() {
               </select>
             </div>
             <div className="concepts__editor-actions">
-              <button className="concepts__save" onClick={saveEdit}>Save</button>
+              <button className="concepts__editor-child" onClick={() => { setEditing(null); startAddChild(record); }}>＋ Add child</button>
+              <button className="concepts__editor-delete" onClick={() => { setEditing(null); removeItem(record); }}>× Delete</button>
+              <span className="concepts__editor-spacer" />
               <button className="concepts__cancel" onClick={() => setEditing(null)}>Cancel</button>
+              <button className="concepts__save" onClick={saveEdit}>Save</button>
             </div>
           </div>
         )}
         {kids.length > 0 && !isCollapsed && (
           <div className="concepts__children">
-            {kids.map((child) => renderRow(child, fp))}
+            {kids.map((child, i) => renderRow(child, fp, i === kids.length - 1))}
           </div>
         )}
       </div>
