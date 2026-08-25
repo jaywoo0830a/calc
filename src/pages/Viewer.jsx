@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppNav from '../components/AppNav.jsx';
 import { marked } from 'marked';
 import { pushRecent, clearRecent, registerRecentNavigate } from '../lib/recentHistory.js';
 import { takePendingProblem } from '../lib/problemJump.js';
-import { takePendingConcept } from '../lib/conceptJump.js';
+import { takePendingConcept, setPendingConceptsFullscreen } from '../lib/conceptJump.js';
 import { takePendingSummary } from '../lib/summaryJump.js';
 import katex from 'katex';
 import JSZip from 'jszip';
@@ -151,6 +152,7 @@ function resolveImagePath(src, dir, blobMap) {
 }
 
 export default function Viewer() {
+  const navigate = useNavigate();
   const [fileName, setFileName] = useState('');
   const [rendered, setRendered] = useState('');
   const [zipId, setZipId] = useState('');              // IndexedDB 키 (상태 복원용)
@@ -1008,7 +1010,12 @@ export default function Viewer() {
     const t = setTimeout(() => {
       const c = pendingConceptRef.current;
       pendingConceptRef.current = null;
-      if (c) jumpToDocumentPage(c);
+      if (!c) return;
+      jumpToDocumentPage(c);
+      if (c.fullscreen) {
+        // 트리 전체화면에서 넘어온 경우 — PDF 로드 후 전체화면 진입
+        window.dispatchEvent(new CustomEvent('viewer:enter-pdf-fullscreen'));
+      }
     }, 400);
     return () => clearTimeout(t);
   }, []);
@@ -1106,7 +1113,7 @@ export default function Viewer() {
         )}
         <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
           {pdfUrl ? (
-            <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} initialScrollTop={pdfState.current[posKey(selectedPath)]?.scrollTop} />
+            <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} initialScrollTop={pdfState.current[posKey(selectedPath)]?.scrollTop} onOpenConcepts={() => { setPendingConceptsFullscreen(selectedPath); navigate('/concepts'); }} />
           ) : rendered ? (
             <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
           ) : !loading ? (

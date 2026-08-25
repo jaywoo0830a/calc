@@ -316,3 +316,19 @@ export function conceptOptionList(list) {
   buildTree(conceptsToMap(list)).forEach((r) => walk(r, 0));
   return out;
 }
+
+/** 🧭 부모 선택용 — 최상위 가지별 optgroup(계층이 한눈에, 들여쓰기는 nbsp) */
+export function conceptOptionGroups(list) {
+  const groups = [];
+  const walk = (n, d, skipId, out) => {
+    if (n.id === skipId) return;
+    out.push({ id: n.id, label: '\u00A0'.repeat(d * 2) + n.label });
+    (n.children || []).forEach((c) => walk(c, d + 1, skipId, out));
+  };
+  for (const root of buildTree(conceptsToMap(list))) {
+    const out = [];
+    walk(root, 0, null, out);
+    if (out.length) groups.push({ label: root.label, options: out });
+  }
+  return groups;
+}

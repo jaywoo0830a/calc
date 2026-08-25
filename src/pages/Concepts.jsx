@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import AppNav from '../components/AppNav.jsx';
 import { getAllConcepts, saveConcept, deleteConcept } from '../lib/storage.js';
-import { setPendingConcept } from '../lib/conceptJump.js';
+import { setPendingConcept, takePendingConceptsFullscreen } from '../lib/conceptJump.js';
 import {
   updateNode, reparentNode, deleteNode, buildTree,
   reviewQueue, STATUS, REVIEW_PRIORITY,
@@ -192,6 +192,18 @@ export default function Concepts() {
     }).catch(() => { setItems(null); setLoadError(true); });
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
+
+  // Viewer(전체화면)의 🧭 Concepts 버튼 → 해당 문서를 전체화면 트리로 열기
+  const pendingFsRef = useRef(takePendingConceptsFullscreen());
+  useEffect(() => {
+    const fp = pendingFsRef.current;
+    if (!fp || !items) return;
+    pendingFsRef.current = null;
+    if (items.some((c) => c.filePath === fp)) {
+      setSelectedFp(fp);
+      setTreeFull(true);
+    }
+  }, [items]);
 
   // 선택한 문서의 개념이 전부 사라지면(삭제 등) 목록 뷰로 복귀
   useEffect(() => {
@@ -523,11 +535,11 @@ export default function Concepts() {
     }
   }, [editing, items, gate, commitDoc, refresh]);
 
-  // 노드 오른쪽의 p.N 버튼 → Viewer로 이동 후 원 페이지로 점프
+  // 노드 오른쪽의 p.N 버튼 → Viewer로 이동 후 원 페이지로 점프 (트리 전체화면 중이면 PDF도 전체화면)
   const openConcept = useCallback((c) => {
-    setPendingConcept({ filePath: c.filePath, pageNumber: c.pageNumber, label: c.label });
+    setPendingConcept({ filePath: c.filePath, pageNumber: c.pageNumber, label: c.label, fullscreen: treeFull });
     navigate('/viewer');
-  }, [navigate]);
+  }, [navigate, treeFull]);
 
   // ── 문서별 그룹 (필터 반영) ──
   const groups = useMemo(() => {
@@ -559,16 +571,22 @@ export default function Concepts() {
     [selectedFp, items, filter]
   );
 
-  // 편집 패널용 부모 옵션 (같은 문서 트리, 자기 자신 제외)
-  const parentOptions = useMemo(() => {
+  // 편집 패널용 부모 옵션 (같은 문서 트리, 자기 자신 제외 — 가지별 optgroup)
+  const parentGroups = useMemo(() => {
     if (!editing || !items) return [];
-    const out = [];
-    const walk = (n, d) => {
-      if (n.id !== editing.id) out.push({ id: n.id, label: '— '.repeat(d) + n.label });
-      (n.children || []).forEach((ch) => walk(ch, d + 1));
+    const groups = [];
+    const walk = (n, d, out) => {
+      if (n.id === editing.id) return;
+      out.push({ id: n.id, label: '\u00A0'.repeat(d * 2) + n.label });
+      (n.children || []).forEach((ch) => walk(ch, d + 1, out));
     };
-    buildTree(docMap(items, editing.filePath)).forEach((r) => walk(r, 0));
-    return out;
+    for (const root of buildTree(docMap(items, editing.filePath))) {
+      if (root.id === editing.id) continue;
+      const out = [];
+      walk(root, 0, out);
+      if (out.length) groups.push({ label: root.label, options: out });
+    }
+    return groups;
   }, [editing, items]);
 
   // ── 트리 행 (재귀) — 기본=이름만 · 클릭=내용 · 더블클릭=편집 ──
@@ -727,8 +745,12 @@ export default function Concepts() {
                 title="Parent concept"
               >
                 <option value="">— top level —</option>
-                {parentOptions.map((o) => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
+                {parentGroups.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.options.map((o) => (
+                      <option key={o.id} value={o.id}>{o.label}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

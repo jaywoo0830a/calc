@@ -116,7 +116,7 @@ const PdfPageMemo = memo(function PdfPageMemo({ pageNumber, width, textLayer, on
   );
 });
 
-export default function PdfAnnotator({ url, filePath, initialPage, initialScrollTop }) {
+export default function PdfAnnotator({ url, filePath, initialPage, initialScrollTop, onOpenConcepts }) {
   const [numPages, setNumPages] = useState(0);
   const [annotations, setAnnotations] = useState([]);
   const [tool, setTool] = useState(null); // null = read mode (default)
@@ -339,6 +339,30 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   }, [numPages, currentPage, goToPage, tool]);
 
   // ── Fullscreen (native API + CSS fallback for iOS/Safari) ──
+  const enterFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el || fullscreen) return;
+    if (el.requestFullscreen) {
+      el.requestFullscreen().then(() => setFullscreen(true)).catch(() => setFullscreen(true));
+    } else {
+      setFullscreen(true); // iOS/Safari CSS 폴백
+    }
+  }, [fullscreen]);
+
+  // 🧭 Concepts 트리 전체화면에서 넘어온 경우 — PDF 로드 후 자동 전체화면
+  const pendingFsRef = useRef(false);
+  useEffect(() => {
+    const onEnter = () => { pendingFsRef.current = true; };
+    window.addEventListener('viewer:enter-pdf-fullscreen', onEnter);
+    return () => window.removeEventListener('viewer:enter-pdf-fullscreen', onEnter);
+  }, []);
+  useEffect(() => {
+    if (pendingFsRef.current && numPages > 0) {
+      pendingFsRef.current = false;
+      enterFullscreen();
+    }
+  }, [numPages, enterFullscreen]);
+
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -1305,6 +1329,13 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             title="Problems"
           >
             📋 Problems
+          </button>
+          <button
+            className="pdf-annotator__tool"
+            onClick={() => { if (onOpenConcepts) onOpenConcepts(); }}
+            title="Open this document's concepts — fullscreen tree"
+          >
+            🧭 Concepts
           </button>
           <button
             className="pdf-annotator__fullscreen-btn"

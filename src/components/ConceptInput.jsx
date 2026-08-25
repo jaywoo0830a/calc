@@ -1,4 +1,4 @@
-import { conceptOptionList } from '../lib/conceptMap.js';
+import { conceptOptionGroups } from '../lib/conceptMap.js';
 
 /**
  * 🧭 ConceptInput — 재사용 가능한 개념 입력 박스
@@ -35,8 +35,12 @@ export default function ConceptInput({
         title="Parent concept"
       >
         <option value="">— top level —</option>
-        {conceptOptionList(concepts).map((o) => (
-          <option key={o.id} value={o.id}>{o.label}</option>
+        {conceptOptionGroups(concepts).map((g) => (
+          <optgroup key={g.label} label={g.label}>
+            {g.options.map((o) => (
+              <option key={o.id} value={o.id}>{o.label}</option>
+            ))}
+          </optgroup>
         ))}
       </select>
       <div className="concept-input__actions">

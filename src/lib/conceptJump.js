@@ -15,3 +15,18 @@ export function takePendingConcept() {
   pending = null;
   return c;
 }
+
+// ── Viewer ↔ Concepts 전체화면 양방향 텔레포트 ──
+// Viewer(전체화면)의 🧭 Concepts 버튼 → 저장 → /concepts 이동 →
+// Concepts가 마운트 후 take로 꺼내 해당 문서를 전체화면 트리로 연다.
+let pendingConceptsFullscreen = null;
+
+export function setPendingConceptsFullscreen(filePath) {
+  pendingConceptsFullscreen = filePath;
+}
+
+export function takePendingConceptsFullscreen() {
+  const fp = pendingConceptsFullscreen;
+  pendingConceptsFullscreen = null;
+  return fp;
+}
