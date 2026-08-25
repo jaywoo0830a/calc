@@ -331,6 +331,34 @@ $guide-color: $c-rule;
     white-space: pre-line; // CLEAR 프레임 줄바꿈 유지
   }
 
+  // CLEAR 섹션을 라벨로 명확히 구분해 표시
+  &__float-card-clear {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+  }
+
+  &__float-card-sec {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  &__float-card-sec-label {
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    color: $c-accent;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__float-card-sec-text {
+    font-size: $fs-step-0;
+    color: $c-ink;
+    line-height: 1.5;
+    white-space: pre-line;
+  }
+
   &__float-card-empty {
     font-size: $fs-step--1;
     color: $c-ink-faint;
@@ -689,6 +717,14 @@ $guide-color: $c-rule;
 
   &__editor-spacer { flex: 1; }
 
+  &__editor-gate {
+    font-size: $fs-step--1;
+    color: #b5433a;
+    white-space: nowrap;
+
+    &--ok { color: #3d5a40; }
+  }
+
   &__save {
     border: none;
     border-radius: $radius-md;
@@ -698,6 +734,11 @@ $guide-color: $c-rule;
     font-size: $fs-step--1;
     padding: $sp-1 $sp-3;
     cursor: pointer;
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
   }
 
   &__cancel {

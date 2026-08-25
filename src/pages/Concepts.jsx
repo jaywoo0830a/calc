@@ -79,6 +79,20 @@ function mergeClear(parts) {
     .join('\n');
 }
 
+/** summary가 CLEAR 헤더 형식인지 */
+function hasClearFormat(text) {
+  return new RegExp(`^(${CLEAR_KEYS.join('|')}):\\s`, 'm').test(String(text || ''));
+}
+
+// ── 🧠 학습 마찰 게이트: 새 노드(빈 summary)는 연속 5분 + 최소 2섹션 채워야 저장 ──
+const STUDY_GATE_MS = 5 * 60 * 1000;
+const STUDY_GATE_MIN_SECTIONS = 2;
+
+const fmtMs = (ms) => {
+  const s = Math.ceil(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
 /** 트리에서 id 노드 탐색 */
 function findTreeNode(roots, id) {
   for (const n of roots) {
@@ -139,6 +153,9 @@ export default function Concepts() {
   const [test, setTest] = useState(null);            // { rootId, answers:{}, scored, missed[], retryIds }
   const [testInput, setTestInput] = useState(null);  // 답 입력 중인 노드 id
   const [testText, setTestText] = useState('');
+  const [gate, setGate] = useState(null);            // { id, openedAt } — 새 노드 5분 학습 게이트
+  const [, setTick] = useState(0);                   // 게이트 카운트다운 리렌더 틱
+  const draftRef = useRef({});                       // 게이트 노드 초안 보존 (닫아도 유지, 타이머만 리셋)
   const [dragId, setDragId] = useState(null);     // 드래그 중인 노드 id
   const [dropHint, setDropHint] = useState(null); // { id, pos: before|after|inside }
   const [addingChild, setAddingChild] = useState(null); // { id, filePath } — 자식 추가 중인 부모
@@ -165,6 +182,7 @@ export default function Concepts() {
     setExpandedId(null);
     setContentAnchor(null);
     setEditing(null);
+    setGate(null);
     setAddingChild(null);
     setChildLabel('');
     setTest(null);
@@ -222,6 +240,7 @@ export default function Concepts() {
   const removeItem = useCallback((c) => {
     const map = docMap(items, c.filePath);
     if (!map[c.id]) return;
+    delete draftRef.current[c.id];
     commitDoc(c.filePath, map, deleteNode(map, c.id));
   }, [items, commitDoc]);
 
@@ -315,6 +334,17 @@ export default function Concepts() {
     setTestText('');
   }, []);
 
+  // 게이트 카운트다운 — 남은 시간이 0이 될 때까지 1초 틱
+  const gateRemainingMs = gate ? Math.max(0, STUDY_GATE_MS - (Date.now() - gate.openedAt)) : 0;
+  const gateFilled = editing ? CLEAR_KEYS.filter((k) => String(editing.parts[k] || '').trim()).length : 0;
+  const gateLocked = !!gate && (gateRemainingMs > 0 || gateFilled < STUDY_GATE_MIN_SECTIONS);
+  const gateCounting = !!gate && gateRemainingMs > 0;
+  useEffect(() => {
+    if (!gateCounting) return;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [gateCounting]);
+
   // DnD 드롭 — 같은 문서 안에서만 이동 (문서 간 이동은 미지원)
   const onDropNode = useCallback((draggedId, targetId, pos) => {
     const dragged = (items || []).find((c) => c.id === draggedId);
@@ -374,17 +404,46 @@ export default function Concepts() {
   const startEdit = useCallback((c) => {
     setExpandedId(null);
     setContentAnchor(null);
+    const isNew = !String(c.summary || '').trim();
+    const draft = isNew ? draftRef.current[c.id] : null;
     setEditing({
-      id: c.id, filePath: c.filePath, label: c.label || '', parts: parseClear(c.summary),
+      id: c.id, filePath: c.filePath, label: c.label || '',
+      parts: draft ? { ...draft } : parseClear(c.summary),
       status: c.status || STATUS.UNKNOWN, parent: c.parentId || '',
       pageNumber: Number(c.pageNumber) || 1,
     });
+    // 빈 summary 노드만 게이트 — 닫으면 리셋, 초안은 draftRef에 보존
+    setGate(isNew ? { id: c.id, openedAt: Date.now() } : null);
   }, []);
+
+  // 편집기 닫기 — 게이트 타이머 리셋 + 초안 보존
+  const closeEditor = useCallback(() => {
+    setEditing((v) => {
+      if (v && gate && gate.id === v.id) draftRef.current[v.id] = v.parts;
+      return null;
+    });
+    setGate(null);
+  }, [gate]);
+
+  // CLEAR 섹션 입력 — 게이트 노드는 초안을 계속 백업
+  const updatePart = useCallback((k, value) => {
+    setEditing((v) => {
+      if (!v) return v;
+      const parts = { ...v.parts, [k]: value };
+      if (gate && gate.id === v.id) draftRef.current[v.id] = parts;
+      return { ...v, parts };
+    });
+  }, [gate]);
 
   const saveEdit = useCallback(() => {
     if (!editing) return;
+    if (gate && gate.id === editing.id) {
+      const elapsed = Date.now() - gate.openedAt;
+      const filled = CLEAR_KEYS.filter((k) => String(editing.parts[k] || '').trim()).length;
+      if (elapsed < STUDY_GATE_MS || filled < STUDY_GATE_MIN_SECTIONS) return; // 게이트 잠금
+    }
     const map = docMap(items, editing.filePath);
-    if (!map[editing.id]) { setEditing(null); return; }
+    if (!map[editing.id]) { setEditing(null); setGate(null); return; }
     try {
       let newMap = updateNode(map, editing.id, {
         label: editing.label, summary: mergeClear(editing.parts || {}),
@@ -395,14 +454,17 @@ export default function Concepts() {
         newMap = reparentNode(newMap, editing.id, targetParent);
       }
       commitDoc(editing.filePath, map, newMap);
+      delete draftRef.current[editing.id];
       setEditing(null);
+      setGate(null);
     } catch (e) {
       setItems(null); // 코어 검증 실패 표시는 간단히 새로고침 유도 대신 무시
       console.warn('[concepts] edit failed:', e);
       setEditing(null);
+      setGate(null);
       refresh();
     }
-  }, [editing, items, commitDoc, refresh]);
+  }, [editing, items, gate, commitDoc, refresh]);
 
   // 노드 오른쪽의 p.N 버튼 → Viewer로 이동 후 원 페이지로 점프
   const openConcept = useCallback((c) => {
@@ -545,7 +607,7 @@ export default function Concepts() {
           <div
             className="concepts__editor concepts__editor--inline"
             data-edit-id={node.id}
-            onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }}
+            onKeyDown={(e) => { if (e.key === 'Escape') closeEditor(); }}
           >
             <input
               autoFocus
@@ -563,7 +625,7 @@ export default function Concepts() {
                     rows={2}
                     placeholder={CLEAR_PLACEHOLDERS[k]}
                     value={editing.parts[k]}
-                    onChange={(e) => setEditing((v) => ({ ...v, parts: { ...v.parts, [k]: e.target.value } }))}
+                    onChange={(e) => updatePart(k, e.target.value)}
                   />
                 </div>
               ))}
@@ -602,11 +664,20 @@ export default function Concepts() {
               </select>
             </div>
             <div className="concepts__editor-actions">
-              <button className="concepts__editor-child" onClick={() => { setEditing(null); startAddChild(record); }}>＋ Add child</button>
-              <button className="concepts__editor-delete" onClick={() => { setEditing(null); removeItem(record); }}>× Delete</button>
+              <button className="concepts__editor-child" onClick={() => { closeEditor(); startAddChild(record); }}>＋ Add child</button>
+              <button className="concepts__editor-delete" onClick={() => { closeEditor(); removeItem(record); }}>× Delete</button>
+              {gate && gate.id === editing.id && (
+                <span className={'concepts__editor-gate' + (!gateLocked ? ' concepts__editor-gate--ok' : '')}>
+                  {gateRemainingMs > 0
+                    ? `Save unlocks in ${fmtMs(gateRemainingMs)} — keep studying`
+                    : gateFilled < STUDY_GATE_MIN_SECTIONS
+                      ? `Fill at least ${STUDY_GATE_MIN_SECTIONS - gateFilled} more section${STUDY_GATE_MIN_SECTIONS - gateFilled > 1 ? 's' : ''} to save`
+                      : 'Ready — you can save'}
+                </span>
+              )}
               <span className="concepts__editor-spacer" />
-              <button className="concepts__cancel" onClick={() => setEditing(null)}>Cancel</button>
-              <button className="concepts__save" onClick={saveEdit}>Save</button>
+              <button className="concepts__cancel" onClick={closeEditor}>Cancel</button>
+              <button className="concepts__save" onClick={saveEdit} disabled={gateLocked}>Save</button>
             </div>
           </div>
         )}
@@ -886,6 +957,7 @@ export default function Concepts() {
       {contentAnchor && (() => {
         const node = (items || []).find((c) => c.id === contentAnchor.id);
         if (!node) return null;
+        const parts = parseClear(node.summary);
         return createPortal(
           <div className="concepts__float-card" style={{ left: contentAnchor.left, top: contentAnchor.top }}>
             <div className="concepts__float-card-head">
@@ -897,7 +969,18 @@ export default function Concepts() {
               >✕</button>
             </div>
             {node.summary
-              ? <div className="concepts__float-card-summary">{node.summary}</div>
+              ? (hasClearFormat(node.summary) ? (
+                <div className="concepts__float-card-clear">
+                  {CLEAR_KEYS.filter((k) => String(parts[k] || '').trim()).map((k) => (
+                    <div className="concepts__float-card-sec" key={k}>
+                      <span className="concepts__float-card-sec-label">{k}</span>
+                      <span className="concepts__float-card-sec-text">{parts[k]}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="concepts__float-card-summary">{node.summary}</div>
+              ))
               : <div className="concepts__float-card-empty">No notes yet — double-click to edit.</div>}
             <div className="concepts__float-card-foot">
               <button
