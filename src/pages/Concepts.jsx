@@ -16,6 +16,14 @@ import {
 
 const docName = (fp) => String(fp || '').split('/').pop() || 'Document';
 
+// 상태별 색 — 노드의 상태 원에 반영 (○ 모름=복습 필요, ● 이해=안심)
+const STATUS_COLORS = {
+  [STATUS.UNKNOWN]: '#b5433a',
+  [STATUS.FUZZY]: '#c98a1b',
+  [STATUS.KNOWN]: '#3d5a40',
+  [STATUS.HOLD]: '#8a8378',
+};
+
 /** 같은 문서의 노드만 담은 core map */
 function docMap(items, filePath) {
   return conceptsToMap((items || []).filter((c) => c.filePath === filePath));
@@ -315,6 +323,7 @@ export default function Concepts() {
           )}
           <button
             className="concepts__status"
+            style={{ color: STATUS_COLORS[node.status], borderColor: STATUS_COLORS[node.status] }}
             onClick={() => toggleStatus(record)}
             title={`Status ${node.status} — tap to cycle ○→◐→●→△`}
           >{node.status}</button>

@@ -6,7 +6,7 @@ import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBoo
 import { api } from '../lib/api.js';
 import { fitImageRect } from '../lib/imageRect.js';
 import { rotateImageDataUrl, warmMl } from '../lib/docScan.js';
-import { addNode, suggestId, STATUS } from '../lib/conceptMap.js';
+import { addNode, buildTree, suggestId, STATUS } from '../lib/conceptMap.js';
 import ScanAreaModal from './ScanAreaModal.jsx';
 import ClearGate from './ClearGate.jsx';
 import { useClearGate } from '../hooks/useClearGate.js';
@@ -119,6 +119,17 @@ export function conceptsToMap(list) {
   return map;
 }
 
+/** 🧭 부모 선택용 — 계층 들여쓰기된 옵션 목록 (top level 제외) */
+export function conceptOptionList(list) {
+  const out = [];
+  const walk = (n, d) => {
+    out.push({ id: n.id, label: '— '.repeat(d) + n.label });
+    (n.children || []).forEach((c) => walk(c, d + 1));
+  };
+  buildTree(conceptsToMap(list || [])).forEach((r) => walk(r, 0));
+  return out;
+}
+
 /** 파일별 고유 id 접두사 — 서로 다른 PDF에서 CN-n이 겹치지 않게 */
 export function conceptIdBase(filePath) {
   let h = 2166136261;
@@ -169,6 +180,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [conceptCapture, setConceptCapture] = useState(null); // 캡처 바 위치 { pageNumber, px, py }
   const [conceptLabel, setConceptLabel] = useState('');
   const [conceptParent, setConceptParent] = useState('');     // 캡처 시 부모 ('' = 최상위)
+  const lastConceptRef = useRef('');                           // 직전에 만든 개념 — 다음 캡처의 기본 부모로 제안
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -692,7 +704,9 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         py: 72,
       });
       setConceptLabel('');
-      setConceptParent('');
+      setConceptParent(
+        conceptsRef.current.some((c) => c.id === lastConceptRef.current) ? lastConceptRef.current : ''
+      );
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -933,13 +947,16 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       });
     } else if (tool === 'concept') {
       // 🧭 개념 노드 — 탭한 페이지에 캡처 바 (라벨 입력 → Enter = 생성)
+      // 기본 부모 = 직전에 만든 개념 (연속 생성 시 체인을 자연스럽게)
       setConceptCapture({
         pageNumber,
         px: Math.min(Math.max(e.clientX, 8), window.innerWidth - 240),
         py: Math.min(Math.max(e.clientY, 8), window.innerHeight - 180),
       });
       setConceptLabel('');
-      setConceptParent('');
+      setConceptParent(
+        conceptsRef.current.some((c) => c.id === lastConceptRef.current) ? lastConceptRef.current : ''
+      );
     }
   }, [tool]);
 
@@ -1195,6 +1212,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     try {
       const newMap = addNode(map, { id, label, parent: conceptParent || null, pageNumber: cap.pageNumber });
       commitConceptMap(map, newMap);
+      lastConceptRef.current = id; // 다음 캡처의 기본 부모로
       setToast('🧭 Concept added');
     } catch (e) {
       setToast(String(e.message || e));
@@ -1700,8 +1718,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             title="Parent concept"
           >
             <option value="">— top level —</option>
-            {concepts.map((c) => (
-              <option key={c.id} value={c.id}>{c.label}</option>
+            {conceptOptionList(concepts).map((o) => (
+              <option key={o.id} value={o.id}>{o.label}</option>
             ))}
           </select>
           <div className="pdf-annotator__comment-actions">

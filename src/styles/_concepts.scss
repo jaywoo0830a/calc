@@ -179,14 +179,25 @@
   }
 
   &__row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.35rem 0.6rem;
-    border-bottom: $border-thin solid rgba(212, 201, 181, 0.25);
+    width: fit-content;      // 노드는 내용 크기만큼만 (전폭 금지)
+    min-width: 12rem;
+    max-width: min(100%, 42rem);
+    padding: 0.35rem 0.7rem;
+    margin: 0.22rem 0;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: 999px; // 라운드 노드 (알약)
+    box-shadow: 0 0.0625rem 0.125rem rgba(44, 36, 22, 0.06);
+    transition: border-color $transition-fast, box-shadow $transition-fast;
 
-    &:last-child { border-bottom: none; }
-    &:hover { background: $c-page-dark; }
+    &:hover {
+      border-color: $c-accent;
+      box-shadow: 0 0.0625rem 0.25rem rgba(92, 61, 46, 0.18);
+    }
   }
 
   &__status {
@@ -289,9 +300,20 @@
   }
 
   &__children {
-    margin-left: 0.85rem;
-    padding-left: 0.5rem;
-    border-left: $border-thin dashed rgba(212, 201, 181, 0.7);
+    margin-left: 1rem;
+    padding-left: 0.9rem;
+    border-left: $border-thin solid rgba(212, 201, 181, 0.8);
+
+    // 부모 노드에서 자식 노드로 이어지는 엘보 커넥터 (트리 엣지)
+    > div > .concepts__row::before {
+      content: '';
+      position: absolute;
+      left: -0.9rem;
+      top: 50%;
+      width: 0.9rem;
+      border-top: $border-thin solid rgba(212, 201, 181, 0.8);
+      pointer-events: none;
+    }
   }
 
   // ── 드래그 앤 드롭 피드백 ──
@@ -331,6 +353,7 @@
     background: $c-page;
     border: $border-thin solid $c-rule;
     border-radius: $radius-md;
+    max-width: 42rem; // 노드와 어울리는 폭으로 제한
 
     &-label, &-summary, &-parent, &-page {
       border: $border-thin solid $c-rule;
