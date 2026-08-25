@@ -7,7 +7,6 @@
 .concepts {
   display: flex;
   flex-direction: column;
-  align-items: center; // 와이드 화면에서 중앙 정렬
   height: 100%;
   min-height: 0;
   gap: $sp-3;
@@ -15,9 +14,9 @@
   &__head,
   &__empty,
   &__list,
-  &__editor {
-    width: 100%;
-    max-width: 52rem; // problems와 동일 상한
+  &__editor,
+  &__docs {
+    width: 100%; // 전폭 사용 — 문서 하나에 몰입하는 레이아웃
   }
 
   &__head {
@@ -71,6 +70,77 @@
     color: $c-ink-faint;
     font-size: $fs-step--1;
     padding: $sp-3 0;
+  }
+
+  // ── 마스터 뷰: PDF 목록 카드 ──
+  &__docs {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: $sp-3;
+    align-content: start;
+    padding-bottom: $sp-2;
+  }
+
+  &__doc-card {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-1;
+    align-items: flex-start;
+    padding: $sp-3;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    cursor: pointer;
+    text-align: left;
+    font-family: $ff;
+    transition: border-color $transition-fast, background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { border-color: $c-accent; background: $c-page-dark; }
+    }
+  }
+
+  &__doc-card-name {
+    font-size: $fs-step-0;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+  }
+
+  &__doc-card-count {
+    font-size: $fs-step--1;
+    color: $c-ink-faint;
+  }
+
+  &__doc-card-stats {
+    display: flex;
+    gap: $sp-2;
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+  }
+
+  &__doc-card-stat--review {
+    color: $c-accent;
+    font-weight: $fw-semibold;
+  }
+
+  // ── 디테일 뷰: 뒤로가기 ──
+  &__back {
+    border: $border-thin solid $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    color: $c-accent;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: $sp-1 $sp-3;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { background: rgba(92, 61, 46, 0.1); }
+    }
   }
 
   &__list {

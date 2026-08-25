@@ -47,6 +47,7 @@ export default function Concepts() {
   const [items, setItems] = useState(null);      // null = 로딩 중
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState('all');   // all | ○ | ◐ | ● | △
+  const [selectedFp, setSelectedFp] = useState(null); // null = PDF 목록 뷰, 선택 시 디테일 뷰
   const [editing, setEditing] = useState(null);  // { id, filePath, label, summary, status, parent, pageNumber }
   const [collapsed, setCollapsed] = useState(() => new Set()); // 접힌 노드 id (UI 전용)
   const [dragId, setDragId] = useState(null);     // 드래그 중인 노드 id
@@ -64,6 +65,11 @@ export default function Concepts() {
     }).catch(() => { setItems(null); setLoadError(true); });
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
+
+  // 선택한 문서의 개념이 전부 사라지면(삭제 등) 목록 뷰로 복귀
+  useEffect(() => {
+    if (selectedFp && items && !items.some((c) => c.filePath === selectedFp)) setSelectedFp(null);
+  }, [selectedFp, items]);
 
   // 📡 3초 폴링 — 다른 기기와 동기 (서명 같으면 setState 생략, 저장 중엔 스킵)
   useEffect(() => {
@@ -226,11 +232,26 @@ export default function Concepts() {
       if (!map.has(c.filePath)) { map.set(c.filePath, []); out.push([c.filePath, map.get(c.filePath)]); }
       map.get(c.filePath).push(c);
     }
-    return out.filter(([fp, list]) => {
-      if (filter === 'all') return list.length > 0;
-      return list.some((c) => c.status === filter);
-    });
-  }, [items, filter]);
+    return out;
+  }, [items]);
+
+  // 상태별 개수 (문서 카드용)
+  const statusCounts = useCallback((list) => {
+    const counts = { [STATUS.UNKNOWN]: 0, [STATUS.FUZZY]: 0, [STATUS.KNOWN]: 0, [STATUS.HOLD]: 0 };
+    for (const c of list) {
+      if (counts[c.status] != null) counts[c.status] += 1;
+      else counts[STATUS.UNKNOWN] += 1;
+    }
+    return counts;
+  }, []);
+
+  // 디테일 뷰에 표시할 목록 (선택 문서 + 상태 필터)
+  const detailItems = useMemo(
+    () => (selectedFp && items
+      ? items.filter((c) => c.filePath === selectedFp && (filter === 'all' || c.status === filter))
+      : []),
+    [selectedFp, items, filter]
+  );
 
   // 편집 패널용 부모 옵션 (같은 문서 트리, 자기 자신 제외)
   const parentOptions = useMemo(() => {
@@ -341,113 +362,161 @@ export default function Concepts() {
   const total = items ? items.length : 0;
   const unknownCount = items ? items.filter((c) => c.status === STATUS.UNKNOWN).length : 0;
 
+  // 상태 필터 칩 (목록/디테일 공용)
+  const filterChips = (
+    <div className="concepts__filters">
+      <button
+        className={'concepts__filter' + (filter === 'all' ? ' concepts__filter--active' : '')}
+        onClick={() => setFilter('all')}
+      >All</button>
+      {REVIEW_PRIORITY.map((s) => (
+        <button
+          key={s}
+          className={'concepts__filter' + (filter === s ? ' concepts__filter--active' : '')}
+          onClick={() => setFilter(filter === s ? 'all' : s)}
+          title={s === STATUS.UNKNOWN ? '모름 — 최우선 복습' : s === STATUS.FUZZY ? '애매' : s === STATUS.KNOWN ? '이해' : '보류'}
+        >{s}</button>
+      ))}
+    </div>
+  );
+
   return (
     <main className="concepts">
       <AppNav />
-
-      <div className="concepts__head">
-        <h1 className="concepts__title">🧭 Concepts</h1>
-        <span className="concepts__count">
-          {items ? total + (total === 1 ? ' concept' : ' concepts') : '…'}
-          {unknownCount > 0 && <em className="concepts__unknown-count"> · {unknownCount} to review (○)</em>}
-        </span>
-        <div className="concepts__filters">
-          <button
-            className={'concepts__filter' + (filter === 'all' ? ' concepts__filter--active' : '')}
-            onClick={() => setFilter('all')}
-          >All</button>
-          {REVIEW_PRIORITY.map((s) => (
-            <button
-              key={s}
-              className={'concepts__filter' + (filter === s ? ' concepts__filter--active' : '')}
-              onClick={() => setFilter(filter === s ? 'all' : s)}
-              title={s === STATUS.UNKNOWN ? '모름 — 최우선 복습' : s === STATUS.FUZZY ? '애매' : s === STATUS.KNOWN ? '이해' : '보류'}
-            >{s}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* 편집 패널 */}
-      {editing && (
-        <div className="concepts__editor">
-          <input
-            autoFocus
-            className="concepts__editor-label"
-            placeholder="Concept name"
-            value={editing.label}
-            onChange={(e) => setEditing((v) => ({ ...v, label: e.target.value }))}
-          />
-          <textarea
-            className="concepts__editor-summary"
-            rows={2}
-            placeholder="Summary (one sentence)…"
-            value={editing.summary}
-            onChange={(e) => setEditing((v) => ({ ...v, summary: e.target.value }))}
-          />
-          <div className="concepts__editor-row">
-            <div className="concepts__editor-status">
-              {REVIEW_PRIORITY.map((s) => (
-                <button
-                  key={s}
-                  className={'concepts__filter' + (editing.status === s ? ' concepts__filter--active' : '')}
-                  onClick={() => setEditing((v) => ({ ...v, status: s }))}
-                >{s}</button>
-              ))}
-            </div>
-            <input
-              className="concepts__editor-page"
-              type="number"
-              min={1}
-              value={editing.pageNumber}
-              onChange={(e) => setEditing((v) => ({ ...v, pageNumber: Number(e.target.value) || 1 }))}
-              title="Source page"
-            />
-            <select
-              className="concepts__editor-parent"
-              value={editing.parent}
-              onChange={(e) => setEditing((v) => ({ ...v, parent: e.target.value }))}
-              title="Parent concept"
-            >
-              <option value="">— top level —</option>
-              {parentOptions.map((o) => (
-                <option key={o.id} value={o.id}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="concepts__editor-actions">
-            <button className="concepts__save" onClick={saveEdit}>Save</button>
-            <button className="concepts__cancel" onClick={() => setEditing(null)}>Cancel</button>
-          </div>
-        </div>
-      )}
 
       {loadError ? (
         <div className="concepts__empty">Couldn't load concepts — check the server.</div>
       ) : items === null ? (
         <div className="concepts__empty">Loading…</div>
       ) : items.length === 0 ? (
-        <div className="concepts__empty">
-          No concepts yet — open a PDF in the Viewer, pick 🧭 Concept and tap a page (or press N).
-        </div>
-      ) : groups.length === 0 ? (
-        <div className="concepts__empty">No concepts match this filter.</div>
-      ) : (
-        <div className="concepts__list">
-          {groups.map(([fp, list]) => {
-            const map = docMap(items, fp);
-            return (
-              <section key={fp} className="concepts__group">
-                <header className="concepts__doc">
-                  <span>📕 {docName(fp)}</span>
-                  <span className="concepts__doc-count">{list.length}</span>
-                </header>
+        <>
+          <div className="concepts__head">
+            <h1 className="concepts__title">🧭 Concepts</h1>
+          </div>
+          <div className="concepts__empty">
+            No concepts yet — open a PDF in the Viewer, pick 🧭 Concept and tap a page (or press N).
+          </div>
+        </>
+      ) : selectedFp ? (
+        // ── 디테일 뷰: 선택한 PDF 하나에 몰입 (전폭 트리) ──
+        <>
+          <div className="concepts__head">
+            <button className="concepts__back" onClick={() => setSelectedFp(null)} title="Back to all documents">← All documents</button>
+            <h1 className="concepts__title">📕 {docName(selectedFp)}</h1>
+            {(() => {
+              const list = items.filter((c) => c.filePath === selectedFp);
+              const counts = statusCounts(list);
+              return (
+                <span className="concepts__count">
+                  {list.length + (list.length === 1 ? ' concept' : ' concepts')}
+                  {counts[STATUS.UNKNOWN] > 0 && <em className="concepts__unknown-count"> · {counts[STATUS.UNKNOWN]} to review (○)</em>}
+                </span>
+              );
+            })()}
+            {filterChips}
+          </div>
+
+          {editing && (
+            <div className="concepts__editor">
+              <input
+                autoFocus
+                className="concepts__editor-label"
+                placeholder="Concept name"
+                value={editing.label}
+                onChange={(e) => setEditing((v) => ({ ...v, label: e.target.value }))}
+              />
+              <textarea
+                className="concepts__editor-summary"
+                rows={2}
+                placeholder="Summary (one sentence)…"
+                value={editing.summary}
+                onChange={(e) => setEditing((v) => ({ ...v, summary: e.target.value }))}
+              />
+              <div className="concepts__editor-row">
+                <div className="concepts__editor-status">
+                  {REVIEW_PRIORITY.map((s) => (
+                    <button
+                      key={s}
+                      className={'concepts__filter' + (editing.status === s ? ' concepts__filter--active' : '')}
+                      onClick={() => setEditing((v) => ({ ...v, status: s }))}
+                    >{s}</button>
+                  ))}
+                </div>
+                <input
+                  className="concepts__editor-page"
+                  type="number"
+                  min={1}
+                  value={editing.pageNumber}
+                  onChange={(e) => setEditing((v) => ({ ...v, pageNumber: Number(e.target.value) || 1 }))}
+                  title="Source page"
+                />
+                <select
+                  className="concepts__editor-parent"
+                  value={editing.parent}
+                  onChange={(e) => setEditing((v) => ({ ...v, parent: e.target.value }))}
+                  title="Parent concept"
+                >
+                  <option value="">— top level —</option>
+                  {parentOptions.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="concepts__editor-actions">
+                <button className="concepts__save" onClick={saveEdit}>Save</button>
+                <button className="concepts__cancel" onClick={() => setEditing(null)}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {detailItems.length === 0 ? (
+            <div className="concepts__empty">No concepts match this filter.</div>
+          ) : (
+            <div className="concepts__list concepts__list--detail">
+              <section className="concepts__group">
                 {filter === 'all'
-                  ? buildTree(map).map((root) => renderRow(root, fp))
-                  : reviewQueue(map).filter((n) => n.status === filter).map((n) => renderRow({ ...n, children: [] }, fp))}
+                  ? buildTree(docMap(items, selectedFp)).map((root) => renderRow(root, selectedFp))
+                  : reviewQueue(docMap(items, selectedFp))
+                    .filter((n) => n.status === filter)
+                    .map((n) => renderRow({ ...n, children: [] }, selectedFp))}
               </section>
-            );
-          })}
-        </div>
+            </div>
+          )}
+        </>
+      ) : (
+        // ── 마스터 뷰: PDF 목록 — 터치하면 해당 문서에 몰입 ──
+        <>
+          <div className="concepts__head">
+            <h1 className="concepts__title">🧭 Concepts</h1>
+            <span className="concepts__count">
+              {groups.length} document{groups.length === 1 ? '' : 's'} · {total} concept{total === 1 ? '' : 's'}
+              {unknownCount > 0 && <em className="concepts__unknown-count"> · {unknownCount} to review (○)</em>}
+            </span>
+          </div>
+          <div className="concepts__docs">
+            {groups.map(([fp, list]) => {
+              const counts = statusCounts(list);
+              return (
+                <button
+                  key={fp}
+                  className="concepts__doc-card"
+                  onClick={() => setSelectedFp(fp)}
+                  title={`Open ${docName(fp)}`}
+                >
+                  <span className="concepts__doc-card-name">📕 {docName(fp)}</span>
+                  <span className="concepts__doc-card-count">{list.length} concept{list.length === 1 ? '' : 's'}</span>
+                  <span className="concepts__doc-card-stats">
+                    {REVIEW_PRIORITY.map((s) => (
+                      <span key={s} className={'concepts__doc-card-stat' + (s === STATUS.UNKNOWN && counts[s] > 0 ? ' concepts__doc-card-stat--review' : '')}>
+                        {s} {counts[s]}
+                      </span>
+                    ))}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
     </main>
   );
