@@ -34,6 +34,8 @@ $guide-color: $c-rule;
     font-weight: $fw-semibold;
     color: $c-ink;
     margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere; // 긴 PDF 파일명 줄바꿈
   }
 
   &__count {
@@ -97,7 +99,7 @@ $guide-color: $c-rule;
     min-height: 0;
     overflow-y: auto;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr));
     gap: $sp-3;
     align-content: start;
     padding-bottom: $sp-2;
@@ -108,6 +110,7 @@ $guide-color: $c-rule;
     flex-direction: column;
     gap: $sp-1;
     align-items: flex-start;
+    min-width: 0; // 그리드 셀 밖으로 넘치지 않게
     padding: $sp-3;
     background: $c-page;
     border: $border-thin solid $c-rule;
@@ -126,6 +129,7 @@ $guide-color: $c-rule;
     font-size: $fs-step-0;
     font-weight: $fw-semibold;
     color: $c-ink;
+    overflow-wrap: anywhere; // 긴 PDF 파일명 줄바꿈
   }
 
   &__doc-card-count {
@@ -382,6 +386,49 @@ $guide-color: $c-rule;
     transition: border-color $transition-fast;
 
     &:hover { border-color: $c-accent; }
+  }
+
+  // ── 트리 전체화면 (뷰어 전체화면처럼 — 줌 가능) ──
+  &__fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 1900;
+    background: $c-paper;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+    padding: $sp-2 $sp-3;
+  }
+
+  &__fullscreen-bar {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    flex-shrink: 0;
+  }
+
+  &__fullscreen-title {
+    flex: 1;
+    min-width: 0;
+    font-size: $fs-step-1;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__fullscreen-zoom {
+    min-width: 3rem;
+    text-align: center;
+    font-size: $fs-step--1;
+    color: $c-ink-soft;
+  }
+
+  &__fullscreen-scroll {
+    flex: 1;
+    min-height: 0;
+    background: transparent;
   }
 
   // ── 트리 구조: 접기 토글 + 클래식 org-chart 커넥터 ──

@@ -166,6 +166,8 @@ export default function Concepts() {
   const [cardPos, setCardPos] = useState(null); // { id, left, top } — 실측 후 뷰포트 클램프 좌표
   const cardRef = useRef(null);
   const lastTapRef = useRef({ id: null, t: 0 }); // 터치 더블 탭 감지 (dblclick 없는 기기)
+  const [treeFull, setTreeFull] = useState(false); // 트리 전체화면 (뷰어 전체화면과 동일한 몰입)
+  const [treeZoom, setTreeZoom] = useState(1);    // 전체화면 줌 0.6–2.0
   // 🧠 Test 모드 (회상 연습) — 비파괴(서버 변경 없음)
   const [testPick, setTestPick] = useState(false);   // 범위 선택 중 (노드 탭 = 그 서브트리)
   const [testType, setTestType] = useState('label'); // 'label'(A)=모든 라벨만 | 'deep'(B)=빈 라벨+CLEAR
@@ -333,6 +335,14 @@ export default function Concepts() {
       setContentAnchor(null);
     }
   }, [expandedId, items]);
+
+  // 트리 전체화면 — Esc로 닫기
+  useEffect(() => {
+    if (!treeFull) return;
+    const onKey = (e) => { if (e.key === 'Escape') setTreeFull(false); };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [treeFull]);
 
   // ── 🧠 Test 모드 ──
   const startTest = useCallback((rootId) => {
@@ -984,6 +994,13 @@ export default function Concepts() {
                 title="B — some labels are blanked; recall each label and its CLEAR notes"
               >Deep test</button>
             )}
+            {!test && !testPick && items.some((c) => c.filePath === selectedFp) && (
+              <button
+                className="concepts__test-btn"
+                onClick={() => setTreeFull(true)}
+                title="Fullscreen — zoomable concept tree"
+              >⛶</button>
+            )}
           </div>
 
           {test ? (
@@ -1030,7 +1047,7 @@ export default function Concepts() {
               )}
               {detailItems.length === 0 ? (
                 <div className="concepts__empty">No concepts match this filter.</div>
-              ) : (
+              ) : treeFull ? null : (
                 <div className="concepts__list concepts__list--detail">
                   <section className="concepts__group">
                     {filter === 'all'
@@ -1079,6 +1096,34 @@ export default function Concepts() {
           </div>
         </>
       )}
+      {treeFull && !test && createPortal(
+        <div className="concepts__fullscreen">
+          <div className="concepts__fullscreen-bar">
+            <span className="concepts__fullscreen-title">📕 {docName(selectedFp)}</span>
+            <button className="concepts__test-btn" onClick={() => setTreeZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(1)))} title="Zoom out">−</button>
+            <span className="concepts__fullscreen-zoom">{Math.round(treeZoom * 100)}%</span>
+            <button className="concepts__test-btn" onClick={() => setTreeZoom((z) => Math.min(2.0, +(z + 0.1).toFixed(1)))} title="Zoom in">+</button>
+            <button className="concepts__test-btn" onClick={() => setTreeZoom(1)} title="Reset zoom">1:1</button>
+            <button className="concepts__test-btn" onClick={() => setTreeFull(false)} title="Exit fullscreen (Esc)">✕ Exit</button>
+          </div>
+          <div className="concepts__list concepts__list--detail concepts__fullscreen-scroll">
+            <div style={{ width: `${treeZoom * 100}%` }}>
+              <section
+                className="concepts__group"
+                style={{ transform: `scale(${treeZoom})`, transformOrigin: 'top left', width: `${100 / treeZoom}%` }}
+              >
+                {filter === 'all'
+                  ? buildTree(docMap(items, selectedFp)).map((root) => renderRow(root, selectedFp))
+                  : reviewQueue(docMap(items, selectedFp))
+                    .filter((n) => n.status === filter)
+                    .map((n) => renderRow({ ...n, children: [] }, selectedFp))}
+              </section>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {contentAnchor && (() => {
         const node = (items || []).find((c) => c.id === contentAnchor.id);
         if (!node) return null;

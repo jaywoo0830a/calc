@@ -65,12 +65,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: $sp-2;
     padding: $sp-2 $sp-3;
     background: $c-page-dark;
     border-bottom: $border-thin solid $c-rule;
     font-size: $fs-step--1;
     font-weight: $fw-semibold;
     color: $c-ink;
+    overflow-wrap: anywhere; // 긴 PDF 파일명 줄바꿈
   }
 
   &__doc-count {
