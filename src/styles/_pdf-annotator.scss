@@ -1098,34 +1098,44 @@
     .pdf-annotator__nav { display: none; }
   }
 
-  // ── ✛ 터치 조준선 — 코멘트 배치 위치 정밀 조정 (터치 기기) ──
+  // ── ✛ 터치 조준선 — 주석 배치 위치 정밀 조정 (터치 기기) ──
   &__comment-aim {
     position: fixed;
     z-index: 320;
-    width: 3rem;
+    width: 3rem;                    // 터치 히트 영역 (시각 요소보다 넓게)
     height: 3rem;
-    margin: -1.5rem 0 0 -1.5rem; // left/top이 중심점
+    margin: -1.5rem 0 0 -1.5rem;    // left/top이 중심점
     touch-action: none;
     cursor: move;
 
+    // 미세 십자 — 1px 라인 + 2px 중심점 (글리프 대신 CSS 라인)
     &-cross {
       position: absolute;
       inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.7rem;
-      font-weight: 700;
-      color: $c-accent;
       pointer-events: none;
-      text-shadow: 0 0 0.35rem rgba(255, 254, 247, 0.95), 0 1px 2px rgba(44, 36, 22, 0.4);
+      background:
+        radial-gradient(circle, $c-accent 1px, transparent 1.6px) center / 3.2px 3.2px no-repeat;
+
+      &::before,
+      &::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        background: $c-accent;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 1px rgba(255, 254, 247, 0.85); // 어두운 배경 대비 옅은 테두리
+      }
+
+      &::before { width: 0.85rem; height: 1px; }
+      &::after  { width: 1px; height: 0.85rem; }
     }
 
     &-ring {
       position: absolute;
-      inset: 0;
+      inset: 0.75rem;               // 십자보다 작은 얇은 링
       border-radius: 50%;
-      border: 2px dashed rgba(92, 61, 46, 0.55);
+      border: 1px dashed rgba(92, 61, 46, 0.5);
       animation: commentAimPulse 1.2s ease-in-out infinite;
       pointer-events: none;
     }

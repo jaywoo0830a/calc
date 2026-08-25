@@ -122,8 +122,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const [annotations, setAnnotations] = useState([]);
   const [tool, setTool] = useState(null); // null = read mode (default)
   const [activeComment, setActiveComment] = useState(null);
-  const [commentAim, setCommentAim] = useState(null); // 터치 기기 코멘트 배치 조준선 { pageNumber, px, py }
-  const aimDragRef = useRef(null);                   // 조준선 드래그 세션 { id, startX, startY, baseX, baseY }
+  const [aim, setAim] = useState(null); // 터치 기기 배치 조준선 { kind: 'comment'|'image', pageNumber, px, py }
+  const aimDragRef = useRef(null);       // 조준선 드래그 세션 { id, startX, startY, baseX, baseY }
   const [commentText, setCommentText] = useState('');
   const [commentStatus, setCommentStatus] = useState(''); // 새 코멘트의 문제 상태 '' | wrong | solved (스캔 PDF용)
   const [loadError, setLoadError] = useState(null);
@@ -182,7 +182,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   // Scroll to top on page change
   const goToPage = useCallback((page) => {
     setCurrentPage(page);
-    setCommentAim(null); // 페이지 이동 시 조준선 해제
+    setAim(null); // 페이지 이동 시 조준선 해제
   }, []);
 
   // ── Bookmark toggle ─────────────────────────────────────
@@ -927,7 +927,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       if (!pageEl) return;
       // 터치 기기: 즉시 팝오버 대신 ✛ 조준선 표시 — 드래그로 정밀 조정 후 ✓ 배치
       if (IS_TOUCH_PRIMARY) {
-        setCommentAim({
+        setAim({
+          kind: 'comment',
           pageNumber,
           px: Math.min(Math.max(e.clientX, 12), window.innerWidth - 12),
           py: Math.min(Math.max(e.clientY, 12), window.innerHeight - 12),
@@ -952,6 +953,16 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       warmMl(); // 📐 ML 디텍터 워밍업 — 사진 선택 전에 모델 다운로드 시작
       const pageEl = pageRefs.current[pageNumber];
       if (!pageEl) return;
+      // 터치 기기: ✛ 조준선으로 이미지/요약 배치 위치 정밀 지정
+      if (IS_TOUCH_PRIMARY) {
+        setAim({
+          kind: 'image',
+          pageNumber,
+          px: Math.min(Math.max(e.clientX, 12), window.innerWidth - 12),
+          py: Math.min(Math.max(e.clientY, 12), window.innerHeight - 12),
+        });
+        return;
+      }
       const pageRect = getPageCanvasRect(pageEl) || pageEl.getBoundingClientRect();
       const x = (e.clientX - pageRect.left) / pageRect.width;
       const y = (e.clientY - pageRect.top) / pageRect.height;
@@ -977,34 +988,43 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     }
   }, [tool]);
 
-  // ✛ 조준선 ✓ — 정밀 위치에 코멘트 입력 오픈 (터치 기기)
-  const confirmCommentAim = useCallback(() => {
-    if (!commentAim) return;
-    const pageEl = pageRefs.current[commentAim.pageNumber] || document.querySelector(`[data-page="${commentAim.pageNumber}"]`);
+  // ✛ 조준선 ✓ — 정밀 위치에 주석 배치 (터치 기기)
+  const confirmAim = useCallback(() => {
+    if (!aim) return;
+    const pageEl = pageRefs.current[aim.pageNumber] || document.querySelector(`[data-page="${aim.pageNumber}"]`);
     const pageRect = getPageCanvasRect(pageEl);
     let x = 0.5, y = 0.5;
     if (pageRect) {
-      x = Math.max(0.01, Math.min(0.99, (commentAim.px - pageRect.left) / pageRect.width));
-      y = Math.max(0.01, Math.min(0.99, (commentAim.py - pageRect.top) / pageRect.height));
+      x = Math.max(0.01, Math.min(0.99, (aim.px - pageRect.left) / pageRect.width));
+      y = Math.max(0.01, Math.min(0.99, (aim.py - pageRect.top) / pageRect.height));
     }
-    setActiveComment({
-      pageNumber: commentAim.pageNumber, x, y,
-      px: Math.min(Math.max(commentAim.px, 8), window.innerWidth - 240),
-      py: Math.min(Math.max(commentAim.py, 8), window.innerHeight - 200),
-    });
-    setCommentAim(null);
-    setCommentText('');
-    setCommentStatus('');
-  }, [commentAim]);
+    if (aim.kind === 'comment') {
+      setActiveComment({
+        pageNumber: aim.pageNumber, x, y,
+        px: Math.min(Math.max(aim.px, 8), window.innerWidth - 240),
+        py: Math.min(Math.max(aim.py, 8), window.innerHeight - 200),
+      });
+      setCommentText('');
+      setCommentStatus('');
+    } else if (aim.kind === 'image') {
+      // 🖼️ 이미지/📒 요약 — 위치 확정 후 사진 선택 팝업 (스캔 → 원근 보정 → 배치)
+      pendingImageRef.current = { pageNumber: aim.pageNumber, x, y };
+      setImageChoice({
+        px: Math.min(Math.max(aim.px, 8), window.innerWidth - 220),
+        py: Math.min(Math.max(aim.py, 8), window.innerHeight - 90),
+      });
+    }
+    setAim(null);
+  }, [aim]);
 
   // 조준선 수명 관리 — 도구 변경/ESC로 해제
-  useEffect(() => { if (tool !== 'comment') setCommentAim(null); }, [tool]);
+  useEffect(() => { setAim(null); }, [tool]);
   useEffect(() => {
-    if (!commentAim) return;
-    const onKey = (e) => { if (e.key === 'Escape') setCommentAim(null); };
+    if (!aim) return;
+    const onKey = (e) => { if (e.key === 'Escape') setAim(null); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [commentAim]);
+  }, [aim]);
 
   // ── 🖼️ 이미지 주석 — 파일 압축 후 해당 위치에 배치 ──────────
   const placeImage = useCallback(async (dataUrl, aspect, scanner, opts = {}) => {
@@ -1764,17 +1784,17 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         </div>
       )}
 
-      {/* ✛ 터치 조준선 — 코멘트 배치 위치 정밀 조정 (터치 기기 전용) */}
-      {commentAim && (
+      {/* ✛ 터치 조준선 — 주석(코멘트·이미지·요약) 배치 위치 정밀 조정 */}
+      {aim && (
         <div
           className="pdf-annotator__comment-aim"
-          style={{ left: commentAim.px, top: commentAim.py }}
+          style={{ left: aim.px, top: aim.py }}
           onPointerDown={(e) => {
             if (e.target.closest('button')) return;
             e.preventDefault();
             aimDragRef.current = {
               id: e.pointerId, startX: e.clientX, startY: e.clientY,
-              baseX: commentAim.px, baseY: commentAim.py,
+              baseX: aim.px, baseY: aim.py,
             };
             e.currentTarget.setPointerCapture?.(e.pointerId);
           }}
@@ -1783,16 +1803,16 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             if (!d || d.id !== e.pointerId) return;
             const px = Math.max(12, Math.min(window.innerWidth - 12, d.baseX + (e.clientX - d.startX)));
             const py = Math.max(12, Math.min(window.innerHeight - 12, d.baseY + (e.clientY - d.startY)));
-            setCommentAim((a) => (a ? { ...a, px, py } : a));
+            setAim((a) => (a ? { ...a, px, py } : a));
           }}
           onPointerUp={() => { aimDragRef.current = null; }}
           onPointerCancel={() => { aimDragRef.current = null; }}
         >
           <span className="pdf-annotator__comment-aim-ring" />
-          <span className="pdf-annotator__comment-aim-cross">✛</span>
+          <span className="pdf-annotator__comment-aim-cross" />
           <div className="pdf-annotator__comment-aim-actions">
-            <button onClick={confirmCommentAim} title="Place comment here" aria-label="Place comment">✓</button>
-            <button onClick={() => setCommentAim(null)} title="Cancel" aria-label="Cancel aim">✕</button>
+            <button onClick={confirmAim} title="Place here" aria-label="Place">✓</button>
+            <button onClick={() => setAim(null)} title="Cancel" aria-label="Cancel aim">✕</button>
           </div>
           <div className="pdf-annotator__comment-aim-hint">Drag to fine-tune · ✓ to place</div>
         </div>
