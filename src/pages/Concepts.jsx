@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import AppNav from '../components/AppNav.jsx';
 import { getAllConcepts, saveConcept, deleteConcept } from '../lib/storage.js';
 import { setPendingConcept } from '../lib/conceptJump.js';
-import { conceptsToMap, conceptIdBase } from '../components/PdfAnnotator.jsx';
 import {
   updateNode, reparentNode, moveNode, deleteNode, buildTree,
   reviewQueue, STATUS, REVIEW_PRIORITY,
   addNode, setOrder, childrenOf, suggestId,
+  conceptsToMap, conceptIdBase,
 } from '../lib/conceptMap.js';
 
 // ── 🧭 Concepts — 개념 노드 모아보기 (문서별 트리, 상태 필터, 클릭 → Viewer 점프) ──
@@ -16,12 +16,19 @@ import {
 
 const docName = (fp) => String(fp || '').split('/').pop() || 'Document';
 
-// 상태별 색 — 노드의 상태 원에 반영 (○ 모름=복습 필요, ● 이해=안심)
+// 상태별 색 — 노드의 상태 점(dot)에 반영 (○ 모름=빨강, ◐ 애매=황토, ● 이해=초록, △ 보류=회색)
 const STATUS_COLORS = {
   [STATUS.UNKNOWN]: '#b5433a',
   [STATUS.FUZZY]: '#c98a1b',
   [STATUS.KNOWN]: '#3d5a40',
   [STATUS.HOLD]: '#8a8378',
+};
+
+const STATUS_LABELS = {
+  [STATUS.UNKNOWN]: "Don't know",
+  [STATUS.FUZZY]: 'Fuzzy',
+  [STATUS.KNOWN]: 'Understood',
+  [STATUS.HOLD]: 'On hold',
 };
 
 /** 같은 문서의 노드만 담은 core map */
@@ -323,10 +330,11 @@ export default function Concepts() {
           )}
           <button
             className="concepts__status"
-            style={{ color: STATUS_COLORS[node.status], borderColor: STATUS_COLORS[node.status] }}
+            style={{ background: STATUS_COLORS[node.status] }}
             onClick={() => toggleStatus(record)}
-            title={`Status ${node.status} — tap to cycle ○→◐→●→△`}
-          >{node.status}</button>
+            title={`Status: ${STATUS_LABELS[node.status]} — tap to change`}
+            aria-label={`Status: ${STATUS_LABELS[node.status]}`}
+          />
           <button
             className="concepts__label"
             onClick={() => openConcept(record)}
@@ -349,7 +357,8 @@ export default function Concepts() {
           <div className="concepts__add-child">
             <input
               autoFocus
-              placeholder="Child concept… (Enter = add, Esc = cancel)"
+              placeholder="Child concept…"
+              title="Enter = add · Esc = cancel"
               value={childLabel}
               onChange={(e) => setChildLabel(e.target.value)}
               onKeyDown={(e) => {
@@ -357,6 +366,62 @@ export default function Concepts() {
                 if (e.key === 'Escape') { setAddingChild(null); setChildLabel(''); }
               }}
             />
+          </div>
+        )}
+        {editing && editing.id === node.id && (
+          <div className="concepts__editor concepts__editor--inline" data-edit-id={node.id}>
+            <input
+              autoFocus
+              className="concepts__editor-label"
+              placeholder="Concept name"
+              value={editing.label}
+              onChange={(e) => setEditing((v) => ({ ...v, label: e.target.value }))}
+            />
+            <textarea
+              className="concepts__editor-summary"
+              rows={2}
+              placeholder="Summary (one sentence)…"
+              value={editing.summary}
+              onChange={(e) => setEditing((v) => ({ ...v, summary: e.target.value }))}
+            />
+            <div className="concepts__editor-row">
+              <div className="concepts__editor-status">
+                {REVIEW_PRIORITY.map((s) => (
+                  <button
+                    key={s}
+                    className={'concepts__filter' + (editing.status === s ? ' concepts__filter--active' : '')}
+                    onClick={() => setEditing((v) => ({ ...v, status: s }))}
+                    title={STATUS_LABELS[s]}
+                    aria-label={STATUS_LABELS[s]}
+                  >
+                    <span className="concepts__dot" style={{ background: STATUS_COLORS[s] }} />
+                  </button>
+                ))}
+              </div>
+              <input
+                className="concepts__editor-page"
+                type="number"
+                min={1}
+                value={editing.pageNumber}
+                onChange={(e) => setEditing((v) => ({ ...v, pageNumber: Number(e.target.value) || 1 }))}
+                title="Source page"
+              />
+              <select
+                className="concepts__editor-parent"
+                value={editing.parent}
+                onChange={(e) => setEditing((v) => ({ ...v, parent: e.target.value }))}
+                title="Parent concept"
+              >
+                <option value="">— top level —</option>
+                {parentOptions.map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="concepts__editor-actions">
+              <button className="concepts__save" onClick={saveEdit}>Save</button>
+              <button className="concepts__cancel" onClick={() => setEditing(null)}>Cancel</button>
+            </div>
           </div>
         )}
         {kids.length > 0 && !isCollapsed && (
@@ -383,8 +448,11 @@ export default function Concepts() {
           key={s}
           className={'concepts__filter' + (filter === s ? ' concepts__filter--active' : '')}
           onClick={() => setFilter(filter === s ? 'all' : s)}
-          title={s === STATUS.UNKNOWN ? '모름 — 최우선 복습' : s === STATUS.FUZZY ? '애매' : s === STATUS.KNOWN ? '이해' : '보류'}
-        >{s}</button>
+          title={STATUS_LABELS[s] + (s === STATUS.UNKNOWN ? ' — review first' : '')}
+          aria-label={STATUS_LABELS[s]}
+        >
+          <span className="concepts__dot" style={{ background: STATUS_COLORS[s] }} />
+        </button>
       ))}
     </div>
   );
@@ -418,65 +486,12 @@ export default function Concepts() {
               return (
                 <span className="concepts__count">
                   {list.length + (list.length === 1 ? ' concept' : ' concepts')}
-                  {counts[STATUS.UNKNOWN] > 0 && <em className="concepts__unknown-count"> · {counts[STATUS.UNKNOWN]} to review (○)</em>}
+                  {counts[STATUS.UNKNOWN] > 0 && <em className="concepts__unknown-count"> · {counts[STATUS.UNKNOWN]} to review</em>}
                 </span>
               );
             })()}
             {filterChips}
           </div>
-
-          {editing && (
-            <div className="concepts__editor">
-              <input
-                autoFocus
-                className="concepts__editor-label"
-                placeholder="Concept name"
-                value={editing.label}
-                onChange={(e) => setEditing((v) => ({ ...v, label: e.target.value }))}
-              />
-              <textarea
-                className="concepts__editor-summary"
-                rows={2}
-                placeholder="Summary (one sentence)…"
-                value={editing.summary}
-                onChange={(e) => setEditing((v) => ({ ...v, summary: e.target.value }))}
-              />
-              <div className="concepts__editor-row">
-                <div className="concepts__editor-status">
-                  {REVIEW_PRIORITY.map((s) => (
-                    <button
-                      key={s}
-                      className={'concepts__filter' + (editing.status === s ? ' concepts__filter--active' : '')}
-                      onClick={() => setEditing((v) => ({ ...v, status: s }))}
-                    >{s}</button>
-                  ))}
-                </div>
-                <input
-                  className="concepts__editor-page"
-                  type="number"
-                  min={1}
-                  value={editing.pageNumber}
-                  onChange={(e) => setEditing((v) => ({ ...v, pageNumber: Number(e.target.value) || 1 }))}
-                  title="Source page"
-                />
-                <select
-                  className="concepts__editor-parent"
-                  value={editing.parent}
-                  onChange={(e) => setEditing((v) => ({ ...v, parent: e.target.value }))}
-                  title="Parent concept"
-                >
-                  <option value="">— top level —</option>
-                  {parentOptions.map((o) => (
-                    <option key={o.id} value={o.id}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="concepts__editor-actions">
-                <button className="concepts__save" onClick={saveEdit}>Save</button>
-                <button className="concepts__cancel" onClick={() => setEditing(null)}>Cancel</button>
-              </div>
-            </div>
-          )}
 
           {detailItems.length === 0 ? (
             <div className="concepts__empty">No concepts match this filter.</div>
@@ -499,7 +514,7 @@ export default function Concepts() {
             <h1 className="concepts__title">🧭 Concepts</h1>
             <span className="concepts__count">
               {groups.length} document{groups.length === 1 ? '' : 's'} · {total} concept{total === 1 ? '' : 's'}
-              {unknownCount > 0 && <em className="concepts__unknown-count"> · {unknownCount} to review (○)</em>}
+              {unknownCount > 0 && <em className="concepts__unknown-count"> · {unknownCount} to review</em>}
             </span>
           </div>
           <div className="concepts__docs">
@@ -516,8 +531,8 @@ export default function Concepts() {
                   <span className="concepts__doc-card-count">{list.length} concept{list.length === 1 ? '' : 's'}</span>
                   <span className="concepts__doc-card-stats">
                     {REVIEW_PRIORITY.map((s) => (
-                      <span key={s} className={'concepts__doc-card-stat' + (s === STATUS.UNKNOWN && counts[s] > 0 ? ' concepts__doc-card-stat--review' : '')}>
-                        {s} {counts[s]}
+                      <span key={s} className={'concepts__doc-card-stat' + (s === STATUS.UNKNOWN && counts[s] > 0 ? ' concepts__doc-card-stat--review' : '')} title={STATUS_LABELS[s]}>
+                        <span className="concepts__dot" style={{ background: STATUS_COLORS[s] }} /> {counts[s]}
                       </span>
                     ))}
                   </span>

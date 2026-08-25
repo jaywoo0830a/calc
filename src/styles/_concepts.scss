@@ -158,6 +158,7 @@
     border: $border-thin solid $c-rule;
     border-radius: $radius-md;
     overflow: hidden;
+    padding: $sp-3 $sp-4; // 노드와 카드(캔버스) 사이 여백
   }
 
   &__doc {
@@ -187,7 +188,7 @@
     min-width: 12rem;
     max-width: min(100%, 42rem);
     padding: 0.35rem 0.7rem;
-    margin: 0.22rem 0;
+    margin: 0.35rem 0;        // 노드 사이 수직 여백
     background: $c-page;
     border: $border-thin solid $c-rule;
     border-radius: 999px; // 라운드 노드 (알약)
@@ -202,17 +203,28 @@
 
   &__status {
     flex-shrink: 0;
-    width: 1.7rem;
-    height: 1.7rem;
-    border: $border-thin solid $c-rule;
+    width: 0.95rem;
+    height: 0.95rem;
     border-radius: 50%;
-    background: transparent;
-    color: $c-accent;
-    font-size: $fs-step--1;
+    border: none;
+    background: $c-rule; // 실제 색은 인라인(상태별)
     cursor: pointer;
-    line-height: 1;
+    box-shadow: 0 0 0 0.2rem transparent;
+    transition: box-shadow $transition-fast, transform $transition-fast;
 
-    &:hover { background: rgba(92, 61, 46, 0.12); }
+    &:hover {
+      transform: scale(1.25);
+      box-shadow: 0 0 0 0.2rem rgba(92, 61, 46, 0.12);
+    }
+  }
+
+  // 상태 색 점 (필터/통계 등에서 기호 대신 사용)
+  &__dot {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    vertical-align: middle;
   }
 
   &__label {
@@ -302,6 +314,7 @@
   &__children {
     margin-left: 1rem;
     padding-left: 0.9rem;
+    padding-top: 0.2rem;
     border-left: $border-thin solid rgba(212, 201, 181, 0.8);
 
     // 부모 노드에서 자식 노드로 이어지는 엘보 커넥터 (트리 엣지)
@@ -327,21 +340,27 @@
     background: rgba(92, 61, 46, 0.08);
   }
 
-  // ── 인라인 자식 추가 입력 ──
+  // ── 인라인 자식 추가 입력 (노드와 같은 알약 스타일) ──
   &__add-child {
-    margin: 0.15rem 0.4rem 0.3rem 3.1rem;
+    margin: 0.3rem 0 0.3rem 3.3rem;
 
     input {
-      width: 100%;
+      display: block;
+      width: min(100%, 20rem);
       border: $border-thin solid $c-rule;
-      border-radius: $radius-sm;
+      border-radius: 999px;
       background: $c-page;
       color: $c-ink;
       font-family: $ff;
       font-size: $fs-step--2;
-      padding: $sp-1 $sp-2;
+      padding: 0.35rem 0.9rem;
+      box-shadow: 0 0.0625rem 0.125rem rgba(44, 36, 22, 0.06);
 
-      &:focus { border-color: $c-accent; outline: none; }
+      &:focus {
+        border-color: $c-accent;
+        outline: none;
+        box-shadow: 0 0.0625rem 0.25rem rgba(92, 61, 46, 0.18);
+      }
     }
   }
 

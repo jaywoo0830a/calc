@@ -6,7 +6,8 @@ import { getAnnotations, saveAnnotation, deleteAnnotation, getBookmarks, saveBoo
 import { api } from '../lib/api.js';
 import { fitImageRect } from '../lib/imageRect.js';
 import { rotateImageDataUrl, warmMl } from '../lib/docScan.js';
-import { addNode, buildTree, suggestId, STATUS } from '../lib/conceptMap.js';
+import { addNode, suggestId, STATUS, conceptsToMap, conceptIdBase } from '../lib/conceptMap.js';
+import ConceptInput from './ConceptInput.jsx';
 import ScanAreaModal from './ScanAreaModal.jsx';
 import ClearGate from './ClearGate.jsx';
 import { useClearGate } from '../hooks/useClearGate.js';
@@ -98,47 +99,6 @@ function compressImageFile(file) {
     };
     reader.readAsDataURL(file);
   });
-}
-
-// ── 🧭 개념 노드 — 서버 레코드 ↔ conceptMap 코어 노드 변환 ──
-export function conceptsToMap(list) {
-  const map = {};
-  for (const c of list) {
-    map[c.id] = {
-      id: c.id,
-      label: c.label || '',
-      summary: c.summary || '',
-      status: c.status || STATUS.UNKNOWN,
-      parent: c.parentId || null,
-      order: Number(c.order) || 0,
-      pageNumber: Number(c.pageNumber) || 1,
-      createdAt: c.createdAt || '',
-      updatedAt: c.updatedAt || '',
-    };
-  }
-  return map;
-}
-
-/** 🧭 부모 선택용 — 계층 들여쓰기된 옵션 목록 (top level 제외) */
-export function conceptOptionList(list) {
-  const out = [];
-  const walk = (n, d) => {
-    out.push({ id: n.id, label: '— '.repeat(d) + n.label });
-    (n.children || []).forEach((c) => walk(c, d + 1));
-  };
-  buildTree(conceptsToMap(list || [])).forEach((r) => walk(r, 0));
-  return out;
-}
-
-/** 파일별 고유 id 접두사 — 서로 다른 PDF에서 CN-n이 겹치지 않게 */
-export function conceptIdBase(filePath) {
-  let h = 2166136261;
-  const s = String(filePath || '');
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(36).slice(0, 6) + '-CN';
 }
 
 export default function PdfAnnotator({ url, filePath, initialPage, initialScrollTop }) {
@@ -948,10 +908,11 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     } else if (tool === 'concept') {
       // 🧭 개념 노드 — 탭한 페이지에 캡처 바 (라벨 입력 → Enter = 생성)
       // 기본 부모 = 직전에 만든 개념 (연속 생성 시 체인을 자연스럽게)
+      // 탭 지점에서 살짝 비껴 배치 — 캔버스/노드와 여백 확보
       setConceptCapture({
         pageNumber,
-        px: Math.min(Math.max(e.clientX, 8), window.innerWidth - 240),
-        py: Math.min(Math.max(e.clientY, 8), window.innerHeight - 180),
+        px: Math.min(Math.max(e.clientX + 10, 8), window.innerWidth - 260),
+        py: Math.min(Math.max(e.clientY + 14, 8), window.innerHeight - 220),
       });
       setConceptLabel('');
       setConceptParent(
@@ -1692,40 +1653,18 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         </div>
       )}
 
-      {/* 🧭 Concept capture bar — 페이지 탭(Concept 툴) 또는 단축키 N으로 열림 */}
+      {/* 🧭 Concept capture — 재사용 ConceptInput (페이지 탭/단축키 N) */}
       {conceptCapture && (
-        <div
-          className="pdf-annotator__comment-input pdf-annotator__concept-capture"
-          style={{
-            position: 'fixed',
-            left: conceptCapture.px,
-            top: conceptCapture.py,
-          }}
-        >
-          <input
-            autoFocus
-            placeholder="Concept name… (Enter = add)"
-            value={conceptLabel}
-            onChange={(e) => setConceptLabel(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submitConcept();
-              if (e.key === 'Escape') { setConceptCapture(null); setConceptLabel(''); setConceptParent(''); }
-            }}
+        <div style={{ position: 'fixed', left: conceptCapture.px, top: conceptCapture.py, zIndex: 50 }}>
+          <ConceptInput
+            label={conceptLabel}
+            onLabelChange={setConceptLabel}
+            parent={conceptParent}
+            onParentChange={setConceptParent}
+            concepts={concepts}
+            onSubmit={submitConcept}
+            onCancel={() => { setConceptCapture(null); setConceptLabel(''); setConceptParent(''); }}
           />
-          <select
-            value={conceptParent}
-            onChange={(e) => setConceptParent(e.target.value)}
-            title="Parent concept"
-          >
-            <option value="">— top level —</option>
-            {conceptOptionList(concepts).map((o) => (
-              <option key={o.id} value={o.id}>{o.label}</option>
-            ))}
-          </select>
-          <div className="pdf-annotator__comment-actions">
-            <button onClick={submitConcept}>Add</button>
-            <button onClick={() => { setConceptCapture(null); setConceptLabel(''); setConceptParent(''); }}>Cancel</button>
-          </div>
         </div>
       )}
 

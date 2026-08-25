@@ -477,22 +477,7 @@
     100% { box-shadow: 0 0 0 4px rgba(92, 61, 46, 0); }
   }
 
-  // ---- 🧭 Concept capture bar (생성만 — 모아보기는 Concepts 탭) ----
-  &__concept-capture {
-    input, select {
-      width: 100%;
-      border: $border-thin solid $c-rule;
-      border-radius: $radius-sm;
-      background: $c-page;
-      color: $c-ink;
-      font-family: $ff;
-      font-size: $fs-step--1;
-      padding: $sp-1 $sp-2;
-      margin-bottom: $sp-2;
-
-      &:focus { border-color: $c-accent; outline: none; }
-    }
-  }
+  // ---- 🧭 Concept capture — 재사용 ConceptInput 컴포넌트로 이전 ----
 
   // ---- Document layout modes -------------------------------
   &__mark {

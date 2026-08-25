@@ -270,3 +270,49 @@ export function suggestId(map, prefix = 'CN') {
   while (map[`${prefix}-${n}`]) n++;
   return `${prefix}-${n}`;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// 서버 레코드 ↔ 코어 노드 변환 + UI 공용 헬퍼
+// (앱 전역에서 재사용 — PdfAnnotator/Concepts/ConceptInput)
+// ═══════════════════════════════════════════════════════════════
+
+/** 서버 레코드(flat 목록) → 코어 노드 map */
+export function conceptsToMap(list) {
+  const map = {};
+  for (const c of list || []) {
+    map[c.id] = {
+      id: c.id,
+      label: c.label || '',
+      summary: c.summary || '',
+      status: c.status || STATUS.UNKNOWN,
+      parent: c.parentId || null,
+      order: Number(c.order) || 0,
+      pageNumber: Number(c.pageNumber) || 1,
+      createdAt: c.createdAt || '',
+      updatedAt: c.updatedAt || '',
+    };
+  }
+  return map;
+}
+
+/** 파일별 고유 id 접두사 — 서로 다른 PDF에서 CN-n이 겹치지 않게 */
+export function conceptIdBase(filePath) {
+  let h = 2166136261;
+  const s = String(filePath || '');
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36).slice(0, 6) + '-CN';
+}
+
+/** 🧭 부모 선택용 — 계층 들여쓰기된 옵션 목록 (top level 제외) */
+export function conceptOptionList(list) {
+  const out = [];
+  const walk = (n, d) => {
+    out.push({ id: n.id, label: '— '.repeat(d) + n.label });
+    (n.children || []).forEach((c) => walk(c, d + 1));
+  };
+  buildTree(conceptsToMap(list)).forEach((r) => walk(r, 0));
+  return out;
+}
