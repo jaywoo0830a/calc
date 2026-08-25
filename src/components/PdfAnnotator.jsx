@@ -1245,7 +1245,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const isFakeFullscreen = fullscreen && !document.fullscreenElement;
 
   const content = (
-    <div className={'pdf-annotator' + (fullscreen ? ' pdf-annotator--fullscreen' : '')} ref={containerRef}>
+    <div className={'pdf-annotator' + (fullscreen ? ' pdf-annotator--fullscreen' : '') + (isMobile && fullscreen && (activeComment || editingComment || conceptCapture) ? ' pdf-annotator--input-open' : '')} ref={containerRef}>
       {/* Toolbar */}
       {chromeVisible && (
       <div className="pdf-annotator__toolbar">
@@ -1611,11 +1611,12 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         onHitsChange={handleSearchHits}
       />
 
-      {/* Comment input overlay — 클릭한 위치(뷰포트 좌표)에 고정 배치 */}
+      {/* Comment input overlay — 클릭한 위치(뷰포트 좌표)에 고정 배치.
+          모바일 풀스크린에서는 바닥 시트로 (키보드·FAB 행 안정, 입력창 잘림 방지) */}
       {activeComment && (
         <div
-          className="pdf-annotator__comment-input"
-          style={{
+          className={'pdf-annotator__comment-input' + (isMobile && fullscreen ? ' pdf-annotator__comment-input--sheet' : '')}
+          style={isMobile && fullscreen ? undefined : {
             position: 'fixed',
             left: activeComment.px,
             top: activeComment.py,
@@ -1659,8 +1660,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       {/* Comment edit overlay — 기존 코멘트를 다시 터치하면 그 위치에서 수정 */}
       {editingComment && (
         <div
-          className="pdf-annotator__comment-input"
-          style={{
+          className={'pdf-annotator__comment-input' + (isMobile && fullscreen ? ' pdf-annotator__comment-input--sheet' : '')}
+          style={isMobile && fullscreen ? undefined : {
             position: 'fixed',
             left: editingComment.px,
             top: editingComment.py,
@@ -1703,7 +1704,10 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
 
       {/* 🧭 Concept capture — 재사용 ConceptInput (페이지 탭/단축키 N) */}
       {conceptCapture && (
-        <div style={{ position: 'fixed', left: conceptCapture.px, top: conceptCapture.py, zIndex: 50 }}>
+        <div
+          className={'pdf-annotator__concept-capture' + (isMobile && fullscreen ? ' pdf-annotator__concept-capture--sheet' : '')}
+          style={isMobile && fullscreen ? undefined : { position: 'fixed', left: conceptCapture.px, top: conceptCapture.py, zIndex: 50 }}
+        >
           <ConceptInput
             label={conceptLabel}
             onLabelChange={setConceptLabel}

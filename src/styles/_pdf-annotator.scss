@@ -1068,6 +1068,36 @@
     }
   }
 
+  // 모바일 풀스크린: 코멘트/컨셉 입력을 바닥 시트로 승격
+  // (탭 지점 고정 팝업은 키보드에 묻히거나 좁아져 입력창이 깨짐 —
+  //  컨셉 트리 풀스크린의 편집 시트와 같은 원리. FAB 행 위에 띄운다)
+  &__comment-input--sheet {
+    position: fixed;
+    left: $sp-4;
+    right: $sp-4;
+    bottom: calc($sp-2 + 2.5rem + $sp-2 + env(safe-area-inset-bottom, 0px)); // FAB 행 위
+    width: auto;
+    min-width: 0;
+    max-height: min(62dvh, 24rem);
+    overflow-y: auto;
+    z-index: 300;
+  }
+
+  &__concept-capture--sheet {
+    position: fixed;
+    left: $sp-4;
+    right: $sp-4;
+    bottom: calc($sp-2 + 2.5rem + $sp-2 + env(safe-area-inset-bottom, 0px));
+    z-index: 300;
+    max-height: min(62dvh, 24rem);
+    overflow-y: auto;
+  }
+
+  // 입력 시트가 열린 동안 페이지 네비 숨김 (시트 공간 확보)
+  &--input-open {
+    .pdf-annotator__nav { display: none; }
+  }
+
   &__comment-actions {
     display: flex;
     gap: $sp-1;
