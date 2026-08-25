@@ -618,6 +618,98 @@ export default function Concepts() {
     return groups;
   }, [editing, items]);
 
+  // 풀스크린 시트용 편집 노드 record (editing.id → 트리 노드)
+  const editRecord = useMemo(() => {
+    if (!editing || !items) return null;
+    const map = docMap(items, editing.filePath);
+    const n = map[editing.id];
+    return n ? { ...n, filePath: editing.filePath } : null;
+  }, [editing, items]);
+
+  // 편집 패널 — 인라인(기본)/풀스크린 시트 공용. record = { id, filePath, ... }
+  const renderEditor = (record) => (
+    <div
+      className={'concepts__editor' + (treeFull ? ' concepts__editor--sheet' : ' concepts__editor--inline')}
+      data-edit-id={record.id}
+      onKeyDown={(e) => { if (e.key === 'Escape') closeEditor(); }}
+    >
+      <input
+        autoFocus
+        className="concepts__editor-label"
+        placeholder="Concept name"
+        value={editing.label}
+        onChange={(e) => setEditing((v) => ({ ...v, label: e.target.value }))}
+      />
+      <div className="concepts__editor-clear">
+        {CLEAR_KEYS.map((k) => (
+          <div className="concepts__editor-clear-row" key={k}>
+            <label className="concepts__editor-clear-label">{k}</label>
+            <textarea
+              className="concepts__editor-clear-input"
+              rows={2}
+              placeholder={CLEAR_PLACEHOLDERS[k]}
+              value={editing.parts[k]}
+              onChange={(e) => updatePart(k, e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="concepts__editor-row">
+        <div className="concepts__editor-status">
+          {REVIEW_PRIORITY.map((s) => (
+            <button
+              key={s}
+              className={'concepts__filter concepts__filter--swatch' + (editing.status === s ? ' concepts__filter--active' : '')}
+              style={{ background: STATUS_COLORS[s] }}
+              onClick={() => setEditing((v) => ({ ...v, status: s }))}
+              title={STATUS_LABELS[s]}
+              aria-label={STATUS_LABELS[s]}
+            />
+          ))}
+        </div>
+        <input
+          className="concepts__editor-page"
+          type="number"
+          min={1}
+          value={editing.pageNumber}
+          onChange={(e) => setEditing((v) => ({ ...v, pageNumber: Number(e.target.value) || 1 }))}
+          title="Source page"
+        />
+        <select
+          className="concepts__editor-parent"
+          value={editing.parent}
+          onChange={(e) => setEditing((v) => ({ ...v, parent: e.target.value }))}
+          title="Parent concept"
+        >
+          <option value="">— top level —</option>
+          {parentGroups.map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.options.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+      <div className="concepts__editor-actions">
+        <button className="concepts__editor-child" onClick={() => { closeEditor(); startAddChild(record); }}>＋ Add child</button>
+        <button className="concepts__editor-delete" onClick={() => { closeEditor(); removeItem(record); }}>× Delete</button>
+        {gate && gate.id === editing.id && (
+          <span className={'concepts__editor-gate' + (!gateLocked ? ' concepts__editor-gate--ok' : '')}>
+            {gateRemainingMs > 0
+              ? `Save unlocks in ${fmtMs(gateRemainingMs)} — keep studying`
+              : gateFilled < STUDY_GATE_MIN_SECTIONS
+                ? `Fill at least ${STUDY_GATE_MIN_SECTIONS - gateFilled} more section${STUDY_GATE_MIN_SECTIONS - gateFilled > 1 ? 's' : ''} to save`
+                : 'Ready — you can save'}
+          </span>
+        )}
+        <span className="concepts__editor-spacer" />
+        <button className="concepts__cancel" onClick={closeEditor}>Cancel</button>
+        <button className="concepts__save" onClick={saveEdit} disabled={gateLocked}>Save</button>
+      </div>
+    </div>
+  );
+
   // ── 트리 행 (재귀) — 기본=이름만 · 클릭=내용 · 더블클릭=편집 ──
   const renderRow = (node, fp, isLast = false) => {
     const record = { ...node, filePath: fp };
@@ -719,88 +811,7 @@ export default function Concepts() {
             >✕</button>
           </div>
         )}
-        {editing && editing.id === node.id && (
-          <div
-            className="concepts__editor concepts__editor--inline"
-            data-edit-id={node.id}
-            onKeyDown={(e) => { if (e.key === 'Escape') closeEditor(); }}
-          >
-            <input
-              autoFocus
-              className="concepts__editor-label"
-              placeholder="Concept name"
-              value={editing.label}
-              onChange={(e) => setEditing((v) => ({ ...v, label: e.target.value }))}
-            />
-            <div className="concepts__editor-clear">
-              {CLEAR_KEYS.map((k) => (
-                <div className="concepts__editor-clear-row" key={k}>
-                  <label className="concepts__editor-clear-label">{k}</label>
-                  <textarea
-                    className="concepts__editor-clear-input"
-                    rows={2}
-                    placeholder={CLEAR_PLACEHOLDERS[k]}
-                    value={editing.parts[k]}
-                    onChange={(e) => updatePart(k, e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="concepts__editor-row">
-              <div className="concepts__editor-status">
-                {REVIEW_PRIORITY.map((s) => (
-                  <button
-                    key={s}
-                    className={'concepts__filter concepts__filter--swatch' + (editing.status === s ? ' concepts__filter--active' : '')}
-                    style={{ background: STATUS_COLORS[s] }}
-                    onClick={() => setEditing((v) => ({ ...v, status: s }))}
-                    title={STATUS_LABELS[s]}
-                    aria-label={STATUS_LABELS[s]}
-                  />
-                ))}
-              </div>
-              <input
-                className="concepts__editor-page"
-                type="number"
-                min={1}
-                value={editing.pageNumber}
-                onChange={(e) => setEditing((v) => ({ ...v, pageNumber: Number(e.target.value) || 1 }))}
-                title="Source page"
-              />
-              <select
-                className="concepts__editor-parent"
-                value={editing.parent}
-                onChange={(e) => setEditing((v) => ({ ...v, parent: e.target.value }))}
-                title="Parent concept"
-              >
-                <option value="">— top level —</option>
-                {parentGroups.map((g) => (
-                  <optgroup key={g.label} label={g.label}>
-                    {g.options.map((o) => (
-                      <option key={o.id} value={o.id}>{o.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-            <div className="concepts__editor-actions">
-              <button className="concepts__editor-child" onClick={() => { closeEditor(); startAddChild(record); }}>＋ Add child</button>
-              <button className="concepts__editor-delete" onClick={() => { closeEditor(); removeItem(record); }}>× Delete</button>
-              {gate && gate.id === editing.id && (
-                <span className={'concepts__editor-gate' + (!gateLocked ? ' concepts__editor-gate--ok' : '')}>
-                  {gateRemainingMs > 0
-                    ? `Save unlocks in ${fmtMs(gateRemainingMs)} — keep studying`
-                    : gateFilled < STUDY_GATE_MIN_SECTIONS
-                      ? `Fill at least ${STUDY_GATE_MIN_SECTIONS - gateFilled} more section${STUDY_GATE_MIN_SECTIONS - gateFilled > 1 ? 's' : ''} to save`
-                      : 'Ready — you can save'}
-                </span>
-              )}
-              <span className="concepts__editor-spacer" />
-              <button className="concepts__cancel" onClick={closeEditor}>Cancel</button>
-              <button className="concepts__save" onClick={saveEdit} disabled={gateLocked}>Save</button>
-            </div>
-          </div>
-        )}
+        {!treeFull && editing && editing.id === node.id && renderEditor(record)}
         {kids.length > 0 && !isCollapsed && (
           <div className="concepts__children">
             {kids.map((child, i) => renderRow(child, fp, i === kids.length - 1))}
@@ -1158,10 +1169,14 @@ export default function Concepts() {
             <button className="concepts__test-btn" onClick={exitTreeFull} title="Exit fullscreen (Esc)">✕ Exit</button>
           </div>
           <div className="concepts__list concepts__list--detail concepts__fullscreen-scroll">
-            <div style={{ width: `${treeZoom * 100}%` }}>
+            <div style={{ width: `${(treeZoom >= 1 ? treeZoom : 1 / treeZoom) * 100}%` }}>
               <section
                 className="concepts__group"
-                style={{ transform: `scale(${treeZoom})`, transformOrigin: 'top left', width: `${100 / treeZoom}%` }}
+                style={{
+                  transform: `scale(${treeZoom})`,
+                  transformOrigin: 'top left',
+                  width: treeZoom >= 1 ? `${100 / treeZoom}%` : '100%',
+                }}
               >
                 {filter === 'all'
                   ? buildTree(docMap(items, selectedFp)).map((root) => renderRow(root, selectedFp))
@@ -1171,6 +1186,7 @@ export default function Concepts() {
               </section>
             </div>
           </div>
+          {editRecord && renderEditor(editRecord)}
         </div>,
         document.body
       )}
@@ -1181,7 +1197,21 @@ export default function Concepts() {
         const parts = parseClear(node.summary);
         const pos = cardPos && cardPos.id === contentAnchor.id ? cardPos : contentAnchor;
         return createPortal(
-          <div className="concepts__float-card" ref={cardRef} style={{ left: pos.left, top: pos.top }}>
+          <div
+            className="concepts__float-card"
+            ref={cardRef}
+            style={{ left: pos.left, top: pos.top }}
+            onClick={(e) => {
+              // 모바일 더블 탭 브리지 — 카드가 노드를 덮어도 두 번째 탭이 편집을 연다
+              if (e.target.closest('button')) return;
+              const now = Date.now();
+              const last = lastTapRef.current;
+              if (last.id === contentAnchor.id && now - last.t < 350 && !testPick) {
+                lastTapRef.current = { id: null, t: 0 };
+                startEdit(node);
+              }
+            }}
+          >
             <div className="concepts__float-card-head">
               <span className="concepts__float-card-title">{node.label}</span>
               <button
@@ -1212,7 +1242,7 @@ export default function Concepts() {
               >p.{node.pageNumber}</button>
             </div>
           </div>,
-          document.body
+          treeFull && overlayRef.current ? overlayRef.current : document.body
         );
       })()}
     </main>

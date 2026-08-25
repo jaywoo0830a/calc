@@ -851,3 +851,21 @@ $guide-color: $c-rule;
     cursor: pointer;
   }
 }
+
+// ============================================================
+// 풀스크린 전용 편집 시트 — 트리 캔버스 폭을 건드리지 않는 바닥 플로팅 패널
+// (인라인 편집기는 캔버스 폭을 키워 모바일에서 가로 스크롤/입력 잘림 유발)
+// ⚠️ 시트는 portal(→body)의 오버레이 안에 렌더되므로 최상위 선택자 필요
+// ============================================================
+.concepts__editor.concepts__editor--sheet {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc($sp-4 + env(safe-area-inset-bottom, 0px));
+  z-index: 2001;
+  width: calc(100% - 2rem);
+  max-height: min(62dvh, 36rem);
+  overflow-y: auto;
+  margin: 0;
+  box-shadow: 0 1rem 3rem rgba(44, 36, 22, 0.35);
+}
