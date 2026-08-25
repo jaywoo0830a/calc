@@ -9,7 +9,7 @@ const TABS = [
   { to: '/', label: 'Calc', end: true },
   { to: '/viewer', label: 'Viewer' },
   { to: '/playground', label: 'Three.js' },
-  { to: '/math', label: 'Math Space' },
+  { to: '/math', label: 'Math' },
   { to: '/fields', label: 'Fields' },
   { to: '/units', label: 'Units' },
   { to: '/relation', label: 'Relation' },
