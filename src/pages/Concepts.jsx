@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import AppNav from '../components/AppNav.jsx';
 import { getAllConcepts, saveConcept, deleteConcept } from '../lib/storage.js';
 import { setPendingConcept } from '../lib/conceptJump.js';
-import { conceptsToMap } from '../components/PdfAnnotator.jsx';
+import { conceptsToMap, conceptIdBase } from '../components/PdfAnnotator.jsx';
 import {
   updateNode, reparentNode, moveNode, deleteNode, buildTree,
   reviewQueue, STATUS, REVIEW_PRIORITY,
+  addNode, setOrder, childrenOf, suggestId,
 } from '../lib/conceptMap.js';
 
 // ── 🧭 Concepts — 개념 노드 모아보기 (문서별 트리, 상태 필터, 클릭 → Viewer 점프) ──
@@ -20,11 +21,38 @@ function docMap(items, filePath) {
   return conceptsToMap((items || []).filter((c) => c.filePath === filePath));
 }
 
+/**
+ * 드래그 앤 드롭 배치 — before/after(대상과 같은 부모의 형제 위치) 또는
+ * inside(대상의 마지막 자식). 사이클은 reparentNode가 검증(throw)한다.
+ */
+function placeNodeAt(map, nodeId, targetId, pos) {
+  const target = map[targetId];
+  if (!map[nodeId] || !target || nodeId === targetId) return map;
+  const newParent = pos === 'inside' ? target.id : target.parent;
+  let m = reparentNode(map, nodeId, newParent);
+  if (pos === 'inside') return m; // 마지막 자식으로
+  // 형제 목록에서 대상 위치(before/after)에 끼워 넣고 order 재정규화
+  const sibs = childrenOf(m, newParent).filter((n) => n.id !== nodeId);
+  const ti = sibs.findIndex((n) => n.id === targetId);
+  if (ti < 0) return m;
+  const insertAt = pos === 'before' ? ti : ti + 1;
+  const ordered = [...sibs];
+  ordered.splice(insertAt, 0, m[nodeId]);
+  let out = m;
+  ordered.forEach((n, i) => { out = setOrder(out, n.id, i); });
+  return out;
+}
+
 export default function Concepts() {
   const [items, setItems] = useState(null);      // null = 로딩 중
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState('all');   // all | ○ | ◐ | ● | △
   const [editing, setEditing] = useState(null);  // { id, filePath, label, summary, status, parent, pageNumber }
+  const [collapsed, setCollapsed] = useState(() => new Set()); // 접힌 노드 id (UI 전용)
+  const [dragId, setDragId] = useState(null);     // 드래그 중인 노드 id
+  const [dropHint, setDropHint] = useState(null); // { id, pos: before|after|inside }
+  const [addingChild, setAddingChild] = useState(null); // { id, filePath } — 자식 추가 중인 부모
+  const [childLabel, setChildLabel] = useState('');
   const savingRef = useRef(0);                    // 진행 중 저장 수 — 폴링이 낙관적 변경을 덮지 않게
   const navigate = useNavigate();
 
@@ -106,6 +134,52 @@ export default function Concepts() {
     commitDoc(c.filePath, map, deleteNode(map, c.id));
   }, [items, commitDoc]);
 
+  // ── 트리 인터랙션 ──
+  const toggleCollapse = useCallback((id) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // DnD 드롭 — 같은 문서 안에서만 이동 (문서 간 이동은 미지원)
+  const onDropNode = useCallback((draggedId, targetId, pos) => {
+    const dragged = (items || []).find((c) => c.id === draggedId);
+    const target = (items || []).find((c) => c.id === targetId);
+    if (!dragged || !target || dragged.filePath !== target.filePath) return;
+    const map = docMap(items, dragged.filePath);
+    try {
+      commitDoc(dragged.filePath, map, placeNodeAt(map, draggedId, targetId, pos));
+    } catch (e) {
+      console.warn('[concepts] drop failed:', e); // 사이클 등은 코어가 거부
+    }
+  }, [items, commitDoc]);
+
+  // 인라인 자식 추가
+  const startAddChild = useCallback((c) => {
+    setAddingChild({ id: c.id, filePath: c.filePath });
+    setChildLabel('');
+  }, []);
+
+  const submitChild = useCallback(() => {
+    const parent = addingChild;
+    if (!parent) return;
+    const label = childLabel.trim();
+    setAddingChild(null);
+    setChildLabel('');
+    if (!label) return;
+    const map = docMap(items, parent.filePath);
+    if (!map[parent.id]) return;
+    try {
+      const id = suggestId(map, conceptIdBase(parent.filePath));
+      const newMap = addNode(map, { id, label, parent: parent.id, pageNumber: map[parent.id].pageNumber });
+      commitDoc(parent.filePath, map, newMap);
+    } catch (e) {
+      console.warn('[concepts] add child failed:', e);
+    }
+  }, [addingChild, childLabel, items, commitDoc]);
+
   const startEdit = useCallback((c) => {
     setEditing({
       id: c.id, filePath: c.filePath, label: c.label || '', summary: c.summary || '',
@@ -170,12 +244,54 @@ export default function Concepts() {
     return out;
   }, [editing, items]);
 
-  // ── 트리 행 (재귀) — 코어 노드에는 filePath가 없으므로 인자로 전달 ──
-  const renderRow = (node, depth, fp) => {
+  // ── 트리 행 (재귀) — 접기·드래그 앤 드롭·자식 추가·더블클릭 편집 ──
+  const renderRow = (node, fp) => {
     const record = { ...node, filePath: fp };
+    const kids = node.children || [];
+    const isCollapsed = collapsed.has(node.id);
+    const hint = dropHint && dropHint.id === node.id ? dropHint.pos : null;
     return (
       <div key={node.id}>
-        <div className="concepts__row" style={{ paddingLeft: `${0.4 + depth * 1.2}rem` }}>
+        <div
+          className={'concepts__row'
+            + (dragId === node.id ? ' concepts__row--dragging' : '')
+            + (hint ? ` concepts__row--drop-${hint}` : '')}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('text/plain', node.id);
+            e.dataTransfer.effectAllowed = 'move';
+            setDragId(node.id);
+          }}
+          onDragOver={(e) => {
+            if (!dragId || dragId === node.id) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const r = e.currentTarget.getBoundingClientRect();
+            const rel = (e.clientY - r.top) / r.height;
+            const pos = rel < 0.25 ? 'before' : rel > 0.75 ? 'after' : 'inside';
+            setDropHint((prev) => (prev && prev.id === node.id && prev.pos === pos ? prev : { id: node.id, pos }));
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const id = e.dataTransfer.getData('text/plain');
+            const r = e.currentTarget.getBoundingClientRect();
+            const rel = (e.clientY - r.top) / r.height;
+            const pos = rel < 0.25 ? 'before' : rel > 0.75 ? 'after' : 'inside';
+            setDragId(null);
+            setDropHint(null);
+            if (id && id !== node.id) onDropNode(id, node.id, pos);
+          }}
+          onDragEnd={() => { setDragId(null); setDropHint(null); }}
+        >
+          {kids.length > 0 ? (
+            <button
+              className="concepts__toggle"
+              onClick={() => toggleCollapse(node.id)}
+              title={isCollapsed ? 'Expand children' : 'Collapse children'}
+            >{isCollapsed ? '▸' : '▾'}</button>
+          ) : (
+            <span className="concepts__toggle-spacer" />
+          )}
           <button
             className="concepts__status"
             onClick={() => toggleStatus(record)}
@@ -184,6 +300,7 @@ export default function Concepts() {
           <button
             className="concepts__label"
             onClick={() => openConcept(record)}
+            onDoubleClick={() => startEdit(record)}
             title={node.summary || `Go to source page ${node.pageNumber}`}
           >
             <span className="concepts__name">{node.label}</span>
@@ -191,13 +308,32 @@ export default function Concepts() {
           </button>
           <span className="concepts__page">p.{node.pageNumber}</span>
           <span className="concepts__actions">
+            <button title="Add child concept" onClick={() => startAddChild(record)}>＋</button>
             <button title="Move up" onClick={() => moveItem(record, -1)}>▲</button>
             <button title="Move down" onClick={() => moveItem(record, 1)}>▼</button>
             <button title="Edit" onClick={() => startEdit(record)}>✏️</button>
             <button title="Delete (children are kept)" onClick={() => removeItem(record)}>×</button>
           </span>
         </div>
-        {(node.children || []).map((child) => renderRow(child, depth + 1, fp))}
+        {addingChild && addingChild.id === node.id && (
+          <div className="concepts__add-child">
+            <input
+              autoFocus
+              placeholder="Child concept… (Enter = add, Esc = cancel)"
+              value={childLabel}
+              onChange={(e) => setChildLabel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitChild();
+                if (e.key === 'Escape') { setAddingChild(null); setChildLabel(''); }
+              }}
+            />
+          </div>
+        )}
+        {kids.length > 0 && !isCollapsed && (
+          <div className="concepts__children">
+            {kids.map((child) => renderRow(child, fp))}
+          </div>
+        )}
       </div>
     );
   };
@@ -306,8 +442,8 @@ export default function Concepts() {
                   <span className="concepts__doc-count">{list.length}</span>
                 </header>
                 {filter === 'all'
-                  ? buildTree(map).map((root) => renderRow(root, 0, fp))
-                  : reviewQueue(map).filter((n) => n.status === filter).map((n) => renderRow({ ...n, children: [] }, 0, fp))}
+                  ? buildTree(map).map((root) => renderRow(root, fp))
+                  : reviewQueue(map).filter((n) => n.status === filter).map((n) => renderRow({ ...n, children: [] }, fp))}
               </section>
             );
           })}

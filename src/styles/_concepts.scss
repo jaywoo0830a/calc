@@ -194,6 +194,65 @@
     }
   }
 
+  // ── 트리 구조: 접기 토글 + 계층 가이드라인 ──
+  &__toggle {
+    flex-shrink: 0;
+    width: 1.4rem;
+    height: 1.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: $c-ink-faint;
+    font-size: 0.65rem;
+    cursor: pointer;
+
+    &:hover { background: $c-page-dark; color: $c-ink; }
+  }
+
+  &__toggle-spacer {
+    flex-shrink: 0;
+    width: 1.4rem;
+    display: inline-block;
+  }
+
+  &__children {
+    margin-left: 0.85rem;
+    padding-left: 0.5rem;
+    border-left: $border-thin dashed rgba(212, 201, 181, 0.7);
+  }
+
+  // ── 드래그 앤 드롭 피드백 ──
+  &__row--dragging { opacity: 0.4; }
+
+  &__row--drop-before { box-shadow: inset 0 0.15rem 0 $c-accent; }
+  &__row--drop-after { box-shadow: inset 0 -0.15rem 0 $c-accent; }
+  &__row--drop-inside {
+    outline: 0.125rem solid $c-accent;
+    outline-offset: -0.125rem;
+    background: rgba(92, 61, 46, 0.08);
+  }
+
+  // ── 인라인 자식 추가 입력 ──
+  &__add-child {
+    margin: 0.15rem 0.4rem 0.3rem 3.1rem;
+
+    input {
+      width: 100%;
+      border: $border-thin solid $c-rule;
+      border-radius: $radius-sm;
+      background: $c-page;
+      color: $c-ink;
+      font-family: $ff;
+      font-size: $fs-step--2;
+      padding: $sp-1 $sp-2;
+
+      &:focus { border-color: $c-accent; outline: none; }
+    }
+  }
+
   &__editor {
     display: flex;
     flex-direction: column;

@@ -120,7 +120,7 @@ export function conceptsToMap(list) {
 }
 
 /** 파일별 고유 id 접두사 — 서로 다른 PDF에서 CN-n이 겹치지 않게 */
-function conceptIdBase(filePath) {
+export function conceptIdBase(filePath) {
   let h = 2166136261;
   const s = String(filePath || '');
   for (let i = 0; i < s.length; i++) {
