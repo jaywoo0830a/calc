@@ -801,7 +801,10 @@ app.post('/pdf-position', (req, res) => {
 });
 
 // ── 📝 Practice (Three.js 탭 연습장) — 서버 실행 · Vitest 테스트 ────────────
-const REPO_ROOT = join(__dirname, '..');
+// 서버 파일 위치 기준으로 repo 루트 결정 (없으면 실행 cwd로 폴백)
+const REPO_ROOT = existsSync(join(__dirname, '..', 'package.json'))
+  ? join(__dirname, '..')
+  : process.cwd();
 const PRACTICE_LIBS = {
   electrostatics: join(REPO_ROOT, 'src', 'lib', 'electrostatics.js'),
   units: join(REPO_ROOT, 'src', 'lib', 'units.js'),
@@ -873,6 +876,10 @@ async function execPractice(code, mode) {
     }
     const preamble = uses.map((u) => `import * as ${u} from '${PRACTICE_LIBS[u]}';`).join('\n');
     const isTest = mode === 'test';
+    // 테스트 코드를 ▶ Run(일반 node)으로 실행하면 혼란스러우니 안내
+    if (!isTest && /\b(?:describe|it|test|expect)\s*\(/m.test(code)) {
+      return { mode, error: 'This looks like test code (describe/it/expect) — use 🧪 Test mode instead.' };
+    }
     const file = join(dir, isTest ? 'snippet.test.mjs' : 'snippet.mjs');
     const head = isTest
       ? "import { describe, it, expect, test, beforeEach, afterEach, vi } from 'vitest';\n"
@@ -887,6 +894,9 @@ async function execPractice(code, mode) {
 
     const outFile = join(dir, 'results.json');
     const vitestCli = join(REPO_ROOT, 'node_modules', 'vitest', 'vitest.mjs');
+    if (!existsSync(vitestCli)) {
+      return { mode, error: `Vitest CLI not found at ${vitestCli} — run 'npm install' in ${REPO_ROOT} and restart the server.` };
+    }
     const { stderr } = await runProcess(
       process.execPath,
       [vitestCli, 'run', file, '--reporter=json', '--outputFile=' + outFile, '--no-color', '--passWithNoTests'],

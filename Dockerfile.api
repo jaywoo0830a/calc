@@ -13,6 +13,8 @@ RUN npm install --legacy-peer-deps \
     && npm rebuild better-sqlite3 # ABI 일치 보장 (캐시된 레이어 재사용 대비)
 
 COPY server/ ./
+# Practice 모드 @uses 주입용 코어 라이브러리 (src/lib → /app/src/lib)
+COPY src/lib ./src/lib
 
 EXPOSE 3001
 CMD ["node", "index.js"]
