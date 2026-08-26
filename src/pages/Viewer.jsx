@@ -1070,10 +1070,11 @@ export default function Viewer() {
         <div className="viewer__upload"
           onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && f.name.endsWith('.zip')) loadZip(f); }}
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          onClick={() => document.getElementById('zipInput').click()}>
+          onClick={() => document.getElementById('zipInput').click()}
+        >
           <input id="zipInput" type="file" accept=".zip" onChange={(e) => { const f = e.target.files[0]; if (f) loadZip(f); }} hidden />
           {fileName
-            ? <span><strong>{fileName}</strong> &mdash; drop another ZIP</span>
+            ? <span><strong>{fileName}</strong><em className="viewer__upload-hint"> &mdash; drop another ZIP</em></span>
             : <span>Drop a <strong>ZIP</strong> archive here, or click to browse</span>}
         </div>
       )}

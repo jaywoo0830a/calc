@@ -39,11 +39,15 @@
     }
   }
 
-  // ---- Upload drop zone — dashed paper area ----------------
+  // ---- Upload drop zone — 슬림 한 줄 바 (읽기 공간을 침범하지 않게) ----
   &__upload {
-    padding: $sp-4 $sp-5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: $sp-2;
+    padding: $sp-2 $sp-4;
     margin-bottom: $sp-3;
-    border: $border-md dashed $c-rule;
+    border: $border-thin dashed $c-rule;
     border-radius: $radius-md;
     text-align: center;
     font-size: $fs-step--1;
@@ -52,6 +56,15 @@
     cursor: pointer;
     transition: all $transition-normal;
     background: $c-page;
+    white-space: nowrap;
+    overflow: hidden;
+
+    > span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
     @media (hover: hover) {
       &:hover {
@@ -60,6 +73,11 @@
         background: $c-page-dark;
       }
     }
+  }
+
+  &__upload-hint {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
   }
 
   // ---- Stored ZIPs list ------------------------------------
@@ -107,7 +125,8 @@
 
   &__stored-arrow {
     flex-shrink: 0;
-    font-size: $fs-step--2;
+    font-size: $fs-step-0;   // 크게 — 토글 화살표가 눈에 띄도록
+    line-height: 1;
     color: $c-ink-faint;
   }
 
@@ -880,7 +899,7 @@
 @media (min-width: $bp-sm) {
   .viewer {
     &__upload {
-      padding: $sp-5 $sp-6;
+      padding: $sp-2 $sp-5;   // 슬림 바 유지 — 세로 공간은 늘리지 않는다
       font-size: $fs-step-0;
     }
 
