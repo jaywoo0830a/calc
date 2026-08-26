@@ -41,30 +41,11 @@
     }
   }
 
-  // ── Split: mobile-stacked → tablet+ side-by-side ───────
-  &__split {
-    display: flex;
-    flex-direction: column;    // mobile: stack
-    flex: 1;
-    min-height: 0;
-    gap: $sp-2;
-
-    // ── Collapsed states ────────────────────────────────
-    &--collapsed-editor {
-      .playground__editor-pane { display: none; }
-      .playground__preview-pane { flex: 1; }
-    }
-
-    &--collapsed-preview {
-      .playground__preview-pane { display: none; }
-      .playground__editor-pane { flex: 1; }
-    }
-  }
-
+  // ── 에디터 전용 레이아웃 — 캔버스는 ⛶ 전체화면 / ▶ Render 오버레이에서만 ──
   &__editor-pane {
     flex: 1;
     min-width: 0;
-    min-height: 0;              // mobile: allow shrink
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: $sp-1;
@@ -82,7 +63,7 @@
   }
 
   &__render-btn {
-    padding: $sp-1 $sp-3;
+    padding: $sp-1 $sp-2;
     border: none;
     border-radius: $radius-md;
     background: $c-equals;
@@ -103,6 +84,10 @@
     border-radius: $radius-md;
     overflow: hidden;
     background: $c-paper;
+
+    @media (min-width: $bp-sm) {
+      min-height: 0;            // 태블릿+: 화면을 꽉 채움
+    }
   }
 
   &__error {
@@ -337,57 +322,138 @@
     font-style: italic;
   }
 
+  // ── 캔버스 전체화면 (뷰어처럼) — 캔버스가 화면 전체, 코드는 서랍 ──
+  &--fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: $z-fullscreen;
+    background: $c-paper;
+    padding: $sp-3;
+    height: auto;             // inset으로만 크기 결정 (height:100% 재정의 → 스크롤바 방지)
+
+    .playground__toggle-bar {
+      display: none;
+    }
+
+    // ── 코드가 주인공 — 에디터/프랙티스 패널이 화면 전체를 채움 ──
+    .playground__editor-pane {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .playground__practice {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .playground__practice-results {
+      max-height: 35%;        // 결과는 부수적 — 코드보다 작게
+    }
+
+    // ── 결과는 부수적 — 하단 독 스트립 (▶ Render로 열기, 독의 ✕로 닫기) ──
+    .playground__preview-pane {
+      position: relative;     // 독 닫기 버튼 앵커
+      flex: none;
+      height: min(38vh, 20rem);
+      border: none;
+      border-radius: 0;
+      border-top: $border-thin solid $c-rule;
+      background: $c-page;
+    }
+  }
+
+  // 독 닫기 버튼 (전체화면 하단 독 우상단)
+  &__dock-close {
+    position: absolute;
+    top: $sp-2;
+    right: $sp-2;
+    z-index: 2;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: $border-thin solid $c-rule;
+    background: rgba(255, 254, 247, 0.9);
+    color: $c-ink;
+    font-size: $fs-step--1;
+    cursor: pointer;
+    box-shadow: $shadow-sm;
+    transition: background $transition-fast;
+
+    &:hover {
+      background: $c-page;
+    }
+  }
+
+  // ▶ Render 결과 — 화면 중앙 정사각형 오버레이 (코드 위, 결과에만 집중)
+  &--render-overlay {
+    .playground__preview-pane {
+      position: fixed;
+      inset: 0;
+      z-index: 2050;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(44, 36, 22, 0.5);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      border: none;
+      border-radius: 0;
+    }
+
+    .playground__canvas {
+      width: min(80vmin, 42rem);
+      height: min(80vmin, 42rem);
+      margin: 0;
+      background: $c-paper;
+      border-radius: $radius-lg;
+      overflow: hidden;
+      box-shadow: $shadow-xl;
+    }
+  }
+
+  &__render-overlay-close {
+    position: fixed;
+    top: $sp-3;
+    right: $sp-3;
+    z-index: 2051;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    border: $border-thin solid rgba(212, 201, 181, 0.6);
+    background: rgba(255, 254, 247, 0.85);
+    color: $c-ink;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: $shadow-md;
+    transition: background $transition-fast;
+
+    &:hover {
+      background: $c-page;
+    }
+  }
+
+  // 전체화면 툴바 액션 묶음 (▶ Render + ✕ Exit — 플로팅 바 없이 인라인)
+  &__toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+  }
+
   // ==========================================================
   // Responsive — Tablet (≥ 480px): side-by-side
   // ==========================================================
   @media (min-width: $bp-sm) {
     gap: $sp-3;
 
-    &__split {
-      flex-direction: row;      // side-by-side
-      gap: $sp-3;
-    }
-
-    &__editor-pane {
-      flex: 1;
-      min-height: 0;
-    }
-
-    &__preview-pane {
-      flex: 1;
-      min-height: 0;
-    }
-
-    &__editor {
-      min-height: 0;
-    }
-
     &__toolbar {
       font-size: $fs-step--1;
-    }
-
-    &__render-btn {
-      font-size: $fs-step--1;
-      padding: $sp-2 $sp-4;
     }
   }
 
   // ==========================================================
-  // Responsive — Desktop (≥ 1024px): wider editor space
+  // Responsive — Desktop (≥ 1024px)
   // ==========================================================
   @media (min-width: $bp-lg) {
     gap: $sp-4;
-
-    &__split {
-      gap: $sp-4;
-    }
-
-    &__editor-pane {
-      flex: 3;                  // editor dominates on desktop
-    }
-
-    &__preview-pane {
-      flex: 1;
-    }
   }
 }

@@ -129,13 +129,17 @@ describe('practice — smoke', () => {
 `;
 
 export default function Playground() {
+  const pageRef = useRef(null);
   const editorRef = useRef(null);
   const viewRef = useRef(null);
   const canvasRef = useRef(null);
   const cleanupRef = useRef(null);
   const [error, setError] = useState(null);
-  const [collapsed, setCollapsed] = useState(null); // 'editor' | 'preview' | null
   const [mode, setMode] = useState('canvas');       // 'canvas' | 'practice'
+  const [fs, setFs] = useState(false);              // 전체화면 (코드 중심 — 뷰어처럼)
+  const [fsResult, setFsResult] = useState(false);  // 전체화면 중 결과 독 (부수적)
+  const [renderOverlay, setRenderOverlay] = useState(false); // ▶ Render 결과 중앙 정사각형 오버레이
+  const nativeFsRef = useRef(false);                // 네이티브 풀스크린 진입 여부
 
   // 📝 Practice 상태
   const practiceEditorRef = useRef(null);
@@ -147,18 +151,25 @@ export default function Playground() {
   const [busy, setBusy] = useState(false);
   const { requireClear, gateProps } = useClearGate();
 
+  const cleanupCanvas = useCallback(() => {
+    if (cleanupRef.current) { try { cleanupRef.current(); } catch (e) {} cleanupRef.current = null; }
+  }, []);
+
   const run = useCallback((code) => {
     setError(null);
     const el = canvasRef.current;
     if (!el) return;
-    if (cleanupRef.current) { try { cleanupRef.current(); } catch (e) {} cleanupRef.current = null; }
+    cleanupCanvas();
     el.innerHTML = '';
     try {
       const fn = new Function('THREE', 'OrbitControls', 'container', 'math', '"use strict";\n' + code);
       const result = fn(THREE, OrbitControls, el, math);
       if (typeof result === 'function') cleanupRef.current = result;
     } catch (e) { setError(e.message || String(e)); }
-  }, []);
+  }, [cleanupCanvas]);
+
+  // 캔버스가 DOM에서 사라질 때 실행 중인 애니메이션 루프 정리
+  useEffect(() => () => cleanupCanvas(), [cleanupCanvas]);
 
   useEffect(() => {
     if (!editorRef.current || viewRef.current) return;
@@ -175,7 +186,90 @@ export default function Playground() {
     return () => { viewRef.current?.destroy(); viewRef.current = null; };
   }, []);
 
-  useEffect(() => { setTimeout(() => run(DEFAULT_CODE), 200); }, [run]);
+  // ── 전체화면 — 코드가 주인공, 결과는 하단 독 (네이티브 Fullscreen API + CSS 폴백) ──
+  const enterFs = useCallback(() => {
+    setFs(true);
+    setFsResult(false);
+    setRenderOverlay(false);
+    const el = pageRef.current;
+    if (el && el.requestFullscreen) {
+      el.requestFullscreen().then(() => { nativeFsRef.current = true; }).catch(() => { nativeFsRef.current = false; });
+    }
+  }, []);
+
+  const exitFs = useCallback(() => {
+    nativeFsRef.current = false;
+    cleanupCanvas();
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    setFs(false);
+    setFsResult(false);
+  }, [cleanupCanvas]);
+
+  // 브라우저(ESC 등)로 풀스크린이 끝나면 상태 동기화
+  useEffect(() => {
+    const onFsChange = () => {
+      if (nativeFsRef.current && !document.fullscreenElement) {
+        nativeFsRef.current = false;
+        cleanupCanvas();
+        setFs(false);
+        setFsResult(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, [cleanupCanvas]);
+
+  // CSS 폴백에서 Esc로 나가기
+  useEffect(() => {
+    if (!fs) return;
+    const onKey = (e) => { if (e.key === 'Escape') exitFs(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fs, exitFs]);
+
+  // ▶ Render — 일반 모드: 중앙 정사각형 오버레이 / 전체화면: 하단 결과 독
+  const handleRender = useCallback(() => {
+    const code = viewRef.current?.state.doc.toString() || '';
+    if (fs) {
+      setFsResult(true);
+      setTimeout(() => run(code), 60);   // 독이 마운트된 뒤 렌더 → 크기 정확
+      return;
+    }
+    setRenderOverlay(true);
+    setTimeout(() => run(code), 60);
+  }, [fs, run]);
+
+  // 전체화면 결과 독 토글
+  const toggleFsResult = useCallback(() => {
+    if (fsResult) {
+      cleanupCanvas();
+      setFsResult(false);
+    } else {
+      setFsResult(true);
+      setTimeout(() => run(viewRef.current?.state.doc.toString() || ''), 60);
+    }
+  }, [fsResult, run, cleanupCanvas]);
+
+  const closeOverlay = useCallback(() => {
+    cleanupCanvas();
+    setRenderOverlay(false);
+  }, [cleanupCanvas]);
+
+  // 오버레이 Esc 닫기
+  useEffect(() => {
+    if (!renderOverlay) return;
+    const onKey = (e) => { if (e.key === 'Escape') closeOverlay(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [renderOverlay, closeOverlay]);
+
+  // 몰입 모드(오버레이/풀스크린) 동안 배경 스크롤 잠금 → 스크롤바 어긋남 제거
+  useEffect(() => {
+    if (!fs && !renderOverlay) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [fs, renderOverlay]);
 
   // 📝 Practice 에디터 (캔버스와 별도 인스턴스 — 모드 전환에도 코드 유지)
   const practiceDocRef = useRef(DEFAULT_PRACTICE);
@@ -278,36 +372,50 @@ export default function Playground() {
   }, [practiceId, requireClear]);
 
   return (
-    <AppLayout className="playground">
+    <AppLayout
+      ref={pageRef}
+      hideNav={fs}
+      className={'playground' + (fs ? ' playground--fullscreen' : '') + (renderOverlay && !fs ? ' playground--render-overlay' : '')}
+    >
       <div className="playground__toggle-bar">
         <button className={'playground__mode-btn' + (mode === 'canvas' ? ' playground__mode-btn--active' : '')} onClick={() => setMode('canvas')}>🎨 Canvas</button>
         <button className={'playground__mode-btn' + (mode === 'practice' ? ' playground__mode-btn--active' : '')} onClick={() => setMode('practice')}>📝 Practice</button>
-        {mode === 'canvas' && (
-          <>
-            <button className={'playground__toggle-btn' + (collapsed === 'editor' ? ' playground__toggle-btn--active' : '')} onClick={() => setCollapsed(collapsed === 'editor' ? null : 'editor')}>
-              {collapsed === 'editor' ? '◀ Code' : 'Code ▶'}
-            </button>
-            <button className={'playground__toggle-btn' + (collapsed === 'preview' ? ' playground__toggle-btn--active' : '')} onClick={() => setCollapsed(collapsed === 'preview' ? null : 'preview')}>
-              {collapsed === 'preview' ? 'Canvas ◀' : '▶ Canvas'}
-            </button>
-          </>
-        )}
+        <button className="playground__toggle-btn" onClick={fs ? exitFs : enterFs} title={fs ? 'Exit fullscreen (Esc)' : 'Fullscreen — code-first immersive'}>{fs ? '⊠' : '⛶'}</button>
       </div>
 
+      {/* 전체화면 플로팅 바 제거 — 컨트롤은 툴바 인라인으로 (콘텐츠 가림 없음) */}
+
+      {/* ▶ Render 결과 오버레이 닫기 */}
+      {renderOverlay && !fs && (
+        <button className="playground__render-overlay-close" onClick={closeOverlay} title="Close preview (Esc)">✕</button>
+      )}
+
       {mode === 'canvas' ? (
-        <div className={'playground__split' + (collapsed ? ' playground__split--collapsed-' + collapsed : '')}>
+        <>
           <div className="playground__editor-pane">
             <div className="playground__toolbar">
               <span>JavaScript + Three.js</span>
-              <button className="playground__render-btn" onClick={() => run(viewRef.current?.state.doc.toString() || '')}>▶ Render</button>
+              <div className="playground__toolbar-actions">
+                <button className="playground__render-btn" onClick={handleRender}>{fsResult ? '↻ Render' : '▶ Render'}</button>
+                {fs && <button className="playground__toggle-btn" onClick={exitFs} title="Exit fullscreen (Esc)">✕ Exit</button>}
+              </div>
             </div>
             <div ref={editorRef} className="playground__editor" />
             {error && <div className="playground__error">{error}</div>}
           </div>
-          <div className="playground__preview-pane">
-            <div ref={canvasRef} className="playground__canvas" />
-          </div>
-        </div>
+          {/* 캔버스는 전체화면 하단 독(▶ Render) 또는 ▶ Render 오버레이에서만 표시 — 코드가 주인공 */}
+          {(fs ? fsResult : renderOverlay) && (
+            <div
+              className="playground__preview-pane"
+              onClick={(e) => { if (!fs && renderOverlay && e.target === e.currentTarget) closeOverlay(); }}
+            >
+              {fs && fsResult && (
+                <button className="playground__dock-close" onClick={toggleFsResult} title="Close result dock">✕</button>
+              )}
+              <div ref={canvasRef} className="playground__canvas" />
+            </div>
+          )}
+        </>
       ) : (
         <div className="playground__practice">
           <div className="playground__practice-toolbar">
@@ -333,6 +441,7 @@ export default function Playground() {
             <button className="playground__practice-btn" onClick={savePractice} disabled={busy} title="Save — update current snippet">💾 Save</button>
             <button className="playground__practice-btn" onClick={saveAsNew} disabled={busy} title="Save as new snippet (does not overwrite current)">➕ New</button>
             {practiceId && <button className="playground__practice-btn playground__practice-btn--danger" onClick={deletePractice} title="Delete snippet">🗑</button>}
+            {fs && <button className="playground__practice-btn" onClick={exitFs} title="Exit fullscreen (Esc)">✕ Exit</button>}
             {busy && <span className="playground__practice-busy">running…</span>}
           </div>
           <div ref={practiceEditorRef} className="playground__editor playground__practice-editor" />
