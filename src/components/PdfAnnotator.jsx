@@ -8,6 +8,11 @@ import { api } from '../lib/api.js';
 import { fitImageRect } from '../lib/imageRect.js';
 import { rotateImageDataUrl, warmMl } from '../lib/docScan.js';
 import { addNode, suggestId, STATUS, conceptsToMap, conceptIdBase } from '../lib/conceptMap.js';
+import { MAX_IMAGE_MB, getPageCanvasRect, annoRect, compressImageFile, resolveOutlineItems } from '../lib/pdfAnnotator.js';
+import { useIsMobileMedia } from '../hooks/useIsMobileMedia.js';
+import { useVisualViewportKb, kbLiftStyleOf } from '../hooks/useVisualViewportKb.js';
+import { usePdfPageKeys } from '../hooks/usePdfPageKeys.js';
+import { useSwipePageTurn } from '../hooks/useSwipePageTurn.js';
 import ConceptInput from './ConceptInput.jsx';
 import ScanAreaModal from './ScanAreaModal.jsx';
 import ClearGate from './ClearGate.jsx';
@@ -44,63 +49,6 @@ const TOOLS = {
   image:     { label: '🖼️ Image', icon: '🖼️' },
   concept:   { label: '🧭 Concept', icon: '🧭' },
 };
-
-const MAX_IMAGE_MB = 10; // 🖼️ 이미지 업로드 상한
-function getPageCanvasRect(pageEl) {
-  if (!pageEl) return null;
-  // The react-pdf Page wrapper maintains the correct PDF aspect ratio
-  const pageDiv = pageEl.querySelector('.react-pdf__Page');
-  if (pageDiv) return pageDiv.getBoundingClientRect();
-  // Fallback: use the canvas element
-  const canvas = pageEl.querySelector('canvas');
-  if (canvas) return canvas.getBoundingClientRect();
-  // Last resort: page-wrapper itself
-  return pageEl.getBoundingClientRect();
-}
-
-function annoRect(a, pageEl) {
-  if (!pageEl) return null;
-  const canvasRect = getPageCanvasRect(pageEl);
-  if (!canvasRect) return null;
-  const wrapperRect = pageEl.getBoundingClientRect();  // Position within page-wrapper = canvas offset + normalized coords × canvas size
-  return {
-    left: (canvasRect.left - wrapperRect.left) + a.rect.x * canvasRect.width,
-    top: (canvasRect.top - wrapperRect.top) + a.rect.y * canvasRect.height,
-    width: a.rect.w * canvasRect.width,
-    height: a.rect.h * canvasRect.height,
-  };
-}
-
-// ── 🖼️ 이미지 압축 — 2MB 이하는 1000px, 그 이상은 1600px (JPEG 0.82, PNG 무손실) ──
-function compressImageFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('bad image'));
-      img.onload = () => {
-        const MAX = file.size > 2 * 1024 * 1024 ? 1600 : 1000;
-        const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
-        const w = Math.max(1, Math.round(img.naturalWidth * scale));
-        const h = Math.max(1, Math.round(img.naturalHeight * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = file.type === 'image/png'
-          ? canvas.toDataURL('image/png')
-          : canvas.toDataURL('image/jpeg', 0.82);
-        resolve({ dataUrl, aspect: w / h });
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
 
 // 메모화된 PDF 페이지 — 주석 저장 등 부모 상태 변경으로 인한 캔버스 재렌더(깜빡임) 방지.
 // pageNumber/width/textLayer/onRenderSuccess가 바뀔 때만 react-pdf <Page>를 다시 그린다.
@@ -169,36 +117,14 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   useEffect(() => subscribeRangeSelect((s) => setRangeActive(!!s.active)), []);
 
   // 모바일(≤767px) 여부 — 풀스크린 유도 / 비풀스크린 최소 크롬용
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 767);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)');
-    const on = () => setIsMobile(mq.matches);
-    on();
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
+  const isMobile = useIsMobileMedia();
 
   // ⌨️ 온스크린 키보드 높이 추적 — iOS 등 키보드가 오버레이로 덮는 환경에서
   // 입력 시트(코멘트/컨셉)를 키보드 위로 들어 올린다 (visualViewport 기준).
-  const [kbH, setKbH] = useState(0);
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const compute = () => {
-      const docH = document.documentElement.clientHeight;
-      setKbH(Math.max(0, docH - (vv.offsetTop + vv.height)));
-    };
-    compute();
-    vv.addEventListener('resize', compute);
-    vv.addEventListener('scroll', compute);
-    return () => {
-      vv.removeEventListener('resize', compute);
-      vv.removeEventListener('scroll', compute);
-    };
-  }, []);
+  const kbH = useVisualViewportKb();
 
   // 키보드가 열린 동안 시트를 키보드 위로 들어 올리는 인라인 스타일
-  const kbLiftStyle = kbH > 0 ? { transform: `translateY(-${Math.round(kbH)}px)` } : undefined;
+  const kbLiftStyle = kbLiftStyleOf(kbH);
 
   // 터치 기기(태블릿 가로 포함)는 탭 지점 고정 팝업 대신 바닥 시트 사용 —
   // 가로(landscape)에서는 isMobile(≤767px)이 false라도 온스크린 키보드가
@@ -227,62 +153,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     }
   }, [filePath, currentPage, isBookmarked, bookmarks]);
 
-  // ── Resolve PDF outline: flatten first, then resolve all in parallel ──
-  const resolveOutlineItems = useCallback(async (items, pdfDoc) => {
-    if (!items || !pdfDoc) return [];
-
-    // 1. Flatten the tree (sync — no async calls)
-    const flat = [];
-    const walk = (list, depth) => {
-      for (const item of list) {
-        flat.push({ item, depth });
-        if (item.items?.length > 0) walk(item.items, depth + 1);
-      }
-    };
-    walk(items, 1);
-
-    // 2. Resolve all destinations in parallel
-    const resolved = await Promise.all(flat.map(async ({ item, depth }) => {
-      let pageNumber = null;
-      try {
-        if (item.dest) {
-          if (typeof item.dest === 'string') {
-            const destArray = await pdfDoc.getDestination(item.dest);
-            if (destArray?.length > 0) pageNumber = await resolveDestToPage(destArray, pdfDoc);
-          } else if (Array.isArray(item.dest) && item.dest.length > 0) {
-            pageNumber = await resolveDestToPage(item.dest, pdfDoc);
-          }
-        }
-      } catch { /* leave null */ }
-      return {
-        title: item.title || '(Untitled)',
-        pageNumber,
-        depth,
-        bold: !!item.bold,
-        italic: !!item.italic,
-      };
-    }));
-
-    return resolved;
-  }, []);
-
-  /** Resolve a destination array to a 1-based page number */
-  async function resolveDestToPage(destArray, pdfDoc) {
-    if (!destArray || destArray.length === 0) return null;
-    const first = destArray[0];
-    try {
-      if (typeof first === 'number') {
-        // Page index (0-based) embedded directly
-        return first + 1;
-      }
-      if (first && typeof first === 'object' && ('num' in first || 'gen' in first)) {
-        // Page reference object { num, gen }
-        const idx = await pdfDoc.getPageIndex(first);
-        return idx + 1;
-      }
-    } catch { /* ignore */ }
-    return null;
-  }
+  // ── Resolve PDF outline — src/lib/pdfAnnotator.js의 resolveOutlineItems 사용 ──
 
   // ── 읽기 위치 복원/보고 ──
   // 열 때 외부에서 전달된 시작 스크롤 (일회성) — url(문서)이 바뀔 때만 갱신
@@ -320,7 +191,6 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     return () => { if (el) el.removeEventListener('scroll', onScroll); };
   }, [filePath, currentPage, numPages]);
 
-  const touchStart = useRef({ x: 0, y: 0, time: 0, count: 0 });
   const [toc, setToc] = useState(null);         // PDF outline (resolved flat list)
   const [tocOpen, setTocOpen] = useState(false);
   const pdfDocRef = useRef(null);                // PDFDocumentProxy for dest resolution
@@ -334,72 +204,9 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const zoomRef = useRef(zoomLevel);             // always-current for event handlers
   zoomRef.current = zoomLevel;
 
-  // ── Swipe detection for paginated mode ──────────────────
-  const handleSwipeStart = useCallback((e) => {
-    const count = e.touches?.length || 1;
-    touchStart.current = { x: e.touches?.[0]?.clientX || e.clientX, y: e.touches?.[0]?.clientY || e.clientY, time: Date.now(), count };
-  }, []);
-
-  const handleSwipeEnd = useCallback((e) => {
-    // Only allow page swiping in read mode (tool === null)
-    if (tool !== null) return;
-    // Don't swipe when zoomed — user needs to pan/scroll instead
-    if (zoomRef.current > 1) return;
-    // Ignore multi-touch (pinch-zoom) — only single-finger swipes count
-    if (touchStart.current.count > 1) return;
-    if ((e.touches?.length || 0) > 0) return; // still touching with other fingers
-
-    // Paginated mode: only horizontal swipes change pages (vertical = scroll)
-    const x = e.changedTouches?.[0]?.clientX ?? e.clientX;
-    const y = e.changedTouches?.[0]?.clientY ?? e.clientY;
-    const dx = x - touchStart.current.x;
-    const dy = y - touchStart.current.y;
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
-
-    // Horizontal swipe must clearly dominate and exceed minimum distance
-    const MIN_PAGE_SWIPE = 60;
-    if (absDx > absDy * 1.5 && absDx > MIN_PAGE_SWIPE) {
-      if (dx < 0) {
-        goToPage(Math.min(numPages, currentPage + 1));
-      } else {
-        goToPage(Math.max(1, currentPage - 1));
-      }
-    }
-  }, [numPages, currentPage, goToPage, tool]);
-
-  // ── 키보드 페이지 넘김 (PC) — 방향키·PageUp/Down·Home/End ──
-  useEffect(() => {
-    const onKey = (e) => {
-      const t = e.target;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (zoomRef.current > 1) return; // 줌인 중엔 방향키 기본 동작(스크롤) 유지
-
-      switch (e.key) {
-        case 'ArrowRight':
-        case 'PageDown':
-          e.preventDefault();
-          goToPage(Math.min(numPages, currentPage + 1));
-          break;
-        case 'ArrowLeft':
-        case 'PageUp':
-          e.preventDefault();
-          goToPage(Math.max(1, currentPage - 1));
-          break;
-        case 'Home':
-          e.preventDefault();
-          goToPage(1);
-          break;
-        case 'End':
-          e.preventDefault();
-          goToPage(numPages);
-          break;
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [numPages, currentPage, goToPage]);
+  // ── 터치 스와이프 / 키보드 페이지 넘김 — hooks/useSwipePageTurn·usePdfPageKeys ──
+  const { onTouchStart, onTouchEnd } = useSwipePageTurn({ goToPage, numPages, currentPage, tool, zoomRef });
+  usePdfPageKeys({ goToPage, numPages, currentPage, zoomRef });
 
   // ── Fullscreen (native API + CSS fallback for iOS/Safari) ──
   const enterFullscreen = useCallback(() => {
@@ -1891,8 +1698,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           overflow: (fullscreen || zoomLevel > 1) ? 'auto' : undefined,
           justifyContent: (fullscreen || zoomLevel > 1) ? 'flex-start' : undefined,
         }}
-        onTouchStart={handleSwipeStart}
-        onTouchEnd={handleSwipeEnd}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
         onClick={() => setOpenCommentId(null)}
       >
         {loadError ? (
