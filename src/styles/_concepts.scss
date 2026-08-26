@@ -704,7 +704,7 @@ $guide-color: $c-rule;
     border-radius: $radius-md;
     max-width: 48rem; // 노드와 어울리는 폭으로 제한
 
-    &-label, &-parent, &-page {
+    &-label, &-page {
       border: $border-thin solid $c-rule;
       border-radius: $radius-md;
       background: $c-page;
@@ -775,6 +775,15 @@ $guide-color: $c-rule;
     &-parent {
       flex: 1;
       min-width: 12rem;
+      max-width: 100%;
+
+      // 공용 ConceptParentPicker 목록을 입력 박스처럼 감싼다
+      .concept-input__parents {
+        border: $border-thin solid $c-rule;
+        border-radius: $radius-md;
+        background: $c-page;
+        padding: $sp-1;
+      }
     }
 
     &-actions {

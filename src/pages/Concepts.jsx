@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout.jsx';
 import { getAllConcepts, saveConcept, deleteConcept } from '../lib/storage.js';
+import ConceptParentPicker from '../components/ConceptParentPicker.jsx';
 import { setPendingConcept, takePendingConceptsFullscreen } from '../lib/conceptJump.js';
 import {
   updateNode, reparentNode, deleteNode, buildTree,
@@ -675,38 +676,29 @@ export default function Concepts() {
           onChange={(e) => setEditing((v) => ({ ...v, pageNumber: Number(e.target.value) || 1 }))}
           title="Source page"
         />
-        <select
-          className="concepts__editor-parent"
-          value={editing.parent}
-          onChange={(e) => {
-            const v = e.target.value;
-            setEditing((prev) => (prev ? { ...prev, parent: v } : prev));
-            // 게이트 중에는 트리 구조 변경(부모 이동)을 즉시 반영 — 학습 제한 우회
-            // (＋ Add child / × Delete / DnD는 원래 제한 없음. 부모만 Save에 묶여 있었음)
-            if (gate && gate.id === editing.id) {
-              const map = docMap(items, editing.filePath);
-              if (map[editing.id] && map[editing.id].parent !== v) {
-                try {
-                  const newMap = reparentNode(map, editing.id, v ? String(v) : null);
-                  commitDoc(editing.filePath, map, newMap);
-                } catch {
-                  // 사이클 등 검증 실패 — select를 원래 부모로 되돌림
-                  setEditing((prev) => (prev ? { ...prev, parent: map[editing.id]?.parent || '' } : prev));
+        <div className="concepts__editor-parent">
+          <ConceptParentPicker
+            value={editing.parent}
+            groups={parentGroups}
+            onChange={(v) => {
+              setEditing((prev) => (prev ? { ...prev, parent: v } : prev));
+              // 게이트 중에는 트리 구조 변경(부모 이동)을 즉시 반영 — 학습 제한 우회
+              // (＋ Add child / × Delete / DnD는 원래 제한 없음. 부모만 Save에 묶여 있었음)
+              if (gate && gate.id === editing.id) {
+                const map = docMap(items, editing.filePath);
+                if (map[editing.id] && map[editing.id].parent !== v) {
+                  try {
+                    const newMap = reparentNode(map, editing.id, v ? String(v) : null);
+                    commitDoc(editing.filePath, map, newMap);
+                  } catch {
+                    // 사이클 등 검증 실패 — 원래 부모로 되돌림
+                    setEditing((prev) => (prev ? { ...prev, parent: map[editing.id]?.parent || '' } : prev));
+                  }
                 }
               }
-            }
-          }}
-          title="Parent concept"
-        >
-          <option value="">— top level —</option>
-          {parentGroups.map((g) => (
-            <optgroup key={g.label} label={g.label}>
-              {g.options.map((o) => (
-                <option key={o.id} value={o.id}>{o.label}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+            }}
+          />
+        </div>
       </div>
       <div className="concepts__editor-actions">
         <button className="concepts__editor-child" onClick={() => { closeEditor(); startAddChild(record); }}>＋ Add child</button>
