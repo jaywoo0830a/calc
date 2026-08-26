@@ -23,7 +23,7 @@ import { markdownRefFromRange } from '../lib/markdownRef.js';
 const EXCLUDE_SELECTOR = [
   'button', 'a', 'input', 'textarea', 'select',
   '[contenteditable="true"]',
-  '.cm-content',                       // CodeMirror (MathSpace / Playground)
+  '.cm-content',                       // CodeMirror (Playground)
   '.word-lookup',                      // 사전 카드
   '.pdf-annotator__sel-trigger',       // PDF 하이라이트/밑줄 툴바
   '.pdf-annotator__toolbar',

@@ -2,8 +2,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Calculator from './pages/Calculator.jsx';
 import Viewer from './pages/Viewer.jsx';
 import Playground from './pages/Playground.jsx';
-import MathSpace from './pages/MathSpace.jsx';
-import Fields from './pages/Fields.jsx';
 import Units from './pages/Units.jsx';
 import Relation from './pages/Relation.jsx';
 import Vocab from './pages/Vocab.jsx';
@@ -26,8 +24,6 @@ export default function App() {
         <Route path="/" element={<Calculator />} />
         <Route path="/viewer" element={<Viewer />} />
         <Route path="/playground" element={<Playground />} />
-        <Route path="/math" element={<MathSpace />} />
-        <Route path="/fields" element={<Fields />} />
         <Route path="/units" element={<Units />} />
         <Route path="/relation" element={<Relation />} />
         <Route path="/problems" element={<Problems />} />
