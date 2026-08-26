@@ -1700,14 +1700,11 @@
     // ── 정렬은 항상 중앙 (좌/우정렬 버튼 제거 — 2026-08-24) ─
     &--paginated {
       overflow: hidden;
-      justify-content: center;
+      justify-content: center;   // 세로 중앙 (남는 공간은 위/아래 균등)
 
       .pdf-annotator__page-wrapper {
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto;
+        height: auto;            // 페이지 실제 크기 (100% 스트레치 → 줌아웃 시 하단 거대 여백 방지)
+        margin: 0 auto;          // 가로 중앙
         box-shadow: none;
         animation: pageFadeIn 0.3s ease;
       }
