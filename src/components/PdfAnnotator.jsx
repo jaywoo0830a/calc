@@ -200,6 +200,11 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   // 키보드가 열린 동안 시트를 키보드 위로 들어 올리는 인라인 스타일
   const kbLiftStyle = kbH > 0 ? { transform: `translateY(-${Math.round(kbH)}px)` } : undefined;
 
+  // 터치 기기(태블릿 가로 포함)는 탭 지점 고정 팝업 대신 바닥 시트 사용 —
+  // 가로(landscape)에서는 isMobile(≤767px)이 false라도 온스크린 키보드가
+  // 하단을 덮어 팝업이 잘리므로, 터치 우선 기기면 항상 시트 + 키보드 리프트.
+  const sheetMode = IS_TOUCH_PRIMARY || (isMobile && fullscreen);
+
   // Scroll to top on page change
   const goToPage = useCallback((page) => {
     setCurrentPage(page);
@@ -1325,7 +1330,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const isFakeFullscreen = fullscreen && !document.fullscreenElement;
 
   const content = (
-    <div className={'pdf-annotator' + (fullscreen ? ' pdf-annotator--fullscreen' : '') + (isMobile && fullscreen && (activeComment || editingComment || conceptCapture) ? ' pdf-annotator--input-open' : '')} ref={containerRef}>
+    <div className={'pdf-annotator' + (fullscreen ? ' pdf-annotator--fullscreen' : '') + ((isMobile && fullscreen && (activeComment || editingComment || conceptCapture)) || (IS_TOUCH_PRIMARY && (activeComment || editingComment || conceptCapture)) ? ' pdf-annotator--input-open' : '')} ref={containerRef}>
       {/* Toolbar */}
       {chromeVisible && (
       <div className="pdf-annotator__toolbar">
@@ -1333,38 +1338,52 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           <button
             className={'pdf-annotator__tool' + (tool === null ? ' pdf-annotator__tool--active' : '')}
             onClick={() => setTool(null)}
+            title="Read"
+            aria-label="Read"
           >
-            📖 Read
+            📖
           </button>
           {Object.entries(TOOLS).map(([key, val]) => (
             <button
               key={key}
               className={'pdf-annotator__tool' + (tool === key ? ' pdf-annotator__tool--active' : '')}
               onClick={() => setTool(key)}
+              title={val.label}
+              aria-label={val.label}
             >
-              {val.label}
+              {val.icon}
             </button>
           ))}
-        </div>
-        {/* Color pickers — hidden for highlight/underline (use selection trigger) */}
-        <div className="pdf-annotator__tools">
-        </div>
-        <div className="pdf-annotator__tools">
           <button
             className={'pdf-annotator__tool' + (tool === 'erase' ? ' pdf-annotator__tool--active' : '')}
             onClick={() => setTool(tool === 'erase' ? null : 'erase')}
-            title="Click annotation to delete"
+            title="Eraser — click annotation to delete"
+            aria-label="Eraser — click annotation to delete"
           >
-            🧹 Eraser
+            🧹
           </button>
           {/* 현재 페이지 북마크 — 페이지 넘김 버튼 옆에 있으면 실수로 눌리므로 툴바로 이동 */}
           <button
             className={'pdf-annotator__tool' + (isBookmarked ? ' pdf-annotator__tool--active' : '')}
             onClick={toggleBookmark}
             title={isBookmarked ? 'Remove bookmark from this page' : 'Add bookmark to this page'}
+            aria-label={isBookmarked ? 'Remove bookmark from this page' : 'Add bookmark to this page'}
           >
-            {isBookmarked ? '🔖 Bookmarked' : '🏷️ Bookmark'}
+            {isBookmarked ? '🔖' : '🏷️'}
           </button>
+          <button
+            className={'pdf-annotator__tool' + (searchOpen ? ' pdf-annotator__tool--active' : '')}
+            onClick={() => { if (searchOpen) closeSearch(); else setSearchOpen(true); }}
+            title="Search text in this document"
+            aria-label="Search text in this document"
+          >
+            🔎
+          </button>
+        </div>
+        {/* Color pickers — hidden for highlight/underline (use selection trigger) */}
+        <div className="pdf-annotator__tools">
+        </div>
+        <div className="pdf-annotator__tools">
           {/* 👣 교육용 따라가기 — ON이면 다른 기기의 페이지를 따라감 (리더 기기는 OFF 유지) */}
           <button
             className={'pdf-annotator__tool' + (follow ? ' pdf-annotator__tool--active' : '')}
@@ -1383,39 +1402,36 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
             </button>
           )}
           <button
-            className={'pdf-annotator__tool' + (searchOpen ? ' pdf-annotator__tool--active' : '')}
-            onClick={() => { if (searchOpen) closeSearch(); else setSearchOpen(true); }}
-            title="Search text in this document"
-          >
-            🔎 Search
-          </button>
-          <button
             className={'pdf-annotator__tool' + (annotationsOpen ? ' pdf-annotator__tool--active' : '')}
             onClick={() => setAnnotationsOpen(!annotationsOpen)}
             title="Notes"
+            aria-label="Notes"
           >
-            🗒️ Notes
+            🗒️
           </button>
           <button
             className={'pdf-annotator__tool' + (bookmarksOpen ? ' pdf-annotator__tool--active' : '')}
             onClick={() => setBookmarksOpen(!bookmarksOpen)}
             title="Bookmarks"
+            aria-label="Bookmarks"
           >
-            🔖 Bookmarks
+            🔖
           </button>
           <button
             className={'pdf-annotator__tool' + (problemsOpen ? ' pdf-annotator__tool--active' : '')}
             onClick={() => { setProblemsOpen(!problemsOpen); if (!problemsOpen) refreshProblems(); }}
             title="Problems"
+            aria-label="Problems"
           >
-            📋 Problems
+            📋
           </button>
           <button
             className="pdf-annotator__tool"
             onClick={() => { if (onOpenConcepts) onOpenConcepts(); }}
             title="Open this document's concepts — fullscreen tree"
+            aria-label="Concepts"
           >
-            🧭 Concepts
+            🧭
           </button>
           <button
             className="pdf-annotator__fullscreen-btn"
@@ -1695,8 +1711,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
           모바일 풀스크린에서는 바닥 시트로 (키보드·FAB 행 안정, 입력창 잘림 방지) */}
       {activeComment && (
         <div
-          className={'pdf-annotator__comment-input' + (isMobile && fullscreen ? ' pdf-annotator__comment-input--sheet' : '')}
-          style={isMobile && fullscreen ? kbLiftStyle : {
+          className={'pdf-annotator__comment-input' + (sheetMode ? ' pdf-annotator__comment-input--sheet' : '')}
+          style={sheetMode ? kbLiftStyle : {
             position: 'fixed',
             left: activeComment.px,
             top: activeComment.py,
@@ -1740,8 +1756,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       {/* Comment edit overlay — 기존 코멘트를 다시 터치하면 그 위치에서 수정 */}
       {editingComment && (
         <div
-          className={'pdf-annotator__comment-input' + (isMobile && fullscreen ? ' pdf-annotator__comment-input--sheet' : '')}
-          style={isMobile && fullscreen ? kbLiftStyle : {
+          className={'pdf-annotator__comment-input' + (sheetMode ? ' pdf-annotator__comment-input--sheet' : '')}
+          style={sheetMode ? kbLiftStyle : {
             position: 'fixed',
             left: editingComment.px,
             top: editingComment.py,
@@ -1785,8 +1801,8 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       {/* 🧭 Concept capture — 재사용 ConceptInput (페이지 탭/단축키 N) */}
       {conceptCapture && (
         <div
-          className={'pdf-annotator__concept-capture' + (isMobile && fullscreen ? ' pdf-annotator__concept-capture--sheet' : '')}
-          style={isMobile && fullscreen ? kbLiftStyle : { position: 'fixed', left: conceptCapture.px, top: conceptCapture.py, zIndex: 50 }}
+          className={'pdf-annotator__concept-capture' + (sheetMode ? ' pdf-annotator__concept-capture--sheet' : '')}
+          style={sheetMode ? kbLiftStyle : { position: 'fixed', left: conceptCapture.px, top: conceptCapture.py, zIndex: 50 }}
         >
           <ConceptInput
             label={conceptLabel}
