@@ -16,8 +16,7 @@
   border-radius: $radius-md;
   box-shadow: $shadow-lg;
 
-  &__label,
-  &__parent {
+  &__label {
     width: 100%;
     border: $border-thin solid $c-rule;
     border-radius: 999px; // 노드와 같은 알약
@@ -31,6 +30,48 @@
       border-color: $c-accent;
       outline: none;
       box-shadow: 0 0.0625rem 0.25rem rgba(92, 61, 46, 0.18);
+    }
+  }
+
+  // ── 부모 선택 — 셀렉트 대신 가로 스크롤 칩 행 (터치 친화) ──
+  &__parents {
+    display: flex;
+    gap: $sp-1;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; // iOS 모멘텀 스크롤
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    padding-bottom: $sp-1; // 스크롤바 여유
+  }
+
+  &__parent-chip {
+    flex-shrink: 0;
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: $border-thin solid $c-rule;
+    border-radius: 999px; // 알약
+    background: $c-page;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    padding: $sp-1 $sp-2;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        border-color: $c-accent;
+        color: $c-accent;
+      }
+    }
+
+    &--active {
+      background: $c-accent;
+      border-color: $c-accent;
+      color: $c-ink-inverse;
+      font-weight: $fw-semibold;
     }
   }
 

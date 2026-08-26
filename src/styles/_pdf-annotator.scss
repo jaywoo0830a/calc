@@ -1081,6 +1081,7 @@
     max-height: min(62dvh, 24rem);
     overflow-y: auto;
     z-index: 300;
+    transition: transform $transition-fast;   // 키보드 등장 시 위로 밀림
   }
 
   &__concept-capture--sheet {
@@ -1091,6 +1092,7 @@
     z-index: 300;
     max-height: min(62dvh, 24rem);
     overflow-y: auto;
+    transition: transform $transition-fast;   // 키보드 등장 시 위로 밀림
   }
 
   // 입력 시트가 열린 동안 페이지 네비 숨김 (시트 공간 확보)

@@ -159,8 +159,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   const conceptsRef = useRef([]);                        // 폴링/비동기에서 최신 값
   const [conceptCapture, setConceptCapture] = useState(null); // 캡처 바 위치 { pageNumber, px, py }
   const [conceptLabel, setConceptLabel] = useState('');
-  const [conceptParent, setConceptParent] = useState('');     // 캡처 시 부모 ('' = 최상위)
-  const lastConceptRef = useRef('');                           // 직전에 만든 개념 — 다음 캡처의 기본 부모로 제안
+  const [conceptParent, setConceptParent] = useState('');     // 캡처 시 부모 (항상 '' = 최상위 기본)
 
   // Platform detection (set by inline script in index.html)
   const isIOS = typeof document !== 'undefined' && document.documentElement.classList.contains('is-ios');
@@ -178,6 +177,28 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     mq.addEventListener('change', on);
     return () => mq.removeEventListener('change', on);
   }, []);
+
+  // ⌨️ 온스크린 키보드 높이 추적 — iOS 등 키보드가 오버레이로 덮는 환경에서
+  // 입력 시트(코멘트/컨셉)를 키보드 위로 들어 올린다 (visualViewport 기준).
+  const [kbH, setKbH] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const compute = () => {
+      const docH = document.documentElement.clientHeight;
+      setKbH(Math.max(0, docH - (vv.offsetTop + vv.height)));
+    };
+    compute();
+    vv.addEventListener('resize', compute);
+    vv.addEventListener('scroll', compute);
+    return () => {
+      vv.removeEventListener('resize', compute);
+      vv.removeEventListener('scroll', compute);
+    };
+  }, []);
+
+  // 키보드가 열린 동안 시트를 키보드 위로 들어 올리는 인라인 스타일
+  const kbLiftStyle = kbH > 0 ? { transform: `translateY(-${Math.round(kbH)}px)` } : undefined;
 
   // Scroll to top on page change
   const goToPage = useCallback((page) => {
@@ -709,9 +730,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         py: 72,
       });
       setConceptLabel('');
-      setConceptParent(
-        conceptsRef.current.some((c) => c.id === lastConceptRef.current) ? lastConceptRef.current : ''
-      );
+      setConceptParent(''); // 항상 최상위(Top Level) 기본 — 체인 생성 방지
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -974,7 +993,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       });
     } else if (tool === 'concept') {
       // 🧭 개념 노드 — 탭한 페이지에 캡처 바 (라벨 입력 → Enter = 생성)
-      // 기본 부모 = 직전에 만든 개념 (연속 생성 시 체인을 자연스럽게)
+      // 부모는 항상 최상위(Top Level) 기본 — 연속 생성 시 체인이 되지 않게
       // 탭 지점에서 살짝 비껴 배치 — 캔버스/노드와 여백 확보
       setConceptCapture({
         pageNumber,
@@ -982,9 +1001,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
         py: Math.min(Math.max(e.clientY + 14, 8), window.innerHeight - 220),
       });
       setConceptLabel('');
-      setConceptParent(
-        conceptsRef.current.some((c) => c.id === lastConceptRef.current) ? lastConceptRef.current : ''
-      );
+      setConceptParent('');
     }
   }, [tool]);
 
@@ -1278,7 +1295,6 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     try {
       const newMap = addNode(map, { id, label, parent: conceptParent || null, pageNumber: cap.pageNumber });
       commitConceptMap(map, newMap);
-      lastConceptRef.current = id; // 다음 캡처의 기본 부모로
       setToast('🧭 Concept added');
     } catch (e) {
       setToast(String(e.message || e));
@@ -1680,7 +1696,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       {activeComment && (
         <div
           className={'pdf-annotator__comment-input' + (isMobile && fullscreen ? ' pdf-annotator__comment-input--sheet' : '')}
-          style={isMobile && fullscreen ? undefined : {
+          style={isMobile && fullscreen ? kbLiftStyle : {
             position: 'fixed',
             left: activeComment.px,
             top: activeComment.py,
@@ -1725,7 +1741,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       {editingComment && (
         <div
           className={'pdf-annotator__comment-input' + (isMobile && fullscreen ? ' pdf-annotator__comment-input--sheet' : '')}
-          style={isMobile && fullscreen ? undefined : {
+          style={isMobile && fullscreen ? kbLiftStyle : {
             position: 'fixed',
             left: editingComment.px,
             top: editingComment.py,
@@ -1770,7 +1786,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       {conceptCapture && (
         <div
           className={'pdf-annotator__concept-capture' + (isMobile && fullscreen ? ' pdf-annotator__concept-capture--sheet' : '')}
-          style={isMobile && fullscreen ? undefined : { position: 'fixed', left: conceptCapture.px, top: conceptCapture.py, zIndex: 50 }}
+          style={isMobile && fullscreen ? kbLiftStyle : { position: 'fixed', left: conceptCapture.px, top: conceptCapture.py, zIndex: 50 }}
         >
           <ConceptInput
             label={conceptLabel}

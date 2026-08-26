@@ -28,21 +28,31 @@ export default function ConceptInput({
           if (e.key === 'Escape') onCancel();
         }}
       />
-      <select
-        className="concept-input__parent"
-        value={parent}
-        onChange={(e) => onParentChange(e.target.value)}
-        title="Parent concept"
-      >
-        <option value="">— top level —</option>
-        {conceptOptionGroups(concepts).map((g) => (
-          <optgroup key={g.label} label={g.label}>
-            {g.options.map((o) => (
-              <option key={o.id} value={o.id}>{o.label}</option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+      <div className="concept-input__parents" role="radiogroup" aria-label="Parent concept">
+        <button
+          type="button"
+          className={'concept-input__parent-chip' + (parent === '' ? ' concept-input__parent-chip--active' : '')}
+          onClick={() => onParentChange('')}
+        >
+          ⊤ Top level
+        </button>
+        {conceptOptionGroups(concepts).flatMap((g) => g.options).map((o) => {
+          const depth = (o.label.match(/^\u00A0*/) || [''])[0].length / 2;
+          const clean = o.label.replace(/^\u00A0+/, '');
+          return (
+            <button
+              key={o.id}
+              type="button"
+              className={'concept-input__parent-chip' + (parent === o.id ? ' concept-input__parent-chip--active' : '')}
+              style={{ paddingLeft: `calc(${0.5 + depth * 0.625}rem + 2px)` }}
+              onClick={() => onParentChange(o.id)}
+              title={clean}
+            >
+              {clean}
+            </button>
+          );
+        })}
+      </div>
       <div className="concept-input__actions">
         <button className="concept-input__add" onClick={onSubmit}>Add</button>
         <button className="concept-input__cancel" onClick={onCancel}>Cancel</button>
