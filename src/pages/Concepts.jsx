@@ -508,7 +508,8 @@ export default function Concepts() {
     setEditing({
       id: c.id, filePath: c.filePath, label: c.label || '',
       parts: draft ? { ...draft } : parseClear(c.summary),
-      status: c.status || STATUS.UNKNOWN, parent: c.parentId || '',
+      // 트리 노드(buildTree)는 parentId 없이 parent만 가짐 — 기존 부모 유지
+      status: c.status || STATUS.UNKNOWN, parent: c.parentId || c.parent || '',
       pageNumber: Number(c.pageNumber) || 1,
     });
     // 빈 summary 노드만 게이트 — 닫으면 리셋, 초안은 draftRef에 보존
