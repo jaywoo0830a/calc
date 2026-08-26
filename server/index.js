@@ -897,9 +897,11 @@ async function execPractice(code, mode) {
     if (!existsSync(vitestCli)) {
       return { mode, error: `Vitest CLI not found at ${vitestCli} — run 'npm install' in ${REPO_ROOT} and restart the server.` };
     }
-    const { stderr } = await runProcess(
+    // verbose 리포터 = 테스트 계층 상세 로그(stdout, 무색 — 색은 클라가 vitest 팔레트로 입힘)
+    // + json 리포터 = 파싱 요약 둘 다 사용
+    const { stdout, stderr } = await runProcess(
       process.execPath,
-      [vitestCli, 'run', file, '--reporter=json', '--outputFile=' + outFile, '--no-color', '--passWithNoTests'],
+      [vitestCli, 'run', file, '--reporter=verbose', '--reporter=json', '--outputFile=' + outFile, '--passWithNoTests'],
       20000,
       { cwd: REPO_ROOT }
     );
@@ -908,6 +910,8 @@ async function execPractice(code, mode) {
       return { mode, error: stderr.trim() || 'Vitest did not produce results' };
     }
     const raw = JSON.parse(await readFile(outFile, 'utf8'));
+    // json 리포터의 "JSON report written to ..." 안내줄은 콘솔에서 제거
+    const cleanOut = stdout.replace(/\s*JSON report written to [^\n]*/, '').trimEnd();
     const results = (raw.testResults || []).flatMap((s) =>
       (s.assertionResults || []).map((a) => ({
         name: [...(a.ancestorTitles || []), a.title].join(' › '),
@@ -918,6 +922,8 @@ async function execPractice(code, mode) {
     );
     return {
       mode,
+      stdout: cleanOut,
+      stderr,
       summary: {
         total: raw.numTotalTests || results.length,
         passed: raw.numPassedTests || 0,

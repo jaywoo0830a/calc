@@ -14,6 +14,67 @@ import ClearGate from '../components/ClearGate.jsx';
 
 const math = create(all, { number: 'number', precision: 15 });
 
+// ANSI(SGR) 이스케이프 → HTML span — vitest 콘솔 색상 재현
+function ansiToHtml(text) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const FG = {
+    30: '#5c6370', 31: '#e06c75', 32: '#98c379', 33: '#e5c07b', 34: '#61afef',
+    35: '#c678dd', 36: '#56b6c2', 37: '#e8e2d4', 90: '#8a8577', 91: '#e06c75',
+    92: '#98c379', 93: '#e5c07b', 94: '#61afef', 95: '#c678dd', 96: '#56b6c2', 97: '#f5f1e6',
+  };
+  let style = '';
+  const parts = [];
+  const re = /\x1b\[([0-9;]*)m/g;
+  let last = 0;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      const chunk = esc(text.slice(last, m.index));
+      parts.push(style ? `<span style="${style}">${chunk}</span>` : chunk);
+    }
+    const params = (m[1] || '0').split(';').map(Number);
+    for (const p of params) {
+      if (p === 0) style = '';
+      else if (p === 1) style += 'font-weight:700;';
+      else if (p === 2) style += 'opacity:0.7;';
+      else if (p === 22) style = style.replace('font-weight:700;', '');
+      else if (FG[p]) {
+        style = style.replace(/color:[^;]+;/, '');
+        style += `color:${FG[p]};`;
+      }
+    }
+    last = re.lastIndex;
+  }
+  if (last < text.length) {
+    const chunk = esc(text.slice(last));
+    parts.push(style ? `<span style="${style}">${chunk}</span>` : chunk);
+  }
+  return parts.join('');
+}
+
+// vitest 콘솔 라인별 색상 (터미널 팔레트 재현 — ✓초록/×빨강/요약 굵게 등)
+function vitestConsoleHtml(text) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const C = {
+    green: '#98c379', red: '#e06c75', yellow: '#e5c07b', dim: '#8a8577', fg: '#e8e2d4',
+  };
+  const colorize = (line) => {
+    if (line.includes('\x1b')) return ansiToHtml(line); // ANSI가 있으면 그대로 변환
+    const t = line.trimStart();
+    if (t.startsWith('✓')) return `<span style="color:${C.green};font-weight:700">${esc(line)}</span>`;
+    if (t.startsWith('×')) return `<span style="color:${C.red};font-weight:700">${esc(line)}</span>`;
+    if (t.startsWith('❯')) return `<span style="color:${C.yellow}">${esc(line)}</span>`;
+    if (t.startsWith('→')) return `<span style="color:${C.red}">${esc(line)}</span>`;
+    if (/Test Files/.test(line) || /^\s*Tests\s/.test(line)) {
+      const ok = !/failed/.test(line);
+      return `<span style="color:${ok ? C.green : C.red};font-weight:700">${esc(line)}</span>`;
+    }
+    if (/Start at|Duration/.test(line)) return `<span style="color:${C.dim}">${esc(line)}</span>`;
+    return esc(line);
+  };
+  return String(text).split('\n').map(colorize).join('\n');
+}
+
 // ── Default starter template ──────────────────────────────────────────────
 const DEFAULT_CODE = `const { width, height } = container.getBoundingClientRect();
 
@@ -172,6 +233,23 @@ export default function Playground() {
     }
   }, [practiceId, practiceName, practiceCode]);
 
+  // 항상 새 스니펫으로 저장 (현재 항목을 덮어쓰지 않음)
+  const saveAsNew = useCallback(async () => {
+    try {
+      const saved = await api.savePractice({
+        id: globalThis.crypto?.randomUUID?.() || 'p' + Date.now() + Math.random().toString(36).slice(2, 8),
+        name: practiceName.trim() || 'untitled',
+        kind: 'practice',
+        code: practiceCode(),
+      });
+      setPracticeId(saved.id);
+      setPracticeName(saved.name);
+      setSavedList(await api.listPractice());
+    } catch (e) {
+      setResult({ mode: 'run', error: 'Save failed: ' + (e.message || String(e)) });
+    }
+  }, [practiceName, practiceCode]);
+
   const loadPractice = useCallback(async (id) => {
     try {
       const row = await api.getPractice(id);
@@ -252,7 +330,8 @@ export default function Playground() {
             </select>
             <button className="playground__practice-btn" onClick={() => exec('run')} disabled={busy} title="Run code on the server (node)">▶ Run</button>
             <button className="playground__practice-btn playground__practice-btn--test" onClick={() => exec('test')} disabled={busy} title="Run tests on the server (Vitest)">🧪 Test</button>
-            <button className="playground__practice-btn" onClick={savePractice} disabled={busy}>💾 Save</button>
+            <button className="playground__practice-btn" onClick={savePractice} disabled={busy} title="Save — update current snippet">💾 Save</button>
+            <button className="playground__practice-btn" onClick={saveAsNew} disabled={busy} title="Save as new snippet (does not overwrite current)">➕ New</button>
             {practiceId && <button className="playground__practice-btn playground__practice-btn--danger" onClick={deletePractice} title="Delete snippet">🗑</button>}
             {busy && <span className="playground__practice-busy">running…</span>}
           </div>
@@ -269,17 +348,8 @@ export default function Playground() {
                 </>
               ) : (
                 <>
-                  <p className={'playground__test-summary' + (result.summary?.failed ? ' playground__test-summary--fail' : '')}>
-                    {result.summary?.passed ?? 0} passed · {result.summary?.failed ?? 0} failed · {result.summary?.total ?? 0} total
-                  </p>
-                  {(result.results || []).map((r, i) => (
-                    <div key={i} className={'playground__test-row playground__test-row--' + r.status}>
-                      <span className="playground__test-mark">{r.status === 'passed' ? '✔' : '✘'}</span>
-                      <span className="playground__test-name">{r.name}</span>
-                      <span className="playground__test-dur">{Math.round(r.duration)}ms</span>
-                      {r.error && <pre className="playground__test-error">{r.error}</pre>}
-                    </div>
-                  ))}
+                  {/* 실제 vitest 터미널 콘솔 (verbose + vitest 팔레트 색상) */}
+                  <pre className="playground__test-console" dangerouslySetInnerHTML={{ __html: vitestConsoleHtml(result.stdout || result.stderr || 'No output.') }} />
                 </>
               )}
             </div>

@@ -261,6 +261,23 @@
     &--fail { color: $c-error; }
   }
 
+  // 실제 vitest 터미널 콘솔 (그대로 출력)
+  &__test-console {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: #e8e2d4;
+    background: #221e17;
+    border-radius: $radius-sm;
+    padding: $sp-3;
+    max-height: 22rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; // iOS/태블릿 모멘텀 스크롤
+    overscroll-behavior: contain;
+  }
+
   &__test-row {
     display: flex;
     flex-wrap: wrap;
