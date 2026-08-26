@@ -22,12 +22,14 @@
   display: flex;
   flex-wrap: nowrap;                   // 한 줄 유지 — 넘치면 가로 스크롤
   flex-shrink: 0;                      // 세로 flex 컨테이너에서 눌리지 않게
-  gap: $sp-0;
+  gap: $sp-1;
+  align-items: center;
   margin-bottom: $sp-2;
-  padding: $sp-1;
-  background: $c-page;
-  border: $border-thin solid $c-rule;
-  border-radius: $radius-md;
+  padding: $sp-1 0;                    // 카드 대신 낮은 계층 — 헤어라인만
+  background: transparent;
+  border: none;
+  border-bottom: $border-thin solid $c-rule-light;
+  border-radius: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
@@ -46,14 +48,79 @@
 
   // 태블릿(≥480px): 더 큰 탭
   @media (min-width: $bp-sm) {
-    gap: $sp-1;
-    padding: $sp-2;
+    gap: $sp-2;
     margin-bottom: $sp-3;
   }
 }
 
+// ── ⋯ 더보기 (secondary 탭 접이식 메뉴) ──
+.app-nav__more-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.app-nav__more {
+  border: none;
+  background: transparent;
+  color: $c-ink-faint;
+  font-family: $ff;
+  font-size: $fs-step--1;
+  font-weight: $fw-semibold;
+  padding: $sp-1 $sp-2;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: all $transition-fast;
+
+  @media (hover: hover) {
+    &:hover { color: $c-ink; }
+  }
+
+  &[aria-expanded='true'] {
+    color: $c-accent;
+  }
+}
+
+.app-nav__more-menu {
+  position: fixed;                  // portal(body) 렌더 — 내비 스크롤 컨테이너에 갇히지 않음
+  z-index: $z-sidebar;             // 콘텐츠 위
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  max-height: min(70vh, 24rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: $sp-1;
+  background: $c-page;
+  border: $border-thin solid $c-rule;
+  border-radius: $radius-md;
+  box-shadow: $shadow-lg;
+}
+
+.app-nav__more-item {
+  display: block;
+  padding: $sp-2 $sp-3;
+  border-radius: $radius-sm;
+  font-size: $fs-step--1;
+  color: $c-ink-soft;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all $transition-fast;
+
+  @media (hover: hover) {
+    &:hover { background: $c-page-dark; color: $c-ink; }
+  }
+
+  &--active {
+    color: $c-accent;
+    font-weight: $fw-semibold;
+    background: $c-accent-light;
+  }
+}
+
 .app-nav__tab {
-  flex: 1;
+  flex: 0 0 auto;                       // 내용 크기 — 공간 효율 (flex:1 스트레치 제거)
   padding: $sp-1 $sp-2;
   border-radius: $radius-sm;
   text-align: center;
@@ -65,16 +132,11 @@
   white-space: nowrap;
   text-decoration: none;
 
-  @media (min-width: $bp-sm) {
-    font-size: $fs-step-0;
-    padding: $sp-2 $sp-3;
-  }
-
   // underline 애니메이션
   &::after {
     content: '';
     position: absolute;
-    bottom: 0.125rem;
+    bottom: 0.0625rem;
     left: 50%;
     width: 0;
     height: 0.125rem;
@@ -87,18 +149,42 @@
   @media (hover: hover) {
     &:hover {
       color: $c-ink;
-      background: $c-page-dark;
+    }
+  }
+
+  // ── 핵심 탭 (Calc·Viewer·Concepts) — 1계층 ──
+  &--primary {
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+    padding: $sp-1 $sp-3;
+
+    @media (min-width: $bp-sm) {
+      font-size: $fs-step-0;
+      padding: $sp-1 $sp-4;
+    }
+  }
+
+  // ── 보조 탭 — 2계층 (작고 낮게) ──
+  &--secondary {
+    font-size: $fs-step--2;
+    font-weight: $fw-normal;
+    color: $c-ink-faint;
+    padding: $sp-1 $sp-2;
+
+    @media (hover: hover) {
+      &:hover {
+        color: $c-ink-soft;
+      }
     }
   }
 
   &--active {
-    color: $c-ink;
-    font-weight: $fw-semibold;
-    background: $c-page-dark;
-    box-shadow: $shadow-xs;
+    color: $c-accent;
 
     &::after {
-      width: 60%;
+      width: 70%;
     }
   }
 }
+
