@@ -15,8 +15,6 @@
   &__empty,
   &__list {
     width: 100%;
-    max-width: 52rem;
-    align-self: center; // 중앙 정렬은 stretch 대신 align-self로 — 넘치면 좌우 클립 방지
   }
 
   &__head {

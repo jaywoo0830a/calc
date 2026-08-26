@@ -6,7 +6,10 @@
 @use 'styles/variables';
 @use 'styles/base';
 
-// ---- 2. Blocks --------------------------------------------
+// ---- 2. 공용 레이아웃 (모든 탭 셸 + 전역 내비) ------------
+@use 'styles/layout';
+
+// ---- 3. Blocks --------------------------------------------
 @use 'styles/calculator';
 @use 'styles/viewer';
 @use 'styles/playground';

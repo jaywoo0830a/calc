@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import { parse } from 'mathjs';
 import { analyzePoint, analyzeRange, validateVarName } from '../lib/relation.js';
 import {
@@ -138,8 +138,7 @@ export default function Relation() {
   const SIGN_ICON = { positive: '↗', negative: '↘', zero: '→' };
 
   return (
-    <main className="relation">
-      <AppNav />
+    <AppLayout className="relation">
 
       <div className="relation__head">
         <h1 className="relation__title">🔗 Relation Analyzer</h1>
@@ -273,6 +272,6 @@ export default function Relation() {
           </div>
         </div>
       </div>
-    </main>
+    </AppLayout>
   );
 }

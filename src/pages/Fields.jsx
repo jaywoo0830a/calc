@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import { fieldAt, forceOnChargeScene, sceneField, plateField, fieldLineCount, potentialCorners, contourPaths, traceFieldLine } from '../lib/electrostatics.js';
 import { screenOffset } from '../lib/canvasMath.js';
 
@@ -707,8 +707,7 @@ export default function Fields() {
   };
 
   return (
-    <main className="fields">
-      <AppNav />
+    <AppLayout className="fields">
 
       <div className="fields__panel">
         <div className="fields__chips" role="group" aria-label="Mode, tools and overlays">
@@ -805,6 +804,6 @@ export default function Fields() {
           </span>
         )}
       </div>
-    </main>
+    </AppLayout>
   );
 }

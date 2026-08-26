@@ -11,73 +11,6 @@
   min-height: 0;
   outline: none;
 
-  // ---- Navigation — ruled tabs ----------------------------
-  &__nav {
-    display: flex;
-    flex-wrap: nowrap;                   // 한 줄 유지 — 넘치면 가로 스크롤
-    flex-shrink: 0;                      // 세로 flex 컨테이너에서 눌리지 않게
-    gap: $sp-0;
-    margin-bottom: $sp-2;
-    padding: $sp-1;
-    background: $c-page;
-    border: $border-thin solid $c-rule;
-    border-radius: $radius-md;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: thin;
-    scrollbar-color: $c-rule transparent;
-
-    &::-webkit-scrollbar { height: 0.25rem; }
-    &::-webkit-scrollbar-thumb { background: $c-rule; border-radius: 0.125rem; }
-    &::-webkit-scrollbar-track { background: transparent; }
-  }
-
-  &__nav-tab {
-    flex: 1;
-    padding: $sp-1 $sp-2;
-    border-radius: $radius-sm;
-    text-align: center;
-    font-size: $fs-step--2;
-    font-weight: $fw-medium;
-    color: $c-ink-soft;
-    transition: all $transition-fast;
-    position: relative;
-    white-space: nowrap;
-    text-decoration: none;
-
-    // underline 애니메이션
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: 0.125rem;
-      left: 50%;
-      width: 0;
-      height: 0.125rem;
-      background: $c-accent;
-      border-radius: 0.0625rem;
-      transition: all $transition-normal;
-      transform: translateX(-50%);
-    }
-
-    @media (hover: hover) {
-      &:hover {
-        color: $c-ink;
-        background: $c-page-dark;
-      }
-    }
-
-    &--active {
-      color: $c-ink;
-      font-weight: $fw-semibold;
-      background: $c-page-dark;
-      box-shadow: $shadow-xs;
-
-      &::after {
-        width: 60%;
-      }
-    }
-  }
-
   // ---- Display — like a paper readout ----------------------
   &__display {
     position: relative;
@@ -628,32 +561,20 @@
 
 // ============================================================
 // 좁은 화면 (≤768px): 탭은 내용 크기 유지 → 넘치면 가로 스크롤
+// (내비 규칙은 layout.scss의 .app-nav에서 공통 관리)
 // ============================================================
-@media (max-width: $bp-md) {
-  .calculator__nav-tab {
-    min-width: max-content;
-  }
-}
 
 // ============================================================
 // Responsive — Tablet (≥ 480px): moderate scaling
 // ============================================================
 @media (min-width: $bp-sm) {
   .calculator {
-    max-width: 32rem;
-    margin: 0 auto;
-    width: 100%;
-
-    // ---- Navigation — larger tabs ---------------------------
-    &__nav {
-      gap: $sp-1;
-      padding: $sp-2;
-      margin-bottom: $sp-3;
-    }
-
-    &__nav-tab {
-      font-size: $fs-step-0;
-      padding: $sp-2 $sp-3;
+    // 페이지 셸·내비는 layout.scss가 통일 — 계산기 콘텐츠만 컴팩트 폭 유지
+    > :not(.app-nav) {
+      width: 100%;
+      max-width: 32rem;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     // ---- Display — slightly taller -------------------------
@@ -721,13 +642,13 @@
 }
 
 // ============================================================
-// Responsive — Desktop (≥ 1024px): keep compact, center it
+// Responsive — Desktop (≥ 1024px): keep compact, center content
 // ============================================================
 @media (min-width: $bp-lg) {
   .calculator {
-    max-width: 28rem;
-    margin: 0 auto;
-    width: 100%;
+    > :not(.app-nav) {
+      max-width: 28rem;
+    }
   }
 }
 

@@ -28,7 +28,7 @@ const EXCLUDE_SELECTOR = [
   '.pdf-annotator__sel-trigger',       // PDF 하이라이트/밑줄 툴바
   '.pdf-annotator__toolbar',
   '.pdf-annotator__nav',
-  '.calculator__nav',
+  '.app-nav',
   '.viewer__controls',
   '.range-select',                     // ✂️ 도크 자체
   '.recent-nav',                       // 🕘 히스토리 버튼/패널

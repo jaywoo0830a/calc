@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import ImageLightbox from '../components/ImageLightbox.jsx';
 import { getAllSummaries, deleteAnnotation } from '../lib/storage.js';
 import { setPendingSummary } from '../lib/summaryJump.js';
@@ -49,8 +49,7 @@ export default function Summaries() {
   }, []);
 
   return (
-    <main className="summaries">
-      <AppNav />
+    <AppLayout className="summaries">
 
       <div className="summaries__head">
         <h1 className="summaries__title">📒 Summaries</h1>
@@ -133,6 +132,6 @@ export default function Summaries() {
           />
         );
       })()}
-    </main>
+    </AppLayout>
   );
 }

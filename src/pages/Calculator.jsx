@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import Display from '../components/Display.jsx';
 import Keypad from '../components/Keypad.jsx';
 import { useCalculator, SI_PREFIX_KEYS } from '../hooks/useCalculator.js';
@@ -74,8 +74,7 @@ export default function Calculator() {
   }, [sound, calc]);
 
   return (
-    <main className={'calculator' + (calc.sciMode ? ' calculator--sci' : '')} onKeyDown={handleKeyDown} tabIndex={-1}>
-      <AppNav />
+    <AppLayout className={'calculator' + (calc.sciMode ? ' calculator--sci' : '')} onKeyDown={handleKeyDown} tabIndex={-1}>
       <Display expression={calc.expression} result={calc.result} temp={calc.temp} />
       <div className="calculator__toolbar">
         <div className="calculator__mode-switch" role="group" aria-label="Calculator mode">
@@ -155,6 +154,6 @@ export default function Calculator() {
           {muted ? '🔇' : '🔊'}
         </button>
       </footer>
-    </main>
+    </AppLayout>
   );
 }

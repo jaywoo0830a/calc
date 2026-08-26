@@ -21,14 +21,14 @@ const TABS = [
 
 export default function AppNav() {
   return (
-    <nav className="calculator__nav">
+    <nav className="app-nav">
       {TABS.map((t) => (
         <NavLink
           key={t.to}
           to={t.to}
           end={t.end}
           className={({ isActive }) =>
-            'calculator__nav-tab' + (isActive ? ' calculator__nav-tab--active' : '')
+            'app-nav__tab' + (isActive ? ' app-nav__tab--active' : '')
           }
         >
           {t.label}

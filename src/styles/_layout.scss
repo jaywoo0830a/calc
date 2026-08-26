@@ -1,0 +1,104 @@
+@use 'variables' as *;
+
+// ============================================================
+// layout — 공용 앱 레이아웃 (모든 탭 일관 적용)
+//  · .app-page : 페이지 셸 — flex 컬럼, 화면 채움 (뷰어·필드·캔버스처럼 전체 폭)
+//  · .app-nav  : 전역 탭 내비게이션 (반응형 전부 토큰 기준)
+// ============================================================
+
+// ---- 페이지 셸 --------------------------------------------
+.app-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;        // 모든 브레이크포인트에서 가용 폭 전부 사용
+  margin: 0 auto;
+}
+
+// ---- 전역 탭 내비게이션 — ruled tabs ----------------------
+.app-nav {
+  display: flex;
+  flex-wrap: nowrap;                   // 한 줄 유지 — 넘치면 가로 스크롤
+  flex-shrink: 0;                      // 세로 flex 컨테이너에서 눌리지 않게
+  gap: $sp-0;
+  margin-bottom: $sp-2;
+  padding: $sp-1;
+  background: $c-page;
+  border: $border-thin solid $c-rule;
+  border-radius: $radius-md;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: $c-rule transparent;
+
+  &::-webkit-scrollbar { height: 0.25rem; }
+  &::-webkit-scrollbar-thumb { background: $c-rule; border-radius: 0.125rem; }
+  &::-webkit-scrollbar-track { background: transparent; }
+
+  // 좁은 화면(≤768px): 탭은 내용 크기 유지 → 넘치면 가로 스크롤
+  @media (max-width: $bp-md) {
+    .app-nav__tab {
+      min-width: max-content;
+    }
+  }
+
+  // 태블릿(≥480px): 더 큰 탭
+  @media (min-width: $bp-sm) {
+    gap: $sp-1;
+    padding: $sp-2;
+    margin-bottom: $sp-3;
+  }
+}
+
+.app-nav__tab {
+  flex: 1;
+  padding: $sp-1 $sp-2;
+  border-radius: $radius-sm;
+  text-align: center;
+  font-size: $fs-step--2;
+  font-weight: $fw-medium;
+  color: $c-ink-soft;
+  transition: all $transition-fast;
+  position: relative;
+  white-space: nowrap;
+  text-decoration: none;
+
+  @media (min-width: $bp-sm) {
+    font-size: $fs-step-0;
+    padding: $sp-2 $sp-3;
+  }
+
+  // underline 애니메이션
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0.125rem;
+    left: 50%;
+    width: 0;
+    height: 0.125rem;
+    background: $c-accent;
+    border-radius: 0.0625rem;
+    transition: all $transition-normal;
+    transform: translateX(-50%);
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      color: $c-ink;
+      background: $c-page-dark;
+    }
+  }
+
+  &--active {
+    color: $c-ink;
+    font-weight: $fw-semibold;
+    background: $c-page-dark;
+    box-shadow: $shadow-xs;
+
+    &::after {
+      width: 60%;
+    }
+  }
+}

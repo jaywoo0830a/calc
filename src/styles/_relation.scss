@@ -300,10 +300,3 @@
     align-items: flex-start;
   }
 }
-
-// ── 데스크톱에서만 콘텐츠 폭 제한 (태블릿은 전체 폭 활용) ────────
-@media (min-width: $bp-lg) {
-  .relation {
-    max-width: $page-width;
-  }
-}

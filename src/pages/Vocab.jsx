@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import { api } from '../lib/api.js';
 import { lookupDefinition } from '../lib/dictionary.js';
 import { useClearGate } from '../hooks/useClearGate.js';
@@ -151,8 +151,7 @@ export default function Vocab() {
   }, [quiz, closeQuiz]);
 
   return (
-    <main className="vocab">
-      <AppNav />
+    <AppLayout className="vocab">
 
       <div className="vocab__head">
         <h1 className="vocab__title">📖 Vocabulary</h1>
@@ -318,6 +317,6 @@ export default function Vocab() {
       )}
 
       <ClearGate {...gateProps} />
-    </main>
+    </AppLayout>
   );
 }

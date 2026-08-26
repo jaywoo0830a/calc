@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import Plotly from 'plotly.js-dist-min';
 import { create, all } from 'mathjs';
 import { EditorState } from '@codemirror/state';
@@ -165,8 +165,7 @@ Plotly.newPlot(container, [
   useEffect(() => { setTimeout(() => run(DEFAULT_CODE), 300); }, [run]);
 
   return (
-    <main className="mathspace">
-      <AppNav />
+    <AppLayout className="mathspace">
       <div className="mathspace__examples">
         <button className={'mathspace__chip' + (plotType === 'surface' ? ' mathspace__chip--active' : '')} onClick={() => examples('surface')}>🔮 Surface</button>
         <button className={'mathspace__chip' + (plotType === 'contour' ? ' mathspace__chip--active' : '')} onClick={() => examples('contour')}>🎯 Contour</button>
@@ -194,6 +193,6 @@ Plotly.newPlot(container, [
           <div ref={plotRef} className="mathspace__plot" />
         </div>
       </div>
-    </main>
+    </AppLayout>
   );
 }

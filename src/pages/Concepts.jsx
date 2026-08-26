@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import { getAllConcepts, saveConcept, deleteConcept } from '../lib/storage.js';
 import { setPendingConcept, takePendingConceptsFullscreen } from '../lib/conceptJump.js';
 import {
@@ -1026,8 +1026,7 @@ export default function Concepts() {
   );
 
   return (
-    <main className="concepts">
-      <AppNav />
+    <AppLayout className="concepts">
 
       {loadError ? (
         <div className="concepts__empty">Couldn't load concepts — check the server.</div>
@@ -1262,6 +1261,6 @@ export default function Concepts() {
           treeFull && overlayRef.current ? overlayRef.current : document.body
         );
       })()}
-    </main>
+    </AppLayout>
   );
 }

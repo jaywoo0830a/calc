@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import { marked } from 'marked';
 import { pushRecent, clearRecent, registerRecentNavigate } from '../lib/recentHistory.js';
 import { takePendingProblem } from '../lib/problemJump.js';
@@ -1065,8 +1065,7 @@ export default function Viewer() {
   useEffect(() => () => { registerRecentNavigate(null); clearRecent(); }, []);
 
   return (
-    <div className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')} style={readabilityVars} ref={viewerRef}>
-      {!fullscreen && <AppNav />}
+    <AppLayout className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')} hideNav={fullscreen} style={readabilityVars} ref={viewerRef}>
       {!fullscreen && (
         <div className="viewer__upload"
           onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && f.name.endsWith('.zip')) loadZip(f); }}
@@ -1322,6 +1321,6 @@ export default function Viewer() {
         </div>
       )}
       <ClearGate {...gateProps} />
-    </div>
+    </AppLayout>
   );
 }

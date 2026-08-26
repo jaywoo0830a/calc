@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import { api } from '../lib/api.js';
 import { setPendingProblem } from '../lib/problemJump.js';
 import { useClearGate } from '../hooks/useClearGate.js';
@@ -69,8 +69,7 @@ export default function Problems() {
   }, [refresh]);
 
   return (
-    <main className="problems">
-      <AppNav />
+    <AppLayout className="problems">
 
       <div className="problems__head">
         <h1 className="problems__title">📋 Problems</h1>
@@ -154,6 +153,6 @@ export default function Problems() {
       )}
 
       <ClearGate {...gateProps} />
-    </main>
+    </AppLayout>
   );
 }

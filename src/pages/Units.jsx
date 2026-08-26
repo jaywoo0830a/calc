@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import {
   BASE_UNITS,
   UNITS,
@@ -96,8 +96,7 @@ export default function Units() {
     setAliases((prev) => prev.map((a) => (a.sym === sym ? { ...a, enabled: !a.enabled } : a)));
 
   return (
-    <main className="units">
-      <AppNav />
+    <AppLayout className="units">
 
       <div className="units__head">
         <h1 className="units__title">⚖ Units</h1>
@@ -289,6 +288,6 @@ export default function Units() {
           );
         })}
       </div>
-    </main>
+    </AppLayout>
   );
 }

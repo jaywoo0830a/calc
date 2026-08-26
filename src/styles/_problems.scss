@@ -215,13 +215,3 @@
     background: $c-error-light;
   }
 }
-
-// ── 데스크톱에서만 콘텐츠 폭 제한 (태블릿은 전체 폭 활용) ────────
-@media (min-width: $bp-lg) {
-  .problems__head,
-  .problems__empty,
-  .problems__list {
-    max-width: $page-width;
-    align-self: center; // 중앙 정렬은 stretch 대신 align-self로 — 넘치면 좌우 클립 방지
-  }
-}

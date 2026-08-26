@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import AppNav from '../components/AppNav.jsx';
+import AppLayout from '../components/AppLayout.jsx';
 import * as THREE from 'three';
 import { OrbitControls } from '../lib/OrbitControls.js';
 import { create, all } from 'mathjs';
@@ -87,8 +87,7 @@ export default function Playground() {
   useEffect(() => { setTimeout(() => run(DEFAULT_CODE), 200); }, [run]);
 
   return (
-    <main className="playground">
-      <AppNav />
+    <AppLayout className="playground">
       <div className="playground__toggle-bar">
         <button className={'playground__toggle-btn' + (collapsed === 'editor' ? ' playground__toggle-btn--active' : '')} onClick={() => setCollapsed(collapsed === 'editor' ? null : 'editor')}>
           {collapsed === 'editor' ? '◀ Code' : 'Code ▶'}
@@ -110,6 +109,6 @@ export default function Playground() {
           <div ref={canvasRef} className="playground__canvas" />
         </div>
       </div>
-    </main>
+    </AppLayout>
   );
 }
