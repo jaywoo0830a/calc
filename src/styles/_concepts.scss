@@ -225,6 +225,30 @@ $guide-color: $c-rule;
       border-color: $c-accent;
       box-shadow: 0 0.0625rem 0.25rem rgba(92, 61, 46, 0.18);
     }
+
+    // 상태 필터의 조상 컨텍스트 행 — 라벨 없이 '⋯' 자리만 (회색으로 명확히 구분)
+    &--context {
+      min-width: 0;
+      width: fit-content;
+      background: #dcd5c8;              // 연한 회색 필 — 흰 노드와 구분되되 은은하게
+      border: $border-thin solid #c2bbaa;
+      opacity: 0.9;
+      cursor: default;
+      box-shadow: none;
+
+      &:hover {
+        opacity: 1;
+        border-color: #b1a997;
+        box-shadow: none;
+      }
+    }
+  }
+
+  &__context-ellipsis {
+    color: #726858;
+    font-size: $fs-step--1;
+    line-height: 1;
+    padding: 0.1rem 0.4rem;
   }
 
   &__status {

@@ -7,7 +7,7 @@ import ConceptParentPicker from '../components/ConceptParentPicker.jsx';
 import { setPendingConcept, takePendingConceptsFullscreen } from '../lib/conceptJump.js';
 import {
   updateNode, reparentNode, deleteNode, buildTree,
-  reviewQueue, STATUS, REVIEW_PRIORITY,
+  STATUS, REVIEW_PRIORITY,
   addNode, setOrder, childrenOf, suggestId,
   conceptsToMap, conceptIdBase,
 } from '../lib/conceptMap.js';
@@ -37,6 +37,25 @@ const STATUS_LABELS = {
 /** 같은 문서의 노드만 담은 core map */
 function docMap(items, filePath) {
   return conceptsToMap((items || []).filter((c) => c.filePath === filePath));
+}
+
+/**
+ * 상태 필터 트리 — 매칭 노드 + 그 **조상 사슬**을 유지해 계층을 보존한다.
+ * 매칭 노드는 __match=true, 조상(context) 노드는 __match=false(흐리게 표시).
+ */
+function filterTree(roots, status) {
+  const out = [];
+  const walk = (n) => {
+    const kids = (n.children || []).map(walk).filter(Boolean);
+    if (n.status === status) return { ...n, __match: true, children: kids };
+    if (kids.length > 0) return { ...n, __match: false, children: kids }; // 조상 컨텍스트
+    return null;
+  };
+  for (const r of roots) {
+    const k = walk(r);
+    if (k) out.push(k);
+  }
+  return out;
 }
 
 /** 답안 비교 정규화 — 공백·대소문자 무시 */
@@ -388,7 +407,19 @@ export default function Concepts() {
 
   // ── 🧠 Test 모드 ──
   const startTest = useCallback((rootId) => {
-    const ids = testScopeOf(items, selectedFp, { rootId, retryIds: null });
+    // 노드를 선택한 경우 → 그 노드와 **같은 상태**의 노드만 (문서 전체) 테스트 범위
+    let ids;
+    let status = null;
+    if (rootId) {
+      const map = docMap(items, selectedFp);
+      const picked = map[rootId];
+      status = picked ? picked.status : null;
+      ids = status
+        ? Object.values(map).filter((n) => n.status === status).map((n) => n.id)
+        : testScopeOf(items, selectedFp, { rootId, retryIds: null });
+    } else {
+      ids = testScopeOf(items, selectedFp, { rootId, retryIds: null });
+    }
     let blankIds;
     if (testType === 'deep') {
       const shuffled = ids.slice().sort(() => Math.random() - 0.5);
@@ -397,7 +428,7 @@ export default function Concepts() {
       blankIds = ids.slice(); // A — 전부 빈칸
     }
     setTest({
-      type: testType, rootId, blankIds,
+      type: testType, rootId, status, scopeIds: ids, blankIds,
       answers: {}, scored: false, missed: [], retryIds: null,
     });
     setTestPick(false);
@@ -722,8 +753,27 @@ export default function Concepts() {
 
   // ── 트리 행 (재귀) — 기본=이름만 · 클릭=내용 · 더블클릭=편집 ──
   const renderRow = (node, fp, isLast = false) => {
-    const record = { ...node, filePath: fp };
     const kids = node.children || [];
+    const isContext = node.__match === false; // 상태 필터의 조상 컨텍스트
+
+    // 조상 컨텍스트 — 라벨·상태 없이 '위에 노드가 있다'는 자리만 표시
+    if (isContext) {
+      return (
+        <div key={node.id} className={'concepts__item' + (isLast ? ' concepts__item--last' : '')}>
+          <div className="concepts__row concepts__row--context" data-node-id={node.id} title="Ancestor node">
+            <span className="concepts__toggle-spacer" />
+            <span className="concepts__context-ellipsis">⋯</span>
+          </div>
+          {kids.length > 0 && (
+            <div className="concepts__children">
+              {kids.map((child, i) => renderRow(child, fp, i === kids.length - 1))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const record = { ...node, filePath: fp };
     const isCollapsed = collapsed.has(node.id);
     const hint = dropHint && dropHint.id === node.id ? dropHint.pos : null;
     return (
@@ -845,9 +895,8 @@ export default function Concepts() {
   const testRoots = useMemo(() => {
     if (!test || test.retryIds) return null;
     const roots = buildTree(testDocMap);
-    if (!test.rootId) return roots;
-    const sub = findTreeNode(roots, test.rootId);
-    return sub ? [sub] : [];
+    if (!test.rootId) return roots;                      // 전체 문서 — 트리 그대로
+    return filterTree(roots, test.status);               // 상태별 — 계층 유지(조상 ⋯ 포함)
   }, [test, testDocMap]);
 
   // 빈 노드 완료 여부 — A(라벨만)는 라벨 필수, B(deep)는 요약까지(원 요약 있을 때)
@@ -878,7 +927,7 @@ export default function Concepts() {
 
   const retryTest = useCallback(() => {
     setTest((t) => (t ? {
-      type: t.type, rootId: t.rootId, blankIds: t.blankIds,
+      type: t.type, rootId: t.rootId, status: t.status, scopeIds: t.scopeIds, blankIds: t.blankIds,
       answers: {}, scored: false, missed: [], retryIds: t.missed,
     } : t));
     setTestInput(null);
@@ -895,6 +944,22 @@ export default function Concepts() {
   const renderTestRow = (node, fp, isLast = false) => {
     if (!node) return null;
     const kids = node.children || [];
+    // 조상 컨텍스트 — 목록과 동일하게 회색 ⋯ 자리표만
+    if (node.__match === false) {
+      return (
+        <div key={node.id} className={'concepts__item' + (isLast ? ' concepts__item--last' : '')}>
+          <div className="concepts__row concepts__row--context" title="Ancestor node">
+            <span className="concepts__toggle-spacer" />
+            <span className="concepts__context-ellipsis">⋯</span>
+          </div>
+          {kids.length > 0 && (
+            <div className="concepts__children">
+              {kids.map((ch, i) => renderTestRow(ch, fp, i === kids.length - 1))}
+            </div>
+          )}
+        </div>
+      );
+    }
     const blanked = (test.retryIds || test.blankIds || []).includes(node.id);
     const ans = test.answers[node.id] || {};
     const labelText = ans.label || '';
@@ -1097,7 +1162,7 @@ export default function Concepts() {
                 <section className="concepts__group">
                   {testRoots
                     ? testRoots.map((root, i) => renderTestRow(root, selectedFp, i === testRoots.length - 1))
-                    : (test.retryIds || []).map((id, i) => renderTestRow(testDocMap[id], selectedFp, i === test.retryIds.length - 1))}
+                    : (test.retryIds || test.scopeIds || []).map((id, i) => renderTestRow(testDocMap[id], selectedFp, i === (test.retryIds || test.scopeIds || []).length - 1))}
                 </section>
               </div>
             </>
@@ -1107,8 +1172,8 @@ export default function Concepts() {
                 <div className="concepts__test-bar">
                   <span className="concepts__test-bar-count">
                     {testType === 'deep'
-                      ? 'Deep test — tap a branch to test its labels and notes'
-                      : 'Test — tap a branch to test its labels'}
+                      ? 'Deep test — tap a node to test its status group'
+                      : 'Test — tap a node to test its status group'}
                   </span>
                   <span className="concepts__test-bar-actions">
                     <button className="concepts__test-btn" onClick={() => startTest(null)}>Whole document</button>
@@ -1123,9 +1188,8 @@ export default function Concepts() {
                   <section className="concepts__group">
                     {filter === 'all'
                       ? buildTree(docMap(items, selectedFp)).map((root) => renderRow(root, selectedFp))
-                      : reviewQueue(docMap(items, selectedFp))
-                        .filter((n) => n.status === filter)
-                        .map((n) => renderRow({ ...n, children: [] }, selectedFp))}
+                      : filterTree(buildTree(docMap(items, selectedFp)), filter)
+                        .map((root) => renderRow(root, selectedFp))}
                   </section>
                 </div>
               )}
@@ -1189,9 +1253,8 @@ export default function Concepts() {
               >
                 {filter === 'all'
                   ? buildTree(docMap(items, selectedFp)).map((root) => renderRow(root, selectedFp))
-                  : reviewQueue(docMap(items, selectedFp))
-                    .filter((n) => n.status === filter)
-                    .map((n) => renderRow({ ...n, children: [] }, selectedFp))}
+                  : filterTree(buildTree(docMap(items, selectedFp)), filter)
+                    .map((root) => renderRow(root, selectedFp))}
               </section>
             </div>
           </div>
