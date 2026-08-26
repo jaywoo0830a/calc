@@ -1,13 +1,15 @@
 import express from 'express';
 import multer from 'multer';
 import yauzl from 'yauzl';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { rm, mkdir, writeFile, rename } from 'node:fs/promises';
+import { rm, mkdir, writeFile, rename, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { problems, archives, archivesDir, vocab, vocabAliases, annotations, bookmarks, concepts, pdfPosition } from './db.js';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+import { problems, archives, archivesDir, vocab, vocabAliases, annotations, bookmarks, concepts, pdfPosition, practice } from './db.js';
 import { CONFIG } from './config.js';
 const app = express();
 // 이미지 주석(dataURL) 수용 한도 — 10MB 바이너리 ≈ 13.4MB base64 + 여유
@@ -798,9 +800,139 @@ app.post('/pdf-position', (req, res) => {
   }
 });
 
+// ── 📝 Practice (Three.js 탭 연습장) — 서버 실행 · Vitest 테스트 ────────────
+const REPO_ROOT = join(__dirname, '..');
+const PRACTICE_LIBS = {
+  electrostatics: join(REPO_ROOT, 'src', 'lib', 'electrostatics.js'),
+  units: join(REPO_ROOT, 'src', 'lib', 'units.js'),
+  relation: join(REPO_ROOT, 'src', 'lib', 'relation.js'),
+  canvasMath: join(REPO_ROOT, 'src', 'lib', 'canvasMath.js'),
+};
+
+app.get('/practice', (req, res) => res.json(practice.list()));
+
+app.get('/practice/:id', (req, res) => {
+  const row = practice.get(req.params.id);
+  row ? res.json(row) : res.status(404).json({ error: 'snippet not found' });
+});
+
+app.post('/practice', (req, res) => {
+  const { id, name, kind, code } = req.body || {};
+  if (!id || !name || !code) return res.status(400).json({ error: 'id, name, code required' });
+  try {
+    res.json(practice.upsert({ id, name, kind: kind === 'canvas' ? 'canvas' : 'practice', code: String(code) }));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/practice/:id', requireClearToken, (req, res) => {
+  practice.remove(req.params.id);
+  res.json({ ok: true });
+});
+
+// 자식 프로세스 실행 — 타임아웃 시 SIGKILL. 종료 코드는 code로 반환(비0도 거부하지 않음)
+function runProcess(cmd, args, timeoutMs, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { ...opts, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      child.kill('SIGKILL');
+      reject(new Error(`Timed out after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
+    child.stdout.on('data', (d) => { stdout += d; });
+    child.stderr.on('data', (d) => { stderr += d; });
+    child.on('error', (err) => { if (!done) { done = true; clearTimeout(timer); reject(err); } });
+    child.on('close', (code) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve({ stdout, stderr, code: code ?? -1 });
+    });
+  });
+}
+
+/**
+ * 스니펫 실행 — mode: 'run'(node) | 'test'(vitest).
+ * 첫 줄 `// @uses lib1, lib2` → 화이트리스트 lib를 import로 주입.
+ */
+async function execPractice(code, mode) {
+  const dir = join(REPO_ROOT, 'server', 'data', 'tmp', randomUUID());
+  await mkdir(dir, { recursive: true });
+  try {
+    const uses = [];
+    const m = String(code).match(/^\s*\/\/\s*@uses\s+([\w,\s]+)\s*$/m);
+    if (m) uses.push(...m[1].split(',').map((s) => s.trim()).filter(Boolean));
+    const unknown = uses.filter((u) => !PRACTICE_LIBS[u]);
+    if (unknown.length) {
+      return { error: `Unknown @uses lib: ${unknown.join(', ')} — available: ${Object.keys(PRACTICE_LIBS).join(', ')}` };
+    }
+    const preamble = uses.map((u) => `import * as ${u} from '${PRACTICE_LIBS[u]}';`).join('\n');
+    const isTest = mode === 'test';
+    const file = join(dir, isTest ? 'snippet.test.mjs' : 'snippet.mjs');
+    const head = isTest
+      ? "import { describe, it, expect, test, beforeEach, afterEach, vi } from 'vitest';\n"
+      : '';
+    await writeFile(file, head + preamble + (preamble ? '\n' : '') + code);
+
+    if (!isTest) {
+      const { stdout, stderr, code } = await runProcess(process.execPath, [file], 8000, { cwd: REPO_ROOT });
+      if (code !== 0) return { mode, error: stderr.trim() || `Exit code ${code}`, stdout, stderr };
+      return { mode, stdout, stderr };
+    }
+
+    const outFile = join(dir, 'results.json');
+    const vitestCli = join(REPO_ROOT, 'node_modules', 'vitest', 'vitest.mjs');
+    const { stderr } = await runProcess(
+      process.execPath,
+      [vitestCli, 'run', file, '--reporter=json', '--outputFile=' + outFile, '--no-color', '--passWithNoTests'],
+      20000,
+      { cwd: REPO_ROOT }
+    );
+    // vitest는 실패 테스트가 있으면 exit 1 — 결과 파일이 있으면 정상 실행으로 간주
+    if (!existsSync(outFile)) {
+      return { mode, error: stderr.trim() || 'Vitest did not produce results' };
+    }
+    const raw = JSON.parse(await readFile(outFile, 'utf8'));
+    const results = (raw.testResults || []).flatMap((s) =>
+      (s.assertionResults || []).map((a) => ({
+        name: [...(a.ancestorTitles || []), a.title].join(' › '),
+        status: a.status,
+        duration: a.duration,
+        error: (a.failureMessages || []).join('\n'),
+      }))
+    );
+    return {
+      mode,
+      summary: {
+        total: raw.numTotalTests || results.length,
+        passed: raw.numPassedTests || 0,
+        failed: raw.numFailedTests || 0,
+        suites: raw.numTotalTestSuites || 0,
+      },
+      results,
+    };
+  } finally {
+    rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+app.post('/practice/exec', async (req, res) => {
+  const { code, mode } = req.body || {};
+  if (!code || !mode) return res.status(400).json({ error: 'code, mode required' });
+  try {
+    res.json(await execPractice(String(code), mode === 'run' ? 'run' : 'test'));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // health check
 app.get('/health', (_, res) => res.json({ ok: true }));
-
 // 업로드/요청 에러 → JSON 응답 (multer fileFilter/size 초과 포함)
 app.use((err, req, res, next) => {
   res.status(400).json({ error: err.message || 'request error' });

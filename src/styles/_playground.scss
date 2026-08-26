@@ -133,6 +133,193 @@
     height: 100%;
   }
 
+  // ── 모드 전환 버튼 (🎨 Canvas / 📝 Practice) ────────────
+  &__mode-btn {
+    padding: $sp-1 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $c-page-dark;
+        color: $c-ink;
+      }
+    }
+
+    &--active {
+      background: $c-accent;
+      color: $c-ink-inverse;
+      border-color: $c-accent;
+    }
+  }
+
+  // ── 📝 Practice — 서버 실행·Vitest 테스트 연습장 ────────
+  &__practice {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+  }
+
+  &__practice-toolbar {
+    display: flex;
+    align-items: center;
+    gap: $sp-2;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  &__practice-name {
+    flex: 1;
+    min-width: 10rem;
+    padding: $sp-1 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--2;
+
+    &:focus { border-color: $c-accent; outline: none; }
+  }
+
+  &__practice-select {
+    padding: $sp-1 $sp-2;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    max-width: 14rem;
+  }
+
+  &__practice-btn {
+    padding: $sp-1 $sp-3;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover:not(:disabled) { background: $c-page-dark; color: $c-ink; }
+    }
+
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    &--test {
+      border-color: $c-accent;
+      color: $c-accent;
+    }
+
+    &--danger {
+      border-color: $c-error;
+      color: $c-error;
+    }
+  }
+
+  &__practice-busy {
+    font-size: $fs-step--2;
+    color: $c-ink-faint;
+    font-style: italic;
+  }
+
+  &__practice-editor {
+    min-height: 14rem;
+  }
+
+  &__practice-results {
+    flex-shrink: 0;
+    max-height: 40%;
+    overflow-y: auto;
+    background: $c-page;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    padding: $sp-3;
+    font-size: $fs-step--2;
+  }
+
+  &__test-summary {
+    font-weight: $fw-semibold;
+    color: #3d5a40;
+    margin-bottom: $sp-2;
+
+    &--fail { color: $c-error; }
+  }
+
+  &__test-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: $sp-2;
+    padding: $sp-1 0;
+    border-bottom: $border-thin solid $c-rule-light;
+
+    &--passed { color: #3d5a40; }
+    &--failed { color: $c-error; }
+  }
+
+  &__test-mark {
+    flex-shrink: 0;
+    font-weight: $fw-bold;
+  }
+
+  &__test-name {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__test-dur {
+    color: $c-ink-faint;
+    font-size: $fs-step--2;
+  }
+
+  &__test-error {
+    flex-basis: 100%;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: $fs-step--2;
+    background: $c-error-light;
+    border-radius: $radius-sm;
+    padding: $sp-2;
+    color: $c-error;
+    margin-top: $sp-1;
+  }
+
+  &__practice-out,
+  &__practice-err,
+  &__practice-error {
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: $fs-step--2;
+    color: $c-ink;
+  }
+
+  &__practice-err,
+  &__practice-error {
+    color: $c-error;
+  }
+
+  &__practice-none {
+    color: $c-ink-faint;
+    font-style: italic;
+  }
+
   // ==========================================================
   // Responsive — Tablet (≥ 480px): side-by-side
   // ==========================================================

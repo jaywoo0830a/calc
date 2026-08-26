@@ -640,3 +640,38 @@ export const concepts = {
     db.prepare('DELETE FROM concepts WHERE file_path = ?').run(filePath);
   },
 };
+
+// ── 연습장 스니펫 (Three.js 탭 Practice 모드) ────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS practice (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    kind       TEXT NOT NULL DEFAULT 'practice' CHECK (kind IN ('canvas','practice')),
+    code       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+`);
+
+export const practice = {
+  list() {
+    return db.prepare('SELECT id, name, kind, created_at, updated_at FROM practice ORDER BY updated_at DESC').all();
+  },
+  get(id) {
+    return db.prepare('SELECT * FROM practice WHERE id = ?').get(id);
+  },
+  upsert({ id, name, kind, code }) {
+    const now = new Date().toISOString();
+    const prev = db.prepare('SELECT created_at FROM practice WHERE id = ?').get(id);
+    db.prepare(`
+      INSERT INTO practice (id, name, kind, code, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name, kind = excluded.kind, code = excluded.code, updated_at = excluded.updated_at
+    `).run(id, String(name), kind === 'canvas' ? 'canvas' : 'practice', String(code), prev ? prev.created_at : now, now);
+    return db.prepare('SELECT * FROM practice WHERE id = ?').get(id);
+  },
+  remove(id) {
+    db.prepare('DELETE FROM practice WHERE id = ?').run(id);
+  },
+};

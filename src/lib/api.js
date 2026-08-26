@@ -103,6 +103,23 @@ export const api = {
     return !!clearToken;
   },
 
+  /** 📝 Practice — Three.js 탭 연습장 스니펫 */
+  listPractice() {
+    return request('/practice');
+  },
+  getPractice(id) {
+    return request('/practice/' + encodeURIComponent(id));
+  },
+  savePractice(body) {
+    return request('/practice', { method: 'POST', body: JSON.stringify(body) });
+  },
+  deletePractice(id) {
+    return request('/practice/' + encodeURIComponent(id), { method: 'DELETE' });
+  },
+  execPractice(code, mode) {
+    return request('/practice/exec', { method: 'POST', body: JSON.stringify({ code, mode }) });
+  },
+
   /** 파괴적 작업용 비밀번호 검증 — 성공 시 세션 토큰 저장 (이후 같은 세션은 재입력 생략) */
   verifyClearPassword(password) {
     return request('/admin/verify', { method: 'POST', body: JSON.stringify({ password }) }).then((data) => {
