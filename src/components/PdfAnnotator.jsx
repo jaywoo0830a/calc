@@ -368,6 +368,39 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
     }
   }, [numPages, currentPage, goToPage, tool]);
 
+  // ── 키보드 페이지 넘김 (PC) — 방향키·PageUp/Down·Home/End ──
+  useEffect(() => {
+    const onKey = (e) => {
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (zoomRef.current > 1) return; // 줌인 중엔 방향키 기본 동작(스크롤) 유지
+
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'PageDown':
+          e.preventDefault();
+          goToPage(Math.min(numPages, currentPage + 1));
+          break;
+        case 'ArrowLeft':
+        case 'PageUp':
+          e.preventDefault();
+          goToPage(Math.max(1, currentPage - 1));
+          break;
+        case 'Home':
+          e.preventDefault();
+          goToPage(1);
+          break;
+        case 'End':
+          e.preventDefault();
+          goToPage(numPages);
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [numPages, currentPage, goToPage]);
+
   // ── Fullscreen (native API + CSS fallback for iOS/Safari) ──
   const enterFullscreen = useCallback(() => {
     const el = containerRef.current;
