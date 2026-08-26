@@ -8,7 +8,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  position: relative;   // __chrome-toggle 등 absolute 자식의 기준점 (비풀스크린에서 허공에 뜨는 것 방지)
+  height: 100%;          // 뷰어 프리뷰를 꽉 채움 (아니면 콘텐츠 높이만 커져 하단 여백 발생)
+  position: relative;    // __chrome-toggle 등 absolute 자식의 기준점 (비풀스크린에서 허공에 뜨는 것 방지)
   // ⚠️ contain: layout 금지 — fixed 사이드바(Outline/Notes/Problems 등)가
   // PDF 영역 기준으로 바뀌어 일반 모드에서 잘리고 내부 스크롤이 생김.
   // style containment만 유지.
