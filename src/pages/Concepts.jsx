@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout.jsx';
 import { getAllConcepts, saveConcept, deleteConcept } from '../lib/storage.js';
+import { api } from '../lib/api.js';
 import ConceptParentPicker from '../components/ConceptParentPicker.jsx';
 import { setPendingConcept, takePendingConceptsFullscreen } from '../lib/conceptJump.js';
 import {
@@ -99,6 +100,44 @@ function mergeClear(parts) {
     .join('\n');
 }
 
+// deep 테스트 섹션 — Link(참조)는 암기 부담이라 제외
+const TEST_SECTION_KEYS = CLEAR_KEYS.filter((k) => k !== 'Link');
+
+/** 서버 MiniLM 의미 유사도 통과 기준 (코사인) — 미만이면 오답, 서버 불가 시 로컬 휴리스틱 폴백 */
+const SEMANTIC_MIN = 0.5;
+
+/** 섹션 비교용 정규화 — 대소문자·문장부호·연속공백 무시 */
+const normSection = (s) => String(s || '')
+  .toLowerCase()
+  .replace(/[^\p{L}\p{N}\s]/gu, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** 섹션 채점 — 정규화 일치 or 유사도 ≥ 0.85 (오타 소폭 허용). 기대값이 빈 섹션은 패스 */
+function sectionMatch(want, got) {
+  const w = normSection(want);
+  if (!w) return true;
+  const g = normSection(got);
+  if (!g) return false;
+  if (w === g) return true;
+  return 1 - levenshtein(w, g) / Math.max(w.length, g.length) >= 0.85;
+}
+
 /** summary가 CLEAR 헤더 형식인지 */
 function hasClearFormat(text) {
   return new RegExp(`^(${CLEAR_KEYS.join('|')}):\\s`, 'm').test(String(text || ''));
@@ -193,9 +232,11 @@ export default function Concepts() {
   // 🧠 Test 모드 (회상 연습) — 비파괴(서버 변경 없음)
   const [testPick, setTestPick] = useState(false);   // 범위 선택 중 (노드 탭 = 그 서브트리)
   const [testType, setTestType] = useState('label'); // 'label'(A)=모든 라벨만 | 'deep'(B)=빈 라벨+CLEAR
-  const [test, setTest] = useState(null);            // { type, rootId, blankIds[], answers:{id:{label,summary}}, scored, missed[], retryIds }
+  const [test, setTest] = useState(null);            // { type, rootId, blankIds[], answers:{id:{label,sections}}, scored, missed[], retryIds, sectionResults }
   const [testInput, setTestInput] = useState(null);  // 답 입력 중인 노드 id
   const [testText, setTestText] = useState('');
+  const [scoring, setScoring] = useState(false);     // 서버 의미 채점 진행 중
+  const scoringRef = useRef(false);
   const [gate, setGate] = useState(null);            // { id, openedAt } — 새 노드 3분 학습 게이트
   const [, setTick] = useState(0);                   // 게이트 카운트다운 리렌더 틱
   const draftRef = useRef({});                       // 게이트 노드 초안 보존 (닫아도 유지, 타이머만 리셋)
@@ -458,6 +499,8 @@ export default function Concepts() {
   }, [testInput, testText]);
 
   const exitTest = useCallback(() => {
+    scoringRef.current = false;
+    setScoring(false);
     setTest(null);
     setTestPick(false);
     setTestInput(null);
@@ -899,36 +942,87 @@ export default function Concepts() {
     return filterTree(roots, test.status);               // 상태별 — 계층 유지(조상 ⋯ 포함)
   }, [test, testDocMap]);
 
-  // 빈 노드 완료 여부 — A(라벨만)는 라벨 필수, B(deep)는 요약까지(원 요약 있을 때)
+  // 빈 노드 완료 여부 — A(라벨만)는 라벨 필수, B(deep)는 라벨+모든 기대 섹션 입력
   const testNodeDone = useCallback((id) => {
     const a = test.answers[id] || {};
     if (!(a.label || '').trim()) return false;
     if (test.type !== 'deep') return true;
-    const hasSum = String(testDocMap[id]?.summary || '').trim();
-    return !hasSum || !!(a.summary || '').trim();
+    const exp = parseClear(testDocMap[id]?.summary);
+    const required = TEST_SECTION_KEYS.filter((k) => String(exp[k] || '').trim());
+    return required.length === 0
+      || required.every((k) => String(((a.sections || {})[k] || '')).trim());
   }, [test, testDocMap]);
 
   const answeredCount = test ? testScope.filter(testNodeDone).length : 0;
 
-  // 라운드 종료 채점 — 정답은 여기서 처음 공개 (라운드 중 숨김)
-  const finishTest = useCallback(() => {
-    setTest((t) => {
-      if (!t || t.scored) return t;
-      const missed = testScope.filter((id) => {
-        const a = t.answers[id] || {};
-        const labelOk = norm(testDocMap[id]?.label) === norm(a.label);
-        if (t.type !== 'deep') return !labelOk; // A — 라벨만
-        const sumOk = (a.summary || '').trim() === String(testDocMap[id]?.summary || '').trim();
-        return !labelOk || !sumOk; // B — 라벨+요약
-      });
-      return { ...t, scored: true, missed };
+  // deep 채점 — 서버 결과(sectionResults) 우선, 없으면 로컬 휴리스틱(정규화/오타 허용)
+  const deepSectionsOk = useCallback((node, ans, results) => {
+    const exp = parseClear(node?.summary);
+    return TEST_SECTION_KEYS.every((k) => {
+      if (results && results[k] != null) return !!results[k].ok;
+      return sectionMatch(exp[k], (ans.sections || {})[k]);
     });
-  }, [testScope, testDocMap]);
+  }, []);
+
+  // 라운드 종료 채점 — deep이면 서버 MiniLM 의미 유사도로 섹션 채점(서버 불가 시 로컬 폴백)
+  const finishTest = useCallback(async () => {
+    const t = test;
+    if (!t || t.scored || scoringRef.current) return;
+    scoringRef.current = true;
+    setScoring(true);
+    let sectionResults = null;
+    try {
+      if (t.type === 'deep') {
+        const pairs = [];
+        for (const id of testScope) {
+          const a = t.answers[id] || {};
+          const exp = parseClear(testDocMap[id]?.summary);
+          for (const k of TEST_SECTION_KEYS) {
+            const want = String(exp[k] || '').trim();
+            const got = String((a.sections || {})[k] || '').trim();
+            if (want && got) pairs.push({ id, k, want, got });
+          }
+        }
+        if (pairs.length > 0) {
+          try {
+            const { scores } = await api.scoreSections(pairs.map((p) => ({ want: p.want, got: p.got })));
+            if (Array.isArray(scores)) {
+              const map = {};
+              pairs.forEach((p, i) => {
+                const score = Number(scores[i]);
+                (map[p.id] = map[p.id] || {})[p.k] = {
+                  ok: Number.isFinite(score) && score >= SEMANTIC_MIN,
+                  score: Number.isFinite(score) ? score : null,
+                };
+              });
+              sectionResults = map;
+            }
+          } catch { sectionResults = null; } // 서버 불가/모델 미로드 → 로컬 휴리스틱 폴백
+        }
+      }
+    } finally {
+      scoringRef.current = false;
+      setScoring(false);
+    }
+    setTest((cur) => {
+      if (!cur || cur.scored) return cur;
+      const missed = testScope.filter((id) => {
+        const a = cur.answers[id] || {};
+        const labelOk = norm(testDocMap[id]?.label) === norm(a.label);
+        if (cur.type !== 'deep') return !labelOk; // A — 라벨만
+        const sumOk = deepSectionsOk(testDocMap[id], a, sectionResults?.[id]);
+        return !labelOk || !sumOk; // B — 라벨+섹션
+      });
+      return { ...cur, scored: true, missed, sectionResults };
+    });
+  }, [test, testScope, testDocMap, deepSectionsOk]);
 
   const retryTest = useCallback(() => {
+    scoringRef.current = false;
+    setScoring(false);
     setTest((t) => (t ? {
       type: t.type, rootId: t.rootId, status: t.status, scopeIds: t.scopeIds, blankIds: t.blankIds,
-      answers: {}, scored: false, missed: [], retryIds: t.missed,
+      answers: {}, scored: false, missed: [], retryIds: t.missed, sectionResults: null,
     } : t));
     setTestInput(null);
     setTestText('');
@@ -963,7 +1057,8 @@ export default function Concepts() {
     const blanked = (test.retryIds || test.blankIds || []).includes(node.id);
     const ans = test.answers[node.id] || {};
     const labelText = ans.label || '';
-    const sumText = ans.summary || '';
+    const expClear = parseClear(node.summary);
+    const deepSections = TEST_SECTION_KEYS.filter((k) => String(expClear[k] || '').trim());
     if (!blanked) {
       // 단서 노드 — 라벨만 보여줌 (요약은 빈 노드 채점에만 사용)
       return (
@@ -982,7 +1077,7 @@ export default function Concepts() {
       );
     }
     const labelOk = test.scored && norm(labelText) === norm(node.label);
-    const sumOk = test.scored && sumText.trim() === String(node.summary || '').trim();
+    const sumOk = test.scored && deepSectionsOk(node, ans, test.sectionResults?.[node.id]);
     const ok = test.scored && labelOk && (test.type !== 'deep' || sumOk);
     const cls = 'concepts__row concepts__row--test'
       + (test.scored
@@ -1028,27 +1123,57 @@ export default function Concepts() {
             >✕</button>
           </div>
         )}
-        {test.type === 'deep' && !test.scored && (
-          <textarea
-            className="concepts__test-detail-input"
-            rows={4}
-            placeholder={'Core: …\nLink: …\nExample: …\nAntithesis: …\nRestate: …'}
-            value={sumText}
-            onChange={(e) => setTest((t) => (t ? {
-              ...t,
-              answers: { ...t.answers, [node.id]: { ...(t.answers[node.id] || {}), summary: e.target.value } },
-            } : t))}
-          />
+        {test.type === 'deep' && !test.scored && deepSections.length > 0 && (
+          <div className="concepts__test-sections">
+            {deepSections.map((k) => (
+              <label className="concepts__test-section" key={k}>
+                <span className="concepts__test-section-key">{k}</span>
+                <input
+                  className="concepts__test-section-input"
+                  placeholder={CLEAR_PLACEHOLDERS[k]}
+                  value={((ans.sections || {})[k]) || ''}
+                  onChange={(e) => setTest((t) => (t ? {
+                    ...t,
+                    answers: {
+                      ...t.answers,
+                      [node.id]: {
+                        ...(t.answers[node.id] || {}),
+                        sections: { ...((t.answers[node.id] || {}).sections || {}), [k]: e.target.value },
+                      },
+                    },
+                  } : t))}
+                />
+              </label>
+            ))}
+          </div>
         )}
-        {test.type === 'deep' && test.scored && (
+        {test.type === 'deep' && test.scored && deepSections.length > 0 && (
           <div className="concepts__test-detail">
-            <div className="concepts__test-detail-answer">{node.summary}</div>
-            {!sumOk && (
-              <div className="concepts__test-detail-you">
-                <span className="concepts__test-detail-you-label">You wrote</span>
-                <span>{sumText || '—'}</span>
-              </div>
-            )}
+            {deepSections.map((k) => {
+              const serverRes = test.sectionResults?.[node.id]?.[k];
+              const sOk = serverRes ? !!serverRes.ok : sectionMatch(expClear[k], (ans.sections || {})[k]);
+              const userAns = String(((ans.sections || {})[k]) || '').trim();
+              const scoreTitle = serverRes && Number.isFinite(serverRes.score)
+                ? `semantic similarity ${Math.round(serverRes.score * 100)}%`
+                : undefined;
+              return (
+                <div
+                  className={'concepts__test-detail-row' + (sOk ? ' concepts__test-detail-row--ok' : ' concepts__test-detail-row--no')}
+                  key={k}
+                  title={scoreTitle}
+                >
+                  <span className="concepts__test-detail-mark">{sOk ? '✓' : '✗'}</span>
+                  <span className="concepts__test-detail-key">{k}</span>
+                  <span className="concepts__test-detail-model">{String(expClear[k]).trim()}</span>
+                  {!sOk && (
+                    <span className="concepts__test-detail-you">
+                      <span className="concepts__test-detail-you-label">you</span>
+                      <span>{userAns || '—'}</span>
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
         {kids.length > 0 && (
@@ -1144,14 +1269,16 @@ export default function Concepts() {
             <>
               <div className="concepts__test-bar">
                 <span className="concepts__test-bar-count">
-                  {test.scored
-                    ? `Score — ${testScope.length - (test.missed || []).length} / ${testScope.length}`
-                    : `${test.type === 'deep' ? 'Deep test' : 'Test'} — ${answeredCount} / ${testScope.length} filled`}
+                  {scoring
+                    ? 'Scoring…'
+                    : test.scored
+                      ? `Score — ${testScope.length - (test.missed || []).length} / ${testScope.length}`
+                      : `${test.type === 'deep' ? 'Deep test' : 'Test'} — ${answeredCount} / ${testScope.length} filled`}
                   {test.retryIds ? ' · round 2' : ''}
                 </span>
                 <span className="concepts__test-bar-actions">
                   {!test.scored
-                    ? <button className="concepts__test-btn" onClick={finishTest}>Finish &amp; score</button>
+                    ? <button className="concepts__test-btn" onClick={finishTest} disabled={scoring}>Finish &amp; score</button>
                     : (test.missed && test.missed.length > 0)
                       ? <button className="concepts__test-btn" onClick={retryTest}>Retry missed ({test.missed.length})</button>
                       : null}

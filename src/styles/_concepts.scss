@@ -630,6 +630,46 @@ $guide-color: $c-rule;
     &:focus { border-color: $c-accent; outline: none; }
   }
 
+  // Detail test — 섹션별 입력 (Core/Example/Antithesis/Restate)
+  &__test-sections {
+    margin: 0.3rem 0 0 2.6rem;
+    width: min(100%, 36rem);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  &__test-section {
+    display: flex;
+    align-items: flex-start;
+    gap: $sp-2;
+  }
+
+  &__test-section-key {
+    flex: 0 0 5.2rem;
+    padding-top: 0.4rem;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: $c-ink-faint;
+  }
+
+  &__test-section-input {
+    flex: 1;
+    min-width: 0;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    background: $c-page;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    line-height: 1.5;
+    padding: 0.35rem 0.5rem;
+
+    &:focus { border-color: $c-accent; outline: none; }
+  }
+
   &__test-detail {
     margin: 0.3rem 0 0 2.6rem;
     max-width: 36rem;
@@ -645,7 +685,36 @@ $guide-color: $c-rule;
     white-space: pre-line;
   }
 
+  &__test-detail-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem 0.5rem;
+    font-size: $fs-step--1;
+    line-height: 1.5;
+
+    &--ok .concepts__test-detail-mark { color: #3d5a40; }
+    &--no .concepts__test-detail-mark { color: #b5433a; }
+  }
+
+  &__test-detail-mark { flex-shrink: 0; font-weight: $fw-semibold; }
+
+  &__test-detail-key {
+    flex: 0 0 auto;
+    font-size: $fs-step--2;
+    font-weight: $fw-semibold;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: $c-ink-faint;
+  }
+
+  &__test-detail-model {
+    color: $c-ink;
+    white-space: pre-line;
+  }
+
   &__test-detail-you {
+    flex-basis: 100%;
     display: flex;
     flex-direction: column;
     gap: 0.1rem;

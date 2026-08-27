@@ -947,6 +947,56 @@ app.post('/practice/exec', async (req, res) => {
   }
 });
 
+// ── 🧠 의미 유사도 채점 — all-MiniLM-L6-v2 (transformers.js, 첫 호출 시 모델 로드) ──
+let embedder = null;
+let embedderLoading = null;
+
+async function getEmbedder() {
+  if (embedder) return embedder;
+  if (!embedderLoading) {
+    embedderLoading = (async () => {
+      const { pipeline, env } = await import('@huggingface/transformers');
+      if (process.env.MODELS_DIR) env.cacheDir = process.env.MODELS_DIR;
+      console.log('[score] loading all-MiniLM-L6-v2 …');
+      const pipe = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+      console.log('[score] all-MiniLM-L6-v2 ready');
+      embedder = pipe;
+      return pipe;
+    })().catch((e) => { embedderLoading = null; throw e; });
+  }
+  return embedderLoading;
+}
+
+// [{ want, got }] → 코사인 유사도 배열 (normalize → 내적). 서버 불가 시 503 → 클라는 로컬 휴리스틱 폴백.
+app.post('/concepts/score', async (req, res) => {
+  try {
+    const pairs = (req.body || {}).pairs;
+    if (!Array.isArray(pairs) || pairs.length === 0 || pairs.length > 100) {
+      return res.status(400).json({ error: 'pairs required (1–100)' });
+    }
+    const texts = [];
+    for (const p of pairs) {
+      const want = String((p && p.want) || '').trim();
+      const got = String((p && p.got) || '').trim();
+      if (!want || !got) return res.status(400).json({ error: 'each pair needs non-empty want/got' });
+      texts.push(want, got);
+    }
+    const pipe = await getEmbedder();
+    const out = await pipe(texts, { pooling: 'mean', normalize: true });
+    const vecs = out.tolist();
+    const scores = pairs.map((_, i) => {
+      const a = vecs[i * 2];
+      const b = vecs[i * 2 + 1];
+      let dot = 0;
+      for (let j = 0; j < a.length; j++) dot += a[j] * b[j];
+      return Math.min(1, Math.max(0, dot));
+    });
+    res.json({ scores });
+  } catch (e) {
+    res.status(503).json({ error: String((e && e.message) || e) });
+  }
+});
+
 // health check
 app.get('/health', (_, res) => res.json({ ok: true }));
 // 업로드/요청 에러 → JSON 응답 (multer fileFilter/size 초과 포함)

@@ -120,6 +120,11 @@ export const api = {
     return request('/practice/exec', { method: 'POST', body: JSON.stringify({ code, mode }) });
   },
 
+  /** 🧠 deep 테스트 섹션 의미 채점 — [{want, got}] → { scores: number[] } (서버 MiniLM) */
+  scoreSections(pairs) {
+    return request('/concepts/score', { method: 'POST', body: JSON.stringify({ pairs }) });
+  },
+
   /** 파괴적 작업용 비밀번호 검증 — 성공 시 세션 토큰 저장 (이후 같은 세션은 재입력 생략) */
   verifyClearPassword(password) {
     return request('/admin/verify', { method: 'POST', body: JSON.stringify({ password }) }).then((data) => {

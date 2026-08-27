@@ -15,9 +15,13 @@ services:
     restart: unless-stopped
     environment:
       - DATA_DIR=/app/data
+      - MODELS_DIR=/app/models
     volumes:
       - api_data:/app/data
+      - api_models:/app/models
 
 volumes:
   api_data:
+    driver: local
+  api_models:
     driver: local
