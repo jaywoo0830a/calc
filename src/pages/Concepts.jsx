@@ -103,8 +103,8 @@ function mergeClear(parts) {
 // deep 테스트 섹션 — Link(참조)는 암기 부담이라 제외
 const TEST_SECTION_KEYS = CLEAR_KEYS.filter((k) => k !== 'Link');
 
-/** 서버 MiniLM 의미 유사도 통과 기준 (코사인) — 미만이면 오답, 서버 불가 시 로컬 휴리스틱 폴백 */
-const SEMANTIC_MIN = 0.5;
+/** 서버 mdbr-leaf-mt 의미 유사도 통과 기준 (코사인) — 무관 문장도 0.5~0.6 나오는 모델 특성상 높게 */
+const SEMANTIC_MIN = 0.8;
 
 /** 섹션 비교용 정규화 — 대소문자·문장부호·연속공백 무시 */
 const normSection = (s) => String(s || '')

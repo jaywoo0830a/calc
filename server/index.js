@@ -947,7 +947,7 @@ app.post('/practice/exec', async (req, res) => {
   }
 });
 
-// ── 🧠 의미 유사도 채점 — all-MiniLM-L6-v2 (transformers.js, 첫 호출 시 모델 로드) ──
+// ── 🧠 의미 유사도 채점 — mdbr-leaf-mt (MongoDB, transformers.js ONNX, 첫 호출 시 모델 로드) ──
 let embedder = null;
 let embedderLoading = null;
 
@@ -957,9 +957,9 @@ async function getEmbedder() {
     embedderLoading = (async () => {
       const { pipeline, env } = await import('@huggingface/transformers');
       if (process.env.MODELS_DIR) env.cacheDir = process.env.MODELS_DIR;
-      console.log('[score] loading all-MiniLM-L6-v2 …');
-      const pipe = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-      console.log('[score] all-MiniLM-L6-v2 ready');
+      console.log('[score] loading mdbr-leaf-mt …');
+      const pipe = await pipeline('feature-extraction', 'onnx-community/mdbr-leaf-mt-ONNX', { dtype: 'q8' });
+      console.log('[score] mdbr-leaf-mt ready');
       embedder = pipe;
       return pipe;
     })().catch((e) => { embedderLoading = null; throw e; });
