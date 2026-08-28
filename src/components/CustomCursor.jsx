@@ -171,10 +171,12 @@ export default function CustomCursor() {
   const [portalTarget, setPortalTarget] = useState(null);
   const rafRef = useRef(null);
   const targetRef = useRef({ x: -100, y: -100 });
-  // True while a touch press is in progress — the cursor hides during it
-  // but is NOT permanently disabled (a one-shot `touchstart` flag hid the
-  // cursor forever after a single tap on pen/stylus drawing pads).
-  const touchActiveRef = useRef(false);
+  // How many touch (finger) pointers are currently pressed. The cursor is
+  // hidden only during finger interaction. Pen/stylus input has hover, so
+  // it keeps the cursor — a one-shot `touchstart` flag hid it forever after
+  // a single pen tap, and touchscreens stopped sending compatible mouse
+  // hover events after a tap, freezing the cursor at the last point.
+  const activeTouchesRef = useRef(0);
 
   // Track fullscreen element — render cursor inside it so it's visible
   useEffect(() => {
@@ -192,33 +194,6 @@ export default function CustomCursor() {
     };
   }, []);
 
-  // Hide the cursor only while a touch is in progress, then restore it.
-  // A single `touchstart` must NOT permanently disable the cursor — on
-  // pen/stylus (drawing pad) input a tap fires `touchstart`, and the old
-  // flag hid the circle forever, leaving no visible cursor (`cursor:none`).
-  // Finger-only (coarse-pointer) devices stay hidden until the next real
-  // hover move, which pen/mouse input always produces.
-  useEffect(() => {
-    let coarse = false;
-    try { coarse = window.matchMedia?.('(pointer: coarse)')?.matches ?? false; } catch { /* ignore */ }
-    const onTouchStart = () => {
-      touchActiveRef.current = true;
-      setMode('hidden');
-    };
-    const onTouchEnd = () => {
-      touchActiveRef.current = false;
-      setMode(coarse ? 'hidden' : 'default');
-    };
-    window.addEventListener('touchstart', onTouchStart, { passive: true });
-    window.addEventListener('touchend', onTouchEnd, { passive: true });
-    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
-    return () => {
-      window.removeEventListener('touchstart', onTouchStart);
-      window.removeEventListener('touchend', onTouchEnd);
-      window.removeEventListener('touchcancel', onTouchEnd);
-    };
-  }, []);
-
   // RangeSelect(✂️) armed 상태 구독 — 장전되면 커서가 타깃으로 바뀐다
   useEffect(() => subscribeRangeSelect(setRange), []);
 
@@ -230,15 +205,28 @@ export default function CustomCursor() {
     return 'default';
   }, []);
 
-  const handleMouseMove = useCallback((e) => {
+  // Track coarse-pointer (finger-only) devices — keep the cursor hidden
+  // after a tap there (they have no hover). Pen/mouse re-show it on the
+  // next `pointermove`.
+  const isCoarse = useCallback(() => {
+    try { return window.matchMedia?.('(pointer: coarse)')?.matches ?? false; } catch { return false; }
+  }, []);
+
+  // Position/mode is driven by Pointer Events (not mouse events): pen and
+  // mouse reliably fire `pointermove` on hover, whereas some touchscreen
+  // browsers stop generating compatible mouse hover events after a tap —
+  // which previously froze the cursor at the last pressed point.
+  const handlePointerMove = useCallback((e) => {
+    if (e.pointerType === 'touch') {
+      setMode('hidden');
+      return;
+    }
     targetRef.current = { x: e.clientX, y: e.clientY };
 
     const el = document.elementFromPoint(e.clientX, e.clientY);
     setMode(prev => {
       if (prev === 'active') return 'active';
-      if (touchActiveRef.current) return 'hidden';
-      // A real hover move (mouse / pen) always re-shows the cursor,
-      // even after it was hidden by a touch tap (drawing pad click).
+      // A real hover move (mouse / pen) always re-shows the cursor.
       return detectMode(el);
     });
 
@@ -250,33 +238,57 @@ export default function CustomCursor() {
     }
   }, [detectMode]);
 
-  const handleMouseDown = useCallback(() => {
-    if (touchActiveRef.current) return;
+  const handlePointerDown = useCallback((e) => {
+    if (e.pointerType === 'touch') {
+      activeTouchesRef.current += 1;
+      setMode('hidden');
+      return;
+    }
     setMode('active');
   }, []);
 
-  const handleMouseUp = useCallback(() => {
-    setMode(prev => prev === 'hidden' ? 'hidden' : 'default');
-  }, []);
+  const restoreAfterTouch = useCallback(() => {
+    if (activeTouchesRef.current > 0) return;
+    // Finger-only (coarse-pointer) devices have no hover cursor — stay
+    // hidden. Pen/mouse re-show via the next `pointermove`.
+    setMode(isCoarse() ? 'hidden' : 'default');
+  }, [isCoarse]);
 
-  const handleMouseLeave = useCallback(() => setMode('hidden'), []);
-  const handleMouseEnter = useCallback(() => setMode('default'), []);
+  const handlePointerUp = useCallback((e) => {
+    if (e.pointerType === 'touch') {
+      activeTouchesRef.current = Math.max(0, activeTouchesRef.current - 1);
+      restoreAfterTouch();
+      return;
+    }
+    setMode(prev => prev === 'hidden' ? 'hidden' : 'default');
+  }, [restoreAfterTouch]);
+
+  const handlePointerCancel = useCallback((e) => {
+    if (e.pointerType !== 'touch') return;
+    activeTouchesRef.current = Math.max(0, activeTouchesRef.current - 1);
+    restoreAfterTouch();
+  }, [restoreAfterTouch]);
+
+  const handlePointerLeave = useCallback(() => setMode('hidden'), []);
+  const handlePointerEnter = useCallback(() => setMode('default'), []);
 
   useEffect(() => {
-    document.addEventListener('mousemove', handleMouseMove, { passive: true });
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('mouseleave', handleMouseLeave);
-    document.addEventListener('mouseenter', handleMouseEnter);
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
+    document.addEventListener('pointerleave', handlePointerLeave);
+    document.addEventListener('pointerenter', handlePointerEnter);
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('mouseleave', handleMouseLeave);
-      document.removeEventListener('mouseenter', handleMouseEnter);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+      document.removeEventListener('pointerleave', handlePointerLeave);
+      document.removeEventListener('pointerenter', handlePointerEnter);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [handleMouseMove, handleMouseDown, handleMouseUp, handleMouseLeave, handleMouseEnter]);
+  }, [handlePointerMove, handlePointerDown, handlePointerUp, handlePointerCancel, handlePointerLeave, handlePointerEnter]);
 
   const cursor = <CursorElement pos={pos} mode={mode} range={range} />;
 
