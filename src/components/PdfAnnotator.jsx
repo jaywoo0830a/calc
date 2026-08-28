@@ -992,7 +992,12 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
   }, [annotations]);
 
   const submitComment = useCallback(() => {
-    if (!activeComment || !commentText.trim()) {
+    if (!activeComment) return;
+    const text = commentText.trim();
+    // ✗ Wrong / ✓ Solved 문제 코멘트는 내용이 없어도 등록한다 — 스캔 PDF는
+    // 텍스트 선택이 되지 않아 상태만으로도 문제를 표시할 수 있어야 한다.
+    // (일반 💬 Note는 내용이 없으면 저장하지 않고 닫는다)
+    if (!text && !commentStatus) {
       setActiveComment(null);
       setCommentStatus('');
       return;
@@ -1002,7 +1007,7 @@ export default function PdfAnnotator({ url, filePath, initialPage, initialScroll
       pageNumber: activeComment.pageNumber,
       type: 'comment',
       color: '#ffc864',
-      text: commentText.trim(),
+      text,
       status: commentStatus, // 스캔 PDF — ✗ Wrong / ✓ Solved 문제 코멘트
       attempts: commentStatus ? 1 : 0, // 문제로 등록하면 1회 시도로 시작
       wrong_count: commentStatus === 'wrong' ? 1 : 0,
