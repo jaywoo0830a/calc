@@ -171,7 +171,10 @@ export default function CustomCursor() {
   const [portalTarget, setPortalTarget] = useState(null);
   const rafRef = useRef(null);
   const targetRef = useRef({ x: -100, y: -100 });
-  const isTouchDevice = useRef(false);
+  // True while a touch press is in progress — the cursor hides during it
+  // but is NOT permanently disabled (a one-shot `touchstart` flag hid the
+  // cursor forever after a single tap on pen/stylus drawing pads).
+  const touchActiveRef = useRef(false);
 
   // Track fullscreen element — render cursor inside it so it's visible
   useEffect(() => {
@@ -189,10 +192,31 @@ export default function CustomCursor() {
     };
   }, []);
 
+  // Hide the cursor only while a touch is in progress, then restore it.
+  // A single `touchstart` must NOT permanently disable the cursor — on
+  // pen/stylus (drawing pad) input a tap fires `touchstart`, and the old
+  // flag hid the circle forever, leaving no visible cursor (`cursor:none`).
+  // Finger-only (coarse-pointer) devices stay hidden until the next real
+  // hover move, which pen/mouse input always produces.
   useEffect(() => {
-    const onTouch = () => { isTouchDevice.current = true; setMode('hidden'); };
-    window.addEventListener('touchstart', onTouch, { once: true });
-    return () => window.removeEventListener('touchstart', onTouch);
+    let coarse = false;
+    try { coarse = window.matchMedia?.('(pointer: coarse)')?.matches ?? false; } catch { /* ignore */ }
+    const onTouchStart = () => {
+      touchActiveRef.current = true;
+      setMode('hidden');
+    };
+    const onTouchEnd = () => {
+      touchActiveRef.current = false;
+      setMode(coarse ? 'hidden' : 'default');
+    };
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
+    };
   }, []);
 
   // RangeSelect(✂️) armed 상태 구독 — 장전되면 커서가 타깃으로 바뀐다
@@ -207,13 +231,14 @@ export default function CustomCursor() {
   }, []);
 
   const handleMouseMove = useCallback((e) => {
-    if (isTouchDevice.current) return;
     targetRef.current = { x: e.clientX, y: e.clientY };
 
     const el = document.elementFromPoint(e.clientX, e.clientY);
     setMode(prev => {
       if (prev === 'active') return 'active';
-      if (prev === 'hidden') return 'hidden';
+      if (touchActiveRef.current) return 'hidden';
+      // A real hover move (mouse / pen) always re-shows the cursor,
+      // even after it was hidden by a touch tap (drawing pad click).
       return detectMode(el);
     });
 
@@ -226,20 +251,16 @@ export default function CustomCursor() {
   }, [detectMode]);
 
   const handleMouseDown = useCallback(() => {
-    if (isTouchDevice.current) return;
+    if (touchActiveRef.current) return;
     setMode('active');
   }, []);
 
   const handleMouseUp = useCallback(() => {
-    if (isTouchDevice.current) return;
     setMode(prev => prev === 'hidden' ? 'hidden' : 'default');
   }, []);
 
   const handleMouseLeave = useCallback(() => setMode('hidden'), []);
-  const handleMouseEnter = useCallback(() => {
-    if (isTouchDevice.current) return;
-    setMode('default');
-  }, []);
+  const handleMouseEnter = useCallback(() => setMode('default'), []);
 
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove, { passive: true });
