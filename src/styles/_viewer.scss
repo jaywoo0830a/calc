@@ -180,6 +180,22 @@
     }
   }
 
+  &__stored-download {
+    flex-shrink: 0;
+    font-size: $fs-step--1;
+    padding: $sp-1;
+    border-radius: $radius-sm;
+    opacity: $opacity-dim;
+    transition: opacity $transition-fast;
+
+    @media (hover: hover) {
+      &:hover {
+        opacity: $opacity-full;
+        background: $c-accent-light;
+      }
+    }
+  }
+
   // ---- Panes container (preview only — sidebar is fixed) ---
   &__panes {
     display: flex;

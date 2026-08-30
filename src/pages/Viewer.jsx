@@ -922,6 +922,37 @@ export default function Viewer() {
     });
   }, [requireClear, refreshStored]);
 
+  // 저장된 ZIP 다운로드 — 서버 ZIP은 Content-Disposition(원래 이름)으로 직접 스트리밍,
+  // 로컬/캐시 ZIP은 IndexedDB에서 blob을 읽어 다운로드
+  const handleDownloadStored = useCallback(async (entry, e) => {
+    e.stopPropagation();
+    try {
+      if (entry.source === 'server') {
+        const a = document.createElement('a');
+        a.href = '/api/archives/' + encodeURIComponent(entry.id);
+        a.download = entry.name || (entry.id + '.zip');
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setMdToast('⬇️ Downloading — ' + (entry.name || entry.id));
+        return;
+      }
+      const { name, blob } = await loadZipFromDB(entry.id);
+      const fileName = name || entry.name || (entry.id + '.zip');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setMdToast('⬇️ Downloaded — ' + fileName);
+    } catch {
+      setMdToast('Download failed');
+    }
+  }, []);
+
   const openFile = useCallback(async (node) => {
     if (!node || !node.file) return;
     const seq = ++navSeq.current;                    // 트리 클릭 = 최신 탐색
@@ -1096,6 +1127,12 @@ export default function Viewer() {
                   <em className="viewer__stored-badge" title="Saved on this device only">💾 Local</em>
                 )}
               </span>
+              <button
+                className="viewer__stored-download"
+                onClick={(e) => handleDownloadStored(entry, e)}
+                aria-label={`Download ${entry.name}`}
+                title="Download ZIP"
+              >⬇️</button>
               <button
                 className="viewer__stored-delete"
                 onClick={(e) => handleDeleteStored(entry.id, e)}
