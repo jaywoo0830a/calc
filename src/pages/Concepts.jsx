@@ -27,6 +27,13 @@ const docName = (fp) => String(fp || '').split('/').pop() || 'Document';
 // (실제 문서 filePath는 '/'가 없는 파일명이라 충돌 없음)
 const isStandalone = (fp) => String(fp || '').startsWith('__tree__/');
 
+// 탭 전환(unmount)·새로고침 후에도 마지막으로 보던 트리/필터 유지 — sessionStorage 캐시
+const CONCEPTS_VIEW_KEY = 'concepts:view:v1';
+function loadConceptsView() {
+  try { return JSON.parse(sessionStorage.getItem(CONCEPTS_VIEW_KEY)) || {}; }
+  catch { return {}; }
+}
+
 // 수식($...$ / $$...$$) 포함 텍스트를 KaTeX로 렌더하는 표시 컴포넌트
 // (renderMathText가 비수식 텍스트를 이스케이프하므로 dangerouslySetInnerHTML 안전)
 function MathText({ text, className }) {
@@ -262,6 +269,22 @@ export default function Concepts() {
   const [rootAdding, setRootAdding] = useState(false);   // 디테일 뷰 — 루트 개념 추가 폼 열림
   const [rootLabel, setRootLabel] = useState('');        // 루트 개념 라벨
   const savingRef = useRef(0);                    // 진행 중 저장 수 — 폴링이 낙관적 변경을 덮지 않게
+  // 탭 전환·새로고침 후에도 마지막 트리/필터 유지 —
+  // 마운트 첫 실행에서 복원, 이후 값이 바뀔 때마다 sessionStorage에 저장.
+  // (첫 실행에서 먼저 저장하면 복원할 값을 지워버리므로 순서가 중요)
+  const restoredViewRef = useRef(false);
+  useEffect(() => {
+    if (!restoredViewRef.current) {
+      restoredViewRef.current = true;
+      const saved = loadConceptsView();
+      if (saved.selectedFp) setSelectedFp(saved.selectedFp);
+      if (saved.filter) setFilter(saved.filter);
+      return;
+    }
+    try {
+      sessionStorage.setItem(CONCEPTS_VIEW_KEY, JSON.stringify({ selectedFp, filter }));
+    } catch { /* 무시 */ }
+  }, [selectedFp, filter]);
   const navigate = useNavigate();
   const { requireClear, gateProps } = useClearGate();
 

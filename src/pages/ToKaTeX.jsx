@@ -13,6 +13,18 @@ const INK = '#1a1a1a';          // 먹색 획
 const PAPER = '#ffffff';        // 흰 배경
 const LINE_W = Math.max(3, Math.round(W / 220)); // ~5 (1024 기준) — 얇은 필기선
 
+// 탭 전환(unmount)·페이지 새로고침 후에도 드로잉/결과 유지 — sessionStorage 캐시.
+// (React Router가 페이지를 언마운트해도 캔버스 비트맵이 여기에 보존된다)
+const SESSION_KEY = 'to-katex:session:v1';
+const EMPTY_SESSION = { dataUrl: null, latex: '', view: 'draw', error: null };
+function loadSession() {
+  try { return { ...EMPTY_SESSION, ...(JSON.parse(sessionStorage.getItem(SESSION_KEY)) || {}) }; }
+  catch { return { ...EMPTY_SESSION }; }
+}
+function saveSession(s) {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch { /* quota/보안 무시 */ }
+}
+
 export default function ToKaTeX() {
   const canvasRef = useRef(null);
   const drawingRef = useRef(false);
@@ -24,6 +36,12 @@ export default function ToKaTeX() {
   const [copied, setCopied] = useState(null);
   const [view, setView] = useState('draw'); // 'draw' | 'result' — 둘 중 하나만 표시
   const copiedTimer = useRef(null);
+  // 드로잉/결과 영속화 — sessionStorage에 저장/복원
+  const sessionRef = useRef(loadSession());
+  const persist = useCallback((patch) => {
+    Object.assign(sessionRef.current, patch);
+    saveSession(sessionRef.current);
+  }, []);
 
   // 캔버스 초기화 — 고해상도 + 흰 배경
   useEffect(() => {
@@ -38,6 +56,16 @@ export default function ToKaTeX() {
     ctx.lineWidth = LINE_W;
     ctx.fillStyle = PAPER;
     ctx.fillRect(0, 0, W, H);
+    // 이전 세션 복원 — 드로잉 비트맵 + 결과/오류/뷰
+    const s = sessionRef.current;
+    if (s.dataUrl) {
+      const img = new Image();
+      img.onload = () => { ctx.drawImage(img, 0, 0); setHasInk(true); };
+      img.src = s.dataUrl;
+    }
+    setView(s.view || 'draw');
+    if (s.latex) setLatex(s.latex);
+    if (s.error) setError(s.error);
   }, []);
 
   // CSS 좌표 → 캔버스 픽셀 좌표
@@ -89,7 +117,9 @@ export default function ToKaTeX() {
     if (!drawingRef.current) return;
     drawingRef.current = false;
     try { canvasRef.current.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-  }, []);
+    // 스트로크 완료 — 캔버스를 세션 캐시에 저장 (탭 전환 복원용)
+    persist({ dataUrl: canvasRef.current.toDataURL('image/png') });
+  }, [persist]);
 
   const clear = useCallback(() => {
     const cv = canvasRef.current;
@@ -101,7 +131,8 @@ export default function ToKaTeX() {
     setError(null);
     setCopied(null);
     setView('draw');
-  }, []);
+    persist({ dataUrl: null, latex: '', view: 'draw', error: null });
+  }, [persist]);
 
   const convert = useCallback(async () => {
     setBusy(true);
@@ -115,13 +146,21 @@ export default function ToKaTeX() {
       else {
         setLatex(text);
         setView('result'); // 성공 시 결과만 표시 — 캔버스는 숨김
+        persist({
+          dataUrl: canvasRef.current.toDataURL('image/png'),
+          latex: text,
+          view: 'result',
+          error: null,
+        });
       }
     } catch (e) {
-      setError(e && e.message ? e.message : 'Conversion failed');
+      const msg = e && e.message ? e.message : 'Conversion failed';
+      setError(msg);
+      persist({ error: msg });
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [persist]);
 
   const copy = useCallback((text) => {
     if (!navigator.clipboard) return;
@@ -182,7 +221,7 @@ export default function ToKaTeX() {
           </div>
           <button
             className="to-katex__btn to-katex__btn--primary"
-            onClick={() => setView('draw')}
+            onClick={() => { setView('draw'); persist({ view: 'draw' }); }}
           >✏️ Draw again</button>
         </div>
       )}

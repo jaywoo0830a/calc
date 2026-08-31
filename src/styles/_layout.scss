@@ -22,6 +22,7 @@
   display: flex;
   flex-wrap: nowrap;                   // 한 줄 유지 — 넘치면 가로 스크롤
   flex-shrink: 0;                      // 세로 flex 컨테이너에서 눌리지 않게
+  align-self: stretch;                 // 부모(페이지)의 align-items와 무관하게 항상 전체 폭
   gap: $sp-1;
   align-items: center;
   margin-bottom: $sp-2;
