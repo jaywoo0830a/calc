@@ -12,6 +12,10 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# transformers를 git에서 설치(모델 카드 권장) — slim 이미지에 git 없음
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # CPU torch 먼저 (PyPI CUDA 휠 대신) → 나머지 의존성은 PyPI에서
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
