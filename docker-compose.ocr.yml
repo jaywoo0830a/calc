@@ -1,12 +1,12 @@
 # ═══════════════════════════════════════════════════════════════
-# 🧮 To KaTeX — PaddleOCR-VL OCR 서비스 (CPU 최적화, 선택 오버라이드)
+# 🧮 To KaTeX — GLM-OCR OCR 서비스 (llama.cpp, CPU 최적화, 선택 오버라이드)
 # 사용 예:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 #                  -f docker-compose.ocr.yml up -d --build
 #
-# CPU 전용: ocr 서비스가 `ocr/`(transformers + CPU torch)를 빌드한다.
-# GPU가 있으면 NVIDIA GPU 예약을 주석 해제하거나, PaddleOCR 공식 vLLM
-# 서버 이미지(ccr-.../paddleocr-genai-vllm-server)로 교체해 더 빠르게.
+# CPU 전용: ocr 서비스가 `ocr/`(llama.cpp 사전 빌드 CPU 바이너리 + GLM-OCR GGUF)를
+# 빌드한다. GGUF(Q8_0 ~950MB + mmproj ~484MB)는 첫 시작 시 /models 볼륨으로
+# 내려받는다. GPU가 있으면 llama.cpp CUDA 서버 이미지로 교체해 더 빠르게.
 # 기본값(로컬 개발)은 MATH_OCR_URL 미설정 시
 # http://127.0.0.1:8080/v1/chat/completions 을 호출한다.
 # ═══════════════════════════════════════════════════════════════
@@ -16,10 +16,17 @@ services:
     container_name: calc-ocr
     restart: unless-stopped
     environment:
-      - HF_HOME=/cache                 # 모델 가중치 캐시 (볼륨 유지 — 재다운로드 방지)
-      - HF_HUB_DISABLE_SYMLINKS_WARNING=1
+      - MODELS_DIR=/models             # GGUF 저장 위치 (볼륨 유지 — 재다운로드 방지)
+      - LLAMA_CTX=8192                 # 컨텍스트 (이미지 토큰 + 프롬프트 여유)
+      # - LLAMA_CTX=16384              # 긴 수식/여러 이미지가 필요하면 확장
     volumes:
-      - ocr_cache:/cache
+      - ocr_cache:/models
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 300s               # 첫 시작 GGUF 다운로드(~1.4GB) + 모델 로드 대기
     # NVIDIA GPU 예약 — CPU 전용이므로 기본 해제. GPU 호스트에서만 주석 해제.
     # deploy:
     #   resources:
@@ -32,8 +39,11 @@ services:
   api:
     environment:
       - MATH_OCR_URL=http://ocr:8080/v1/chat/completions
-      - MATH_OCR_MODEL=PaddleOCR-VL
-      - MATH_OCR_TIMEOUT_MS=180000    # CPU 추론(5~30s) 대비 여유
+      - MATH_OCR_MODEL=GLM-OCR
+      - MATH_OCR_TIMEOUT_MS=120000    # CPU 추론 대비 여유
+    # ⚠️ depends_on(service_healthy)로 api를 게이팅하지 않음 — GGUF 다운로드가
+    #    느리면 api가 영영 안 뜨는 배포 정체가 됨. ocr이 로드 중이면 첫 요청이
+    #    502로 오고, 준비되면 재시도로 성공한다(기존 lazy-load와 동일).
 
 volumes:
   ocr_cache:

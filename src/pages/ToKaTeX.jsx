@@ -5,8 +5,8 @@ import { api } from '../lib/api.js';
 
 // ═══════════════════════════════════════════════════════════════
 // 🧮 To KaTeX — 드로잉 패드/손가락으로 그린 수식을 서버의
-// PaddleOCR-VL(Formula Recognition)로 LaTeX 변환 → KaTeX 렌더.
-// (서버 POST /api/math-ocr → vLLM OpenAI 호환 엔드포인트 호출)
+// GLM-OCR(Formula Recognition)로 LaTeX 변환 → KaTeX 렌더.
+// (서버 POST /api/math-ocr → llama.cpp OpenAI 호환 엔드포인트 호출)
 // ═══════════════════════════════════════════════════════════════
 const W = 1024, H = 640;        // 캔버스 내부 해상도 (OCR 정확도)
 const INK = '#1a1a1a';          // 먹색 획
@@ -141,7 +141,7 @@ export default function ToKaTeX() {
       <div className="to-katex__head">
         <h1 className="to-katex__title">🧮 To KaTeX</h1>
         <span className="to-katex__hint">
-          Draw a formula with your pen or finger — the server's PaddleOCR-VL converts it to LaTeX, rendered here with KaTeX.
+          Draw a formula with your pen or finger — the server's GLM-OCR converts it to LaTeX, rendered here with KaTeX.
         </span>
       </div>
 

@@ -997,12 +997,12 @@ app.post('/concepts/score', async (req, res) => {
   }
 });
 
-// ── 🧮 To KaTeX — 드로잉 이미지 → PaddleOCR-VL(Formula Recognition) → LaTeX ──
-// 서버에 배포된 PaddleOCR-VL(vLLM, OpenAI 호환)을 호출한다.
-// MATH_OCR_URL — vLLM OpenAI 호환 엔드포인트 (기본 localhost:8080)
-// MATH_OCR_MODEL — vLLM에 등록된 모델 이름
+// ── 🧮 To KaTeX — 드로잉 이미지 → GLM-OCR(Formula Recognition) → LaTeX ──
+// 서버에 배포된 GLM-OCR(llama.cpp, OpenAI 호환)를 호출한다.
+// MATH_OCR_URL — OpenAI 호환 엔드포인트 (기본 localhost:8080)
+// MATH_OCR_MODEL — 모델 이름 (llama-server는 무시, 메타데이터)
 const MATH_OCR_URL = process.env.MATH_OCR_URL || 'http://127.0.0.1:8080/v1/chat/completions';
-const MATH_OCR_MODEL = process.env.MATH_OCR_MODEL || 'PaddleOCR-VL';
+const MATH_OCR_MODEL = process.env.MATH_OCR_MODEL || 'GLM-OCR';
 const MATH_OCR_TIMEOUT_MS = Number(process.env.MATH_OCR_TIMEOUT_MS) || 120000; // CPU 추론 대비 여유
 
 app.post('/math-ocr', async (req, res) => {

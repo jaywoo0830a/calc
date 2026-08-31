@@ -125,7 +125,7 @@ export const api = {
     return request('/concepts/score', { method: 'POST', body: JSON.stringify({ pairs }) });
   },
 
-  /** 🧮 To KaTeX — 드로잉 이미지(PNG base64)를 PaddleOCR-VL로 LaTeX 변환 */
+  /** 🧮 To KaTeX — 드로잉 이미지(PNG base64)를 GLM-OCR로 LaTeX 변환 */
   mathOcr(imageBase64) {
     return request('/math-ocr', { method: 'POST', body: JSON.stringify({ image: imageBase64 }) });
   },
