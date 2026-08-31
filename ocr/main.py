@@ -119,6 +119,39 @@ def _clean(text: str) -> str:
     return out
 
 
+def _build_inputs(image, prompt):
+    """chat template 적용 — PaddleOCR-VL은 template을 dict로 갖는데 'default' 키가
+    없어 KeyError('default')가 남 → dict의 실제 키를 찾아 넘기고, 전부 실패하면
+    프로세서 __call__로 이미지 토큰 + 프롬프트를 직접 구성한다."""
+    template = getattr(_processor.tokenizer, "chat_template", None)
+    names = [None]
+    if isinstance(template, dict):
+        names += [k for k in template]
+    messages = [
+        {"role": "user", "content": [
+            {"type": "image", "image": image},
+            {"type": "text", "text": prompt},
+        ]},
+    ]
+    for name in names:
+        try:
+            kwargs = {
+                "tokenize": True, "add_generation_prompt": True,
+                "return_dict": True, "return_tensors": "pt",
+            }
+            if name is not None:
+                kwargs["chat_template"] = name
+            return _processor.apply_chat_template(messages, **kwargs)
+        except KeyError:
+            continue  # 'default' 없음 → 다음 키 시도
+        except Exception as e:
+            logger.warning("apply_chat_template failed (%s: %s) — fallback", type(e).__name__, e)
+            break
+    # 폴백: 프로세서 __call__ (이미지 토큰 확장 + grid 계산 담당)
+    image_token = getattr(_processor, "image_token", "<|IMAGE_PLACEHOLDER|>")
+    return _processor(images=[image], text=[image_token + prompt], return_tensors="pt")
+
+
 @app.post("/v1/chat/completions")
 def chat_completions(body: ChatBody):
     _load()
@@ -127,16 +160,7 @@ def chat_completions(body: ChatBody):
         raise HTTPException(status_code=400, detail="image_url is required")
     prompt = _extract_prompt(body.messages) or DEFAULT_PROMPT
 
-    messages = [
-        {"role": "user", "content": [
-            {"type": "image", "image": image},
-            {"type": "text", "text": prompt},
-        ]},
-    ]
-    inputs = _processor.apply_chat_template(
-        messages, tokenize=True, add_generation_prompt=True,
-        return_dict=True, return_tensors="pt",
-    )
+    inputs = _build_inputs(image, prompt)
     inputs.pop("token_type_ids", None)
 
     with _lock:
