@@ -273,6 +273,24 @@ $guide-color: $c-rule;
     }
   }
 
+  &__root-add-submit {
+    border: none;
+    border-radius: 999px;
+    background: $c-accent;
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { background: $c-accent-hover; }
+    }
+
+    &:disabled { opacity: 0.5; cursor: default; }
+  }
+
   // ── 독립형 트리 전체 삭제 ──
   &__delete-tree-btn {
     margin-left: auto; // 헤더 오른쪽 끝 정렬

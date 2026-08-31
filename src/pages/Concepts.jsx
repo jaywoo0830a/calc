@@ -279,9 +279,10 @@ export default function Concepts() {
     }
   }, [items]);
 
-  // 선택한 문서의 개념이 전부 사라지면(삭제 등) 목록 뷰로 복귀
+  // 선택한 문서의 개념이 전부 사라지면(삭제 등) 목록 뷰로 복귀.
+  // ⚠️ 독립형 트리는 빈 채로도 디테일 뷰를 유지 — 첫 개념을 추가할 수 있어야 한다
   useEffect(() => {
-    if (selectedFp && items && !items.some((c) => c.filePath === selectedFp)) setSelectedFp(null);
+    if (selectedFp && items && !isStandalone(selectedFp) && !items.some((c) => c.filePath === selectedFp)) setSelectedFp(null);
   }, [selectedFp, items]);
 
   // 문서/필터가 바뀌면 열려 있던 내용·편집·자식 추가·테스트 UI를 닫는다
@@ -1373,6 +1374,11 @@ export default function Concepts() {
                       if (e.key === 'Escape') { setRootAdding(false); setRootLabel(''); }
                     }}
                   />
+                  <button
+                    className="concepts__root-add-submit"
+                    onClick={submitRoot}
+                    disabled={!rootLabel.trim()}
+                  >Add</button>
                   <button
                     className="concepts__add-child-cancel"
                     title="Cancel"
