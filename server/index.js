@@ -1053,10 +1053,13 @@ app.post('/math-ocr', async (req, res) => {
     if (!latex) return res.status(502).json({ error: 'empty OCR result' });
     res.json({ latex });
   } catch (e) {
-    const msg = e && e.name === 'AbortError'
-      ? 'OCR server timed out'
-      : String((e && e.message) || e);
-    res.status(503).json({ error: msg });
+    if (e && e.name === 'AbortError') {
+      return res.status(503).json({ error: 'OCR server timed out' });
+    }
+    // Node fetch는 메시지를 "fetch failed"로만 남기고 실제 원인을 e.cause에 숨김
+    // → 원인 + upstream URL을 함께 노출해 진단 가능하게 한다.
+    const cause = e && e.cause && e.cause.message ? ` (${e.cause.message})` : '';
+    res.status(503).json({ error: `${String((e && e.message) || e)}${cause} — upstream ${MATH_OCR_URL}` });
   }
 });
 
