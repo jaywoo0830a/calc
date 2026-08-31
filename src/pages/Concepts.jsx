@@ -163,9 +163,9 @@ function hasClearFormat(text) {
   return new RegExp(`^(${CLEAR_KEYS.join('|')}):\\s`, 'm').test(String(text || ''));
 }
 
-// ── 🧠 학습 마찰 게이트: 새 노드(빈 summary)는 연속 5분 + 최소 2섹션 채워야 저장 ──
-const STUDY_GATE_MS = 3 * 60 * 1000;
-const STUDY_GATE_MIN_SECTIONS = 2;
+// ── 🧠 학습 마찰 게이트: 새 노드(빈 summary)는 1분 + 최소 1섹션 채워야 저장 ──
+const STUDY_GATE_MS = 60 * 1000;
+const STUDY_GATE_MIN_SECTIONS = 1;
 
 const fmtMs = (ms) => {
   const s = Math.ceil(ms / 1000);
@@ -257,7 +257,7 @@ export default function Concepts() {
   const [testText, setTestText] = useState('');
   const [scoring, setScoring] = useState(false);     // 서버 의미 채점 진행 중
   const scoringRef = useRef(false);
-  const [gate, setGate] = useState(null);            // { id, openedAt } — 새 노드 3분 학습 게이트
+  const [gate, setGate] = useState(null);            // { id, openedAt } — 새 노드 1분 학습 게이트
   const [, setTick] = useState(0);                   // 게이트 카운트다운 리렌더 틱
   const draftRef = useRef({});                       // 게이트 노드 초안 보존 (닫아도 유지, 타이머만 리셋)
   const [dragId, setDragId] = useState(null);     // 드래그 중인 노드 id
