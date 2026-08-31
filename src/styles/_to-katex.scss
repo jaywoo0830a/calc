@@ -10,6 +10,7 @@
   align-items: center;
   gap: $sp-3;
   width: 100%;
+  overflow-y: auto;          // 치트 시트 펼침 등 콘텐츠가 길어지면 내부 스크롤
 
   &__head {
     text-align: center;
@@ -123,17 +124,153 @@
     line-height: 1.5;
   }
 
+  &__source-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $sp-2;
+  }
+
+  &__source-label {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+  }
+
+  &__docs {
+    color: $c-accent;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    text-decoration: none;
+    white-space: nowrap;
+
+    @media (hover: hover) {
+      &:hover { text-decoration: underline; }
+    }
+  }
+
+  // ── 📖 KaTeX 치트 시트 (접이식) ──
+  &__cheat {
+    width: 100%;
+    max-width: 44rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $sp-2;
+  }
+
+  &__cheat-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: $sp-1;
+    border: $border-thin solid $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    font-weight: $fw-semibold;
+    padding: $sp-1 $sp-3;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { border-color: $c-accent; color: $c-accent; }
+    }
+
+    &[aria-expanded='true'] {
+      border-color: $c-accent;
+      color: $c-accent;
+    }
+  }
+
+  &__cheat-body {
+    width: 100%;
+    padding: $sp-5;
+    background: $c-page-dark;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: $sp-5;
+  }
+
+  &__cs-cat {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+    min-width: 0;
+  }
+
+  &__cs-title {
+    margin: 0;
+    font-size: $fs-step-0;
+    font-weight: $fw-semibold;
+    color: $c-accent;
+    border-bottom: $border-thin solid $c-rule;
+    padding-bottom: $sp-2;
+  }
+
+  &__cs-items {
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+  }
+
+  &__cs-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: $sp-2 $sp-3;
+    align-items: center;
+  }
+
+  &__cs-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+
+  &__cs-cmd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    overflow-x: auto;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  &__cs-desc {
+    color: $c-ink-faint;
+    font-size: $fs-step--2;
+  }
+
+  &__cs-out {
+    justify-self: end;
+    font-size: 1.05rem;
+    color: $c-ink;
+    white-space: nowrap;
+  }
+
   &__source {
     width: 100%;
+    min-height: 3.25rem;
     padding: $sp-2;
     background: $c-page-dark;
+    border: $border-thin solid $c-rule;
     border-radius: $radius-sm;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: $fs-step--1;
+    color: $c-ink;
+    line-height: 1.5;
+    resize: vertical;
     overflow-x: auto;
 
-    code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: $fs-step--1;
-      color: $c-ink;
+    &:focus {
+      outline: none;
+      border-color: $c-accent;
     }
+
+    &::placeholder { color: $c-ink-faint; }
   }
 }
