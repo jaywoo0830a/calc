@@ -8,6 +8,7 @@ import ClearGate from '../components/ClearGate.jsx';
 import ConceptParentPicker from '../components/ConceptParentPicker.jsx';
 import { useClearGate } from '../hooks/useClearGate.js';
 import { setPendingConcept, takePendingConceptsFullscreen } from '../lib/conceptJump.js';
+import { renderMathText } from '../lib/mathText.js';
 import {
   updateNode, reparentNode, deleteNode, buildTree,
   STATUS, REVIEW_PRIORITY,
@@ -25,6 +26,12 @@ const docName = (fp) => String(fp || '').split('/').pop() || 'Document';
 // 독립형 트리(파일 없이 시작한 개념 트리) 판별 — filePath 접두사 '__tree__/'
 // (실제 문서 filePath는 '/'가 없는 파일명이라 충돌 없음)
 const isStandalone = (fp) => String(fp || '').startsWith('__tree__/');
+
+// 수식($...$ / $$...$$) 포함 텍스트를 KaTeX로 렌더하는 표시 컴포넌트
+// (renderMathText가 비수식 텍스트를 이스케이프하므로 dangerouslySetInnerHTML 안전)
+function MathText({ text, className }) {
+  return <span className={className} dangerouslySetInnerHTML={{ __html: renderMathText(text) }} />;
+}
 
 // 상태별 색 — 노드의 상태 점(dot)에 반영 (○ 모름=빨강, ◐ 애매=황토, ● 이해=초록, △ 보류=회색)
 const STATUS_COLORS = {
@@ -941,7 +948,7 @@ export default function Concepts() {
             className="concepts__label"
             title={node.summary || 'Click for details · double-click to edit'}
           >
-            <span className="concepts__name">{node.label}</span>
+            <MathText text={node.label} className="concepts__name" />
           </button>
           {!isStandalone(fp) && (
             <button
@@ -1124,7 +1131,7 @@ export default function Concepts() {
           <div className="concepts__row concepts__row--test">
             <span className="concepts__toggle-spacer" />
             <span className="concepts__status" style={{ background: STATUS_COLORS[node.status] }} />
-            <span className="concepts__name">{node.label}</span>
+            <MathText text={node.label} className="concepts__name" />
           </div>
           {kids.length > 0 && (
             <div className="concepts__children">
@@ -1152,12 +1159,12 @@ export default function Concepts() {
                 {ok ? '✓' : '✗'}
               </span>
               <span className="concepts__test-label">
-                <span className="concepts__name">{node.label}</span>
+                <MathText text={node.label} className="concepts__name" />
                 {!labelOk && <span className="concepts__test-you">you: {labelText || '—'}</span>}
               </span>
             </>
           ) : (
-            <span className="concepts__name">{labelText}</span>
+            <MathText text={labelText} className="concepts__name" />
           )}
         </div>
         {testInput === node.id && !test.scored && (
@@ -1222,11 +1229,11 @@ export default function Concepts() {
                 >
                   <span className="concepts__test-detail-mark">{sOk ? '✓' : '✗'}</span>
                   <span className="concepts__test-detail-key">{k}</span>
-                  <span className="concepts__test-detail-model">{String(expClear[k]).trim()}</span>
+                  <MathText text={expClear[k]} className="concepts__test-detail-model" />
                   {!sOk && (
                     <span className="concepts__test-detail-you">
                       <span className="concepts__test-detail-you-label">you</span>
-                      <span>{userAns || '—'}</span>
+                      {userAns ? <MathText text={userAns} /> : <span>—</span>}
                     </span>
                   )}
                 </div>
@@ -1552,7 +1559,7 @@ export default function Concepts() {
             }}
           >
             <div className="concepts__float-card-head">
-              <span className="concepts__float-card-title">{node.label}</span>
+              <MathText text={node.label} className="concepts__float-card-title" />
               <button
                 className="concepts__float-card-close"
                 onClick={() => { setExpandedId(null); setContentAnchor(null); }}
@@ -1565,12 +1572,12 @@ export default function Concepts() {
                   {CLEAR_KEYS.filter((k) => String(parts[k] || '').trim()).map((k) => (
                     <div className="concepts__float-card-sec" key={k}>
                       <span className="concepts__float-card-sec-label">{k}</span>
-                      <span className="concepts__float-card-sec-text">{parts[k]}</span>
+                      <MathText text={parts[k]} className="concepts__float-card-sec-text" />
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="concepts__float-card-summary">{node.summary}</div>
+                <div className="concepts__float-card-summary" dangerouslySetInnerHTML={{ __html: renderMathText(node.summary) }} />
               ))
               : <div className="concepts__float-card-empty">No notes yet — double-click to edit.</div>}
             <div className="concepts__float-card-foot">

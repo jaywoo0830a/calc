@@ -1131,3 +1131,30 @@ $guide-color: $c-rule;
     white-space: normal;
   }
 }
+
+// ============================================================
+// KaTeX 수식 (Concepts) — 넘치면 가로 스크롤 (스크롤바 숨김)
+// 플로팅 카드는 portal(→body)이라 최상위 선택자로 지정
+// ============================================================
+.concepts__group,
+.concepts__float-card,
+.concepts__test-detail {
+  .katex-display {
+    display: block;
+    margin: $sp-2 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .katex {
+    font-size: 1.05em;
+    max-width: 100%;
+  }
+}
