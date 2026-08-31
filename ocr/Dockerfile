@@ -16,7 +16,11 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-# CPU torch 먼저 (PyPI CUDA 휠 대신) → 나머지 의존성은 PyPI에서
+# CPU torch 먼저 — 별도 레이어(자주 안 바뀜)로 캐시 유지. PyPI CUDA 휠 대신 cpu 인덱스.
+RUN pip install --no-cache-dir torch==2.13.0+cpu torchvision==0.28.0+cpu \
+    --extra-index-url https://download.pytorch.org/whl/cpu
+
+# 나머지 의존성 (einops 등 추가되면 이 레이어만 재설치 — torch는 캐시 유지)
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
