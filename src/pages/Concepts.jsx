@@ -1297,23 +1297,9 @@ export default function Concepts() {
         <div className="concepts__empty">Couldn't load concepts — check the server.</div>
       ) : items === null ? (
         <div className="concepts__empty">Loading…</div>
-      ) : items.length === 0 ? (
-        <>
-          <div className="concepts__head">
-            <h1 className="concepts__title">🧭 Concepts</h1>
-            <button
-              className="concepts__new-tree-btn"
-              onClick={() => { setNewTreeOpen(true); setNewTreeName(''); }}
-              title="Start a standalone concept tree without a document"
-            >➕ New tree</button>
-          </div>
-          {newTreeForm}
-          <div className="concepts__empty">
-            No concepts yet — open a PDF in the Viewer, pick 🧭 Concept and tap a page (or press N), or start a standalone tree.
-          </div>
-        </>
       ) : selectedFp ? (
-        // ── 디테일 뷰: 선택한 PDF 하나에 몰입 (전폭 트리) ──
+        // ── 디테일 뷰: 선택한 문서 하나에 몰입 (전폭 트리).
+        //    selectedFp를 items.length보다 먼저 확인 — 독립형 트리는 개념 0개로 시작한다
         <>
           <div className="concepts__head">
             <button className="concepts__back" onClick={() => setSelectedFp(null)} title="Back to all documents">← All documents</button>
@@ -1455,6 +1441,21 @@ export default function Concepts() {
               )}
             </>
           )}
+        </>
+      ) : items.length === 0 ? (
+        <>
+          <div className="concepts__head">
+            <h1 className="concepts__title">🧭 Concepts</h1>
+            <button
+              className="concepts__new-tree-btn"
+              onClick={() => { setNewTreeOpen(true); setNewTreeName(''); }}
+              title="Start a standalone concept tree without a document"
+            >➕ New tree</button>
+          </div>
+          {newTreeForm}
+          <div className="concepts__empty">
+            No concepts yet — open a PDF in the Viewer, pick 🧭 Concept and tap a page (or press N), or start a standalone tree.
+          </div>
         </>
       ) : (
         // ── 마스터 뷰: PDF 목록 — 터치하면 해당 문서에 몰입 ──
