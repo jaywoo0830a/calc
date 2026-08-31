@@ -2,9 +2,11 @@ import { useState, useCallback, useEffect, useMemo, useRef, useLayoutEffect } fr
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout.jsx';
-import { getAllConcepts, saveConcept, deleteConcept } from '../lib/storage.js';
+import { getAllConcepts, saveConcept, deleteConcept, deleteAllConcepts } from '../lib/storage.js';
 import { api } from '../lib/api.js';
+import ClearGate from '../components/ClearGate.jsx';
 import ConceptParentPicker from '../components/ConceptParentPicker.jsx';
+import { useClearGate } from '../hooks/useClearGate.js';
 import { setPendingConcept, takePendingConceptsFullscreen } from '../lib/conceptJump.js';
 import {
   updateNode, reparentNode, deleteNode, buildTree,
@@ -19,6 +21,10 @@ import {
 // 행 3원칙: 기본=이름만 · 클릭=내용(요약+p.N) · 더블클릭=편집.
 
 const docName = (fp) => String(fp || '').split('/').pop() || 'Document';
+
+// 독립형 트리(파일 없이 시작한 개념 트리) 판별 — filePath 접두사 '__tree__/'
+// (실제 문서 filePath는 '/'가 없는 파일명이라 충돌 없음)
+const isStandalone = (fp) => String(fp || '').startsWith('__tree__/');
 
 // 상태별 색 — 노드의 상태 점(dot)에 반영 (○ 모름=빨강, ◐ 애매=황토, ● 이해=초록, △ 보류=회색)
 const STATUS_COLORS = {
@@ -244,8 +250,13 @@ export default function Concepts() {
   const [dropHint, setDropHint] = useState(null); // { id, pos: before|after|inside }
   const [addingChild, setAddingChild] = useState(null); // { id, filePath } — 자식 추가 중인 부모
   const [childLabel, setChildLabel] = useState('');
+  const [newTreeOpen, setNewTreeOpen] = useState(false); // 마스터 뷰 — 새 독립형 트리 폼 열림
+  const [newTreeName, setNewTreeName] = useState('');    // 새 트리 이름
+  const [rootAdding, setRootAdding] = useState(false);   // 디테일 뷰 — 루트 개념 추가 폼 열림
+  const [rootLabel, setRootLabel] = useState('');        // 루트 개념 라벨
   const savingRef = useRef(0);                    // 진행 중 저장 수 — 폴링이 낙관적 변경을 덮지 않게
   const navigate = useNavigate();
+  const { requireClear, gateProps } = useClearGate();
 
   const refresh = useCallback(() => {
     setLoadError(false);
@@ -555,15 +566,58 @@ export default function Concepts() {
     }
   }, [addingChild, childLabel, items, commitDoc]);
 
-  // 자식 추가/테스트 답 입력 — 바깥 클릭/Esc로 닫기 (안 없어지는 UI 방지)
+  // ── 독립형 트리 만들기 (PDF/마크다운 없이 시작) ──
+  // filePath를 '__tree__/<이름>'으로 생성 — 실제 문서와 겹치지 않는 가상 경로
+  const createTree = useCallback(() => {
+    const name = (newTreeName.trim() || 'New tree').replace(/\//g, '-');
+    const fp = '__tree__/' + name;
+    setNewTreeOpen(false);
+    setNewTreeName('');
+    setFilter('all');
+    setSelectedFp(fp);
+  }, [newTreeName]);
+
+  // ── 루트 개념 추가 (독립형 트리 — 부모 없는 최상위 노드) ──
+  const submitRoot = useCallback(() => {
+    if (!selectedFp) return;
+    const label = rootLabel.trim();
+    setRootAdding(false);
+    setRootLabel('');
+    if (!label) return;
+    const map = docMap(items, selectedFp);
+    try {
+      const id = suggestId(map, conceptIdBase(selectedFp));
+      const newMap = addNode(map, { id, label, parent: null, pageNumber: 1 });
+      commitDoc(selectedFp, map, newMap);
+    } catch (e) {
+      console.warn('[concepts] add root failed:', e);
+    }
+  }, [selectedFp, rootLabel, items, commitDoc]);
+
+  // ── 독립형 트리 전체 삭제 (비밀번호 게이트) ──
+  const deleteTree = useCallback(() => {
+    if (!selectedFp) return;
+    requireClear('Delete this tree', async () => {
+      await deleteAllConcepts(selectedFp);
+      await refresh();
+      setSelectedFp(null);
+    });
+  }, [selectedFp, requireClear, refresh]);
+
+  // 자식 추가/루트 추가/테스트 답 입력/새 트리 폼 — 바깥 클릭/Esc로 닫기 (안 없어지는 UI 방지)
   useEffect(() => {
-    if (!addingChild && !testInput) return;
+    if (!addingChild && !testInput && !rootAdding && !newTreeOpen) return;
     const close = () => {
       if (addingChild) { setAddingChild(null); setChildLabel(''); }
       if (testInput) { setTestInput(null); setTestText(''); }
+      if (rootAdding) { setRootAdding(false); setRootLabel(''); }
+      if (newTreeOpen) { setNewTreeOpen(false); setNewTreeName(''); }
     };
     const onDown = (e) => {
-      if (!e.target.closest('.concepts__add-child')) close();
+      const inForm = e.target.closest('.concepts__add-child')
+        || e.target.closest('.concepts__root-add')
+        || e.target.closest('.concepts__new-tree');
+      if (!inForm) close();
     };
     const onKey = (e) => { if (e.key === 'Escape') close(); };
     document.addEventListener('pointerdown', onDown, true);
@@ -572,7 +626,7 @@ export default function Concepts() {
       document.removeEventListener('pointerdown', onDown, true);
       document.removeEventListener('keydown', onKey, true);
     };
-  }, [addingChild, testInput]);
+  }, [addingChild, testInput, rootAdding, newTreeOpen]);
 
   const startEdit = useCallback((c) => {
     setExpandedId(null);
@@ -642,6 +696,7 @@ export default function Concepts() {
 
   // 노드 오른쪽의 p.N 버튼 → Viewer로 이동 후 원 페이지로 점프 (트리 전체화면 중이면 PDF도 전체화면)
   const openConcept = useCallback((c) => {
+    if (isStandalone(c.filePath)) return; // 독립형 트리는 원본 페이지가 없음 — 점프 생략
     setPendingConcept({ filePath: c.filePath, pageNumber: c.pageNumber, label: c.label, fullscreen: treeFull });
     navigate('/viewer');
   }, [navigate, treeFull]);
@@ -887,11 +942,13 @@ export default function Concepts() {
           >
             <span className="concepts__name">{node.label}</span>
           </button>
-          <button
-            className="concepts__page"
-            onClick={(e) => { e.stopPropagation(); openConcept(record); }}
-            title={`Go to source page ${node.pageNumber}`}
-          >p.{node.pageNumber}</button>
+          {!isStandalone(fp) && (
+            <button
+              className="concepts__page"
+              onClick={(e) => { e.stopPropagation(); openConcept(record); }}
+              title={`Go to source page ${node.pageNumber}`}
+            >p.{node.pageNumber}</button>
+          )}
         </div>
         {addingChild && addingChild.id === node.id && (
           <div className="concepts__add-child">
@@ -1185,6 +1242,30 @@ export default function Concepts() {
     );
   };
 
+  // 새 독립형 트리 이름 입력 폼 (마스터 뷰/빈 상태 공용)
+  const newTreeForm = newTreeOpen ? (
+    <div className="concepts__new-tree">
+      <input
+        autoFocus
+        placeholder="Tree name (e.g. Electrostatics)…"
+        title="Enter = create · Esc = cancel"
+        value={newTreeName}
+        onChange={(e) => setNewTreeName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') createTree();
+          if (e.key === 'Escape') { setNewTreeOpen(false); setNewTreeName(''); }
+        }}
+      />
+      <button className="concepts__new-tree-add" onClick={createTree} disabled={!newTreeName.trim()}>Create</button>
+      <button
+        className="concepts__add-child-cancel"
+        title="Cancel"
+        aria-label="Cancel"
+        onClick={() => { setNewTreeOpen(false); setNewTreeName(''); }}
+      >✕</button>
+    </div>
+  ) : null;
+
   const total = items ? items.length : 0;
   const unknownCount = items ? items.filter((c) => c.status === STATUS.UNKNOWN).length : 0;
 
@@ -1219,9 +1300,15 @@ export default function Concepts() {
         <>
           <div className="concepts__head">
             <h1 className="concepts__title">🧭 Concepts</h1>
+            <button
+              className="concepts__new-tree-btn"
+              onClick={() => { setNewTreeOpen(true); setNewTreeName(''); }}
+              title="Start a standalone concept tree without a document"
+            >➕ New tree</button>
           </div>
+          {newTreeForm}
           <div className="concepts__empty">
-            No concepts yet — open a PDF in the Viewer, pick 🧭 Concept and tap a page (or press N).
+            No concepts yet — open a PDF in the Viewer, pick 🧭 Concept and tap a page (or press N), or start a standalone tree.
           </div>
         </>
       ) : selectedFp ? (
@@ -1240,6 +1327,13 @@ export default function Concepts() {
                 </span>
               );
             })()}
+            {isStandalone(selectedFp) && (
+              <button
+                className="concepts__delete-tree-btn"
+                onClick={deleteTree}
+                title="Delete this whole tree"
+              >🗑 Delete tree</button>
+            )}
             {!test && !testPick && filterChips}
             {!test && !testPick && items.some((c) => c.filePath === selectedFp) && (
               <button
@@ -1263,6 +1357,37 @@ export default function Concepts() {
               >⛶</button>
             )}
           </div>
+
+          {!test && !testPick && !treeFull && isStandalone(selectedFp) && (
+            <div className="concepts__root-add">
+              {rootAdding ? (
+                <>
+                  <input
+                    autoFocus
+                    placeholder="New root concept…"
+                    title="Enter = add · Esc = cancel"
+                    value={rootLabel}
+                    onChange={(e) => setRootLabel(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') submitRoot();
+                      if (e.key === 'Escape') { setRootAdding(false); setRootLabel(''); }
+                    }}
+                  />
+                  <button
+                    className="concepts__add-child-cancel"
+                    title="Cancel"
+                    aria-label="Cancel"
+                    onClick={() => { setRootAdding(false); setRootLabel(''); }}
+                  >✕</button>
+                </>
+              ) : (
+                <button
+                  className="concepts__root-add-btn"
+                  onClick={() => { setRootAdding(true); setRootLabel(''); }}
+                >＋ Add concept</button>
+              )}
+            </div>
+          )}
 
           {test ? (
             // ── 🧠 Test 모드 (비파괴 — 정답은 라운드 끝까지 숨김) ──
@@ -1309,7 +1434,9 @@ export default function Concepts() {
                 </div>
               )}
               {detailItems.length === 0 ? (
-                <div className="concepts__empty">No concepts match this filter.</div>
+                <div className="concepts__empty">
+                  {isStandalone(selectedFp) ? 'This tree is empty — add your first concept above.' : 'No concepts match this filter.'}
+                </div>
               ) : treeFull ? null : (
                 <div className="concepts__list concepts__list--detail">
                   <section className="concepts__group">
@@ -1332,7 +1459,13 @@ export default function Concepts() {
               {groups.length} document{groups.length === 1 ? '' : 's'} · {total} concept{total === 1 ? '' : 's'}
               {unknownCount > 0 && <em className="concepts__unknown-count"> · {unknownCount} to review</em>}
             </span>
+            <button
+              className="concepts__new-tree-btn"
+              onClick={() => { setNewTreeOpen(true); setNewTreeName(''); }}
+              title="Start a standalone concept tree without a document"
+            >➕ New tree</button>
           </div>
+          {newTreeForm}
           <div className="concepts__docs">
             {groups.map(([fp, list]) => {
               const counts = statusCounts(list);
@@ -1434,16 +1567,20 @@ export default function Concepts() {
               ))
               : <div className="concepts__float-card-empty">No notes yet — double-click to edit.</div>}
             <div className="concepts__float-card-foot">
-              <button
-                className="concepts__float-card-page"
-                onClick={() => openConcept({ filePath: node.filePath, pageNumber: node.pageNumber, label: node.label })}
-                title={`Go to source page ${node.pageNumber}`}
-              >p.{node.pageNumber}</button>
+              {!isStandalone(node.filePath) && (
+                <button
+                  className="concepts__float-card-page"
+                  onClick={() => openConcept({ filePath: node.filePath, pageNumber: node.pageNumber, label: node.label })}
+                  title={`Go to source page ${node.pageNumber}`}
+                >p.{node.pageNumber}</button>
+              )}
             </div>
           </div>,
           treeFull && overlayRef.current ? overlayRef.current : document.body
         );
       })()}
+
+      <ClearGate {...gateProps} />
     </AppLayout>
   );
 }

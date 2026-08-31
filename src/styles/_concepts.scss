@@ -166,6 +166,131 @@ $guide-color: $c-rule;
     }
   }
 
+  // ── 새 독립형 트리 (PDF/마크다운 없이 시작) ──
+  &__new-tree-btn {
+    margin-left: auto; // 헤더 오른쪽 끝 정렬
+    border: $border-thin solid $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    color: $c-accent;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: $sp-1 $sp-3;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { background: rgba(92, 61, 46, 0.1); }
+    }
+  }
+
+  &__new-tree {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: $sp-1 0;
+
+    input {
+      display: block;
+      width: min(100%, 22rem);
+      border: $border-thin solid $c-rule;
+      border-radius: 999px;
+      background: $c-page;
+      color: $c-ink;
+      font-family: $ff;
+      font-size: $fs-step--1;
+      padding: 0.4rem 0.9rem;
+      box-shadow: 0 0.0625rem 0.125rem rgba(44, 36, 22, 0.06);
+
+      &:focus {
+        border-color: $c-accent;
+        outline: none;
+        box-shadow: 0 0.0625rem 0.25rem rgba(92, 61, 46, 0.18);
+      }
+    }
+  }
+
+  &__new-tree-add {
+    border: none;
+    border-radius: 999px;
+    background: $c-accent;
+    color: $c-ink-inverse;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { background: $c-accent-hover; }
+    }
+
+    &:disabled { opacity: 0.5; cursor: default; }
+  }
+
+  // ── 디테일 뷰: 루트 개념 추가 (독립형 트리) ──
+  &__root-add {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: $sp-1 0;
+
+    input {
+      display: block;
+      width: min(100%, 20rem);
+      border: $border-thin solid $c-rule;
+      border-radius: 999px;
+      background: $c-page;
+      color: $c-ink;
+      font-family: $ff;
+      font-size: $fs-step--2;
+      padding: 0.35rem 0.9rem;
+      box-shadow: 0 0.0625rem 0.125rem rgba(44, 36, 22, 0.06);
+
+      &:focus {
+        border-color: $c-accent;
+        outline: none;
+        box-shadow: 0 0.0625rem 0.25rem rgba(92, 61, 46, 0.18);
+      }
+    }
+  }
+
+  &__root-add-btn {
+    border: $border-thin dashed $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    color: $c-ink-soft;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    padding: $sp-1 $sp-3;
+    cursor: pointer;
+    transition: border-color $transition-fast, color $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { border-color: $c-accent; color: $c-accent; }
+    }
+  }
+
+  // ── 독립형 트리 전체 삭제 ──
+  &__delete-tree-btn {
+    margin-left: auto; // 헤더 오른쪽 끝 정렬
+    border: $border-thin solid $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    color: $c-error;
+    font-family: $ff;
+    font-size: $fs-step--2;
+    padding: $sp-1 $sp-2;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { background: $c-error-light; }
+    }
+  }
+
   &__list {
     flex: 1;
     min-height: 0;
