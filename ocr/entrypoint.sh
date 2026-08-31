@@ -8,6 +8,7 @@
 set -e
 
 MODELS_DIR="${MODELS_DIR:-/models}"
+LLAMA_DIR="${LLAMA_DIR:-/opt/llama-b10621}"
 HF_BASE="https://huggingface.co/ggml-org/GLM-OCR-GGUF/resolve/main"
 MODEL_GGUF="${GLM_OCR_GGUF:-GLM-OCR-Q8_0.gguf}"
 MMPROJ_GGUF="${GLM_OCR_MMPROJ:-mmproj-GLM-OCR-Q8_0.gguf}"
@@ -32,7 +33,7 @@ fetch "$MODEL_GGUF"
 fetch "$MMPROJ_GGUF"
 
 # exec → 시그널/Docker stop이 llama-server로 전달됨
-exec /opt/llama-server \
+exec "$LLAMA_DIR/llama-server" \
   -m "$MODELS_DIR/$MODEL_GGUF" \
   -mm "$MODELS_DIR/$MMPROJ_GGUF" \
   --host 0.0.0.0 \

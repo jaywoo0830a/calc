@@ -11,10 +11,12 @@
 # ═══════════════════════════════════════════════════════════════
 FROM ubuntu:24.04
 
-# 사전 빌드 tarball의 공유 라이브러리(libggml.so 등)는 /opt/lib 에 해제됨
+# 사전 빌드 tarball은 llama-b10621/ 한 디렉터리에 바이너리와 .so 를 함께 둠
+# → 디렉터리 구조를 유지해야 RPATH($ORIGIN)로 라이브러리가 해석된다(바이너리 이동 금지)
 ENV LLAMA_CPP_VERSION=b10621 \
     MODELS_DIR=/models \
-    LD_LIBRARY_PATH=/opt/lib
+    LLAMA_DIR=/opt/llama-b10621 \
+    LD_LIBRARY_PATH=/opt/llama-b10621
 
 # llama.cpp CPU 바이너리 런타임 의존성(libgomp1=OpenMP) + 다운로드 도구
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -23,15 +25,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 공식 사전 빌드 CPU 바이너리 (GLM-OCR 지원 포함)
 # llama-bXXXX-bin-ubuntu-x64.tar.gz = Ubuntu x64 CPU(OpenBLAS) 빌드
+# ⚠️ tar가 디렉터리(llama-b10621/)를 만들어 해제하므로 -C /opt 로 풀면
+#    /opt/llama-b10621/llama-server + 같은 디렉터리의 .so 들이 그대로 보존된다.
 RUN curl -L --fail -o /tmp/llama.tar.gz \
       "https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_CPP_VERSION}/llama-${LLAMA_CPP_VERSION}-bin-ubuntu-x64.tar.gz" \
     && tar -xzf /tmp/llama.tar.gz -C /opt \
     && rm /tmp/llama.tar.gz \
-    # 압축 해제 위치가 빌드에 따라 다를 수 있어 위치 탐색 후 /opt/llama-server 로 정리
-    && { test -x /opt/llama-server || find /opt -maxdepth 2 -name llama-server -exec mv {} /opt/llama-server \; ; } \
-    && test -x /opt/llama-server \
+    && test -x "$LLAMA_DIR/llama-server" \
     # 빌드 타임 스모크 테스트 — 공유 라이브러리 해석 문제를 여기서 잡는다
-    && /opt/llama-server --version \
+    && "$LLAMA_DIR/llama-server" --version \
     && echo "llama-server OK"
 
 COPY entrypoint.sh /entrypoint.sh
