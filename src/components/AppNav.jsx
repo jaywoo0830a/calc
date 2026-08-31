@@ -12,6 +12,7 @@ const TABS = [
   { to: '/', label: 'Calc', end: true, primary: true },
   { to: '/viewer', label: 'Viewer', primary: true },
   { to: '/concepts', label: 'Concepts', primary: true },
+  { to: '/to-katex', label: 'KaTeX', primary: true },
   { to: '/playground', label: 'Three.js' },
   { to: '/units', label: 'Units' },
   { to: '/relation', label: 'Relation' },

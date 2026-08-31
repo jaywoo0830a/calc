@@ -125,6 +125,11 @@ export const api = {
     return request('/concepts/score', { method: 'POST', body: JSON.stringify({ pairs }) });
   },
 
+  /** 🧮 To KaTeX — 드로잉 이미지(PNG base64)를 PaddleOCR-VL로 LaTeX 변환 */
+  mathOcr(imageBase64) {
+    return request('/math-ocr', { method: 'POST', body: JSON.stringify({ image: imageBase64 }) });
+  },
+
   /** 파괴적 작업용 비밀번호 검증 — 성공 시 세션 토큰 저장 (이후 같은 세션은 재입력 생략) */
   verifyClearPassword(password) {
     return request('/admin/verify', { method: 'POST', body: JSON.stringify({ password }) }).then((data) => {

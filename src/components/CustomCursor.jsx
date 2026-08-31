@@ -4,7 +4,7 @@ import { subscribeRangeSelect } from '../lib/rangeSelectState.js';
 import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 
 const INTERACTIVE_SELECTOR = 'a, button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"]), .clickable, summary, details';
-const PEN_SELECTOR = '.pdf-annotator__page-wrapper--pen';
+const PEN_SELECTOR = '.pdf-annotator__page-wrapper--pen, .to-katex__canvas';
 const TEXT_SELECTOR = '.react-pdf__Page__textContent span, [contenteditable="true"], textarea, input[type="text"], input[type="search"]';
 
 // ── RangeSelect(✂️ Selecting) 상태의 정밀 타깃 커서 ────────────

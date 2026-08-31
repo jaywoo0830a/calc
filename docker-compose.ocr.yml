@@ -1,0 +1,40 @@
+# ═══════════════════════════════════════════════════════════════
+# 🧮 To KaTeX — PaddleOCR-VL OCR 서비스 (CPU 최적화, 선택 오버라이드)
+# 사용 예:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.ocr.yml up -d --build
+#
+# CPU 전용: ocr 서비스가 `ocr/`(transformers + CPU torch)를 빌드한다.
+# GPU가 있으면 NVIDIA GPU 예약을 주석 해제하거나, PaddleOCR 공식 vLLM
+# 서버 이미지(ccr-.../paddleocr-genai-vllm-server)로 교체해 더 빠르게.
+# 기본값(로컬 개발)은 MATH_OCR_URL 미설정 시
+# http://127.0.0.1:8080/v1/chat/completions 을 호출한다.
+# ═══════════════════════════════════════════════════════════════
+services:
+  ocr:
+    build: ./ocr
+    container_name: calc-ocr
+    restart: unless-stopped
+    environment:
+      - HF_HOME=/cache                 # 모델 가중치 캐시 (볼륨 유지 — 재다운로드 방지)
+      - HF_HUB_DISABLE_SYMLINKS_WARNING=1
+    volumes:
+      - ocr_cache:/cache
+    # NVIDIA GPU 예약 — CPU 전용이므로 기본 해제. GPU 호스트에서만 주석 해제.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  api:
+    environment:
+      - MATH_OCR_URL=http://ocr:8080/v1/chat/completions
+      - MATH_OCR_MODEL=PaddleOCR-VL
+      - MATH_OCR_TIMEOUT_MS=180000    # CPU 추론(5~30s) 대비 여유
+
+volumes:
+  ocr_cache:
+    driver: local

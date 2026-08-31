@@ -1,0 +1,139 @@
+@use 'variables' as *;
+
+// ============================================================
+// Block: to-katex — 🧮 드로잉 → PaddleOCR-VL → KaTeX 렌더 페이지
+// ============================================================
+
+.to-katex {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $sp-3;
+  width: 100%;
+
+  &__head {
+    text-align: center;
+    width: 100%;
+  }
+
+  &__title {
+    font-size: $fs-step-2;
+    font-weight: $fw-semibold;
+    color: $c-ink;
+    margin: 0 0 $sp-1;
+  }
+
+  &__hint {
+    color: $c-ink-faint;
+    font-size: $fs-step--1;
+  }
+
+  // ── 드로잉 캔버스 ──
+  &__stage {
+    position: relative;
+    width: 100%;
+    max-width: 44rem;
+    border: $border-thin solid $c-rule;
+    border-radius: $radius-md;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 0.125rem 0.5rem rgba(44, 36, 22, 0.08);
+  }
+
+  &__canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1024 / 640;   // 내부 해상도와 정확히 일치 — 테두리로 인한 찌그러짐 방지
+    touch-action: none;         // 펜/손가락 드로잉 — 스크롤/핀치 방지
+    cursor: crosshair;
+  }
+
+  &__placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(44, 36, 22, 0.22);
+    font-size: $fs-step-1;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  // ── 액션/결과 ──
+  &__actions {
+    display: flex;
+    gap: $sp-2;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  &__btn {
+    border: $border-thin solid $c-rule;
+    border-radius: 999px;
+    background: transparent;
+    color: $c-ink;
+    font-family: $ff;
+    font-size: $fs-step--1;
+    padding: $sp-1 $sp-3;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    @media (hover: hover) {
+      &:hover { border-color: $c-accent; color: $c-accent; }
+    }
+
+    &:disabled { opacity: 0.5; cursor: default; }
+
+    &--primary {
+      background: $c-accent;
+      border-color: $c-accent;
+      color: $c-ink-inverse;
+
+      @media (hover: hover) {
+        &:hover { background: $c-accent-hover; color: $c-ink-inverse; }
+      }
+    }
+  }
+
+  &__error {
+    color: $c-error;
+    font-size: $fs-step--1;
+    text-align: center;
+  }
+
+  &__result {
+    width: 100%;
+    max-width: 44rem;
+    display: flex;
+    flex-direction: column;
+    gap: $sp-2;
+    align-items: center;
+    padding-top: $sp-2;
+    border-top: $border-thin solid $c-rule; // 캔버스와의 구분만 — 크기를 줄이는 박스 제거
+  }
+
+  &__result-math {
+    font-size: 1.75rem;               // 변환 결과를 크게 — 작아 보이지 않게
+    max-width: 100%;
+    overflow-x: auto;
+    padding: $sp-2 0;
+    line-height: 1.5;
+  }
+
+  &__source {
+    width: 100%;
+    padding: $sp-2;
+    background: $c-page-dark;
+    border-radius: $radius-sm;
+    overflow-x: auto;
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: $fs-step--1;
+      color: $c-ink;
+    }
+  }
+}

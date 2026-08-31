@@ -997,6 +997,69 @@ app.post('/concepts/score', async (req, res) => {
   }
 });
 
+// ── 🧮 To KaTeX — 드로잉 이미지 → PaddleOCR-VL(Formula Recognition) → LaTeX ──
+// 서버에 배포된 PaddleOCR-VL(vLLM, OpenAI 호환)을 호출한다.
+// MATH_OCR_URL — vLLM OpenAI 호환 엔드포인트 (기본 localhost:8080)
+// MATH_OCR_MODEL — vLLM에 등록된 모델 이름
+const MATH_OCR_URL = process.env.MATH_OCR_URL || 'http://127.0.0.1:8080/v1/chat/completions';
+const MATH_OCR_MODEL = process.env.MATH_OCR_MODEL || 'PaddleOCR-VL';
+const MATH_OCR_TIMEOUT_MS = Number(process.env.MATH_OCR_TIMEOUT_MS) || 120000; // CPU 추론 대비 여유
+
+app.post('/math-ocr', async (req, res) => {
+  try {
+    const { image, task = 'formula' } = req.body || {};
+    const b64 = String(image || '').includes('base64,')
+      ? String(image).split('base64,')[1]
+      : String(image || '');
+    if (!b64) return res.status(400).json({ error: 'image is required' });
+    const dataUrl = 'data:image/png;base64,' + b64;
+
+    const PROMPTS = { formula: 'Formula Recognition:', ocr: 'OCR:', table: 'Table Recognition:' };
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), MATH_OCR_TIMEOUT_MS);
+    let resp;
+    try {
+      resp = await fetch(MATH_OCR_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: MATH_OCR_MODEL,
+          messages: [
+            { role: 'system', content: 'You are a math OCR engine. Output ONLY the LaTeX of the formula in the image — no explanations, no markdown fences, no dollar delimiters, no surrounding text.' },
+            { role: 'user', content: [
+              { type: 'image_url', image_url: { url: dataUrl } },
+              { type: 'text', text: PROMPTS[task] || PROMPTS.formula },
+            ] },
+          ],
+          temperature: 0.1,
+          max_tokens: 1024,
+        }),
+        signal: ctrl.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '');
+      return res.status(502).json({ error: `OCR upstream ${resp.status}: ${String(body).slice(0, 200)}` });
+    }
+    const data = await resp.json();
+    let latex = String(data?.choices?.[0]?.message?.content || '').trim();
+    // ```latex ... ``` / ``` 펜스 제거
+    latex = latex.replace(/```(?:latex|tex)?/gi, '').replace(/```/g, '').trim();
+    // 전체가 $...$ / $$...$$ / \[...\] 로 감싸져 있으면 벗긴다
+    const wrapped = latex.match(/^\$\$?([\s\S]*?)\$\$?$/) || latex.match(/^\\\[([\s\S]*?)\\\]$/);
+    if (wrapped) latex = wrapped[1].trim();
+    if (!latex) return res.status(502).json({ error: 'empty OCR result' });
+    res.json({ latex });
+  } catch (e) {
+    const msg = e && e.name === 'AbortError'
+      ? 'OCR server timed out'
+      : String((e && e.message) || e);
+    res.status(503).json({ error: msg });
+  }
+});
+
 // health check
 app.get('/health', (_, res) => res.json({ ok: true }));
 // 업로드/요청 에러 → JSON 응답 (multer fileFilter/size 초과 포함)

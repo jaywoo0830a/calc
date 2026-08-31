@@ -3,3 +3,7 @@ dist/
 .DS_Store
 package-lock.json
 server/data/
+# Python (ocr service)
+__pycache__/
+*.pyc
+.venv/
