@@ -17,12 +17,16 @@
 # ═══════════════════════════════════════════════════════════════
 import base64
 import io
+import logging
 import re
+import sys
 import threading
+import traceback
 from typing import List, Optional
 
 import torch
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoProcessor
 from PIL import Image
@@ -30,7 +34,20 @@ from PIL import Image
 MODEL = "PaddlePaddle/PaddleOCR-VL"
 DEFAULT_PROMPT = "Formula Recognition:"
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("ocr")
+
 app = FastAPI(title="calc-ocr", version="1.0.0")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """예상치 못한 예외 → 실제 메시지를 500 응답 + 로그에 트레이스백"""
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"error": f"{type(exc).__name__}: {exc}"},
+    )
 
 _model = None
 _processor = None
@@ -54,13 +71,15 @@ def _load():
     global _model, _processor
     with _lock:
         if _model is None:
+            logger.info("loading model %s (first request — may take a while)", MODEL)
             _processor = AutoProcessor.from_pretrained(MODEL, trust_remote_code=True)
+            logger.info("processor loaded, loading weights…")
             _model = AutoModelForCausalLM.from_pretrained(
                 MODEL,
                 trust_remote_code=True,
                 torch_dtype=torch.float32,
             ).to("cpu").eval()
-            print("ocr model loaded", flush=True)
+            logger.info("ocr model loaded")
 
 
 def _extract_image(messages) -> Optional[Image.Image]:
