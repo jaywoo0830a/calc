@@ -4,6 +4,8 @@ services:
     container_name: calc-caddy
     ports:
       - "80:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # freedf nginx(호스트 8081)로 프록시용
     volumes:
       - ./Caddyfile.http:/etc/caddy/Caddyfile:ro
     restart: unless-stopped

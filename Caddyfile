@@ -4,3 +4,9 @@ calc.rlawjddn00.online {
     }
     reverse_proxy calc:80
 }
+
+# freedf — 별도 compose(호스트 네트워크)로 독립 실행. 이 Caddy가 TLS(80/443)를 맡고
+# freedf nginx(127.0.0.1:8081, 호스트 내부 전용)로 전달. 미디어/API/Sync 경로 분기는 freedf nginx가 처리.
+freedf.rlawjddn00.online {
+    reverse_proxy host.docker.internal:8081
+}

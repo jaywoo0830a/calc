@@ -4,3 +4,8 @@
     }
     reverse_proxy calc:80
 }
+
+# freedf — http 테스트용. freedf nginx(호스트 127.0.0.1:8081)는 별도 compose로 독립 실행.
+freedf.rlawjddn00.online {
+    reverse_proxy host.docker.internal:8081
+}
