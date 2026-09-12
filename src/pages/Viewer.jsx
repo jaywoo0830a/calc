@@ -27,6 +27,51 @@ import 'katex/contrib/copy-tex';
 import 'katex/dist/katex.min.css';
 import 'highlight.js/styles/github.css';
 
+/** 뷰어가 이미지로 취급하는 확장자 (ZipTree 아이콘과 동일 규칙) */
+const IMAGE_EXT_RE = /\.(png|jpg|jpeg|gif|svg|webp|ico)$/i;
+
+/**
+ * 확장자 → MIME type.
+ * JSZip의 async('blob')은 type이 빈 문자열('')인 Blob을 만든다.
+ * PNG/JPG 등은 매직바이트로 스니핑되지만, SVG는 XML 텍스트라 스니핑이 불가능해
+ * Content-Type이 없으면 <img>가 렌더되지 않는다. 그래서 확장자로 type을 지정한다.
+ */
+function mimeTypeForPath(path) {
+  const dot = path.lastIndexOf('.');
+  const ext = dot >= 0 ? path.slice(dot + 1).toLowerCase() : '';
+  switch (ext) {
+    case 'png': return 'image/png';
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'gif': return 'image/gif';
+    case 'svg': return 'image/svg+xml';
+    case 'webp': return 'image/webp';
+    case 'ico': return 'image/x-icon';
+    default: return '';
+  }
+}
+
+/** 속성값 안전 이스케이프 (blob URL/파일명) */
+function escapeAttr(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * 이미지 파일 경로 → 뷰어에 표시할 <img> HTML.
+ * blobMap(indexImages 결과)에 blob URL이 있으면 사용한다. 없으면 ''를 반환해
+ * 호출부가 기존 오류 표시/폴백을 하도록 둔다.
+ */
+function imageHtmlFor(path, blobMap) {
+  if (!blobMap) return '';
+  const url = blobMap[path] || blobMap[path.split('/').pop()];
+  if (!url) return '';
+  return `<img src="${escapeAttr(url)}" alt="${escapeAttr(path.split('/').pop())}">`;
+}
+
 function processContent(markdown, resolveImage) {
   // ── 토크나이저: 문자 단위로 $$ / $ 블록을 안전하게 추출 ──
   const mathBlocks = [];
@@ -131,11 +176,15 @@ function extractToc(html) {
   return { html: withIds, toc };
 }
 function resolveImagePath(src, dir, blobMap) {
-  // 이미 절대 URL 이면 그대로
-  if (/^(https?:|data:|blob:|\/)/.test(src)) return blobMap[src] || null;
+  // 이미 절대 URL(프로토콜/프로토콜 상대)이면 그대로
+  if (/^(https?:|data:|blob:|\/\/)/.test(src)) return blobMap[src] || null;
+
+  // 루트 절대경로(/images/a.svg)는 ZIP 루트 기준으로 해석
+  const isRootAbs = src.startsWith('/');
+  const relSrc = isRootAbs ? src.replace(/^\/+/, '') : src;
 
   // 상대 경로 → dir 기준 절대 경로로 정규화
-  const parts = (dir + src).split('/');
+  const parts = ((isRootAbs ? '' : dir) + relSrc).split('/');
   const resolved = [];
   for (const p of parts) {
     if (p === '' || p === '.') continue;
@@ -271,6 +320,11 @@ export default function Viewer() {
           pdfBlobUrlsRef.current.add(url);
           setToc([]);
           setPdfUrl(url);
+          setLoading(false);
+        } else if (IMAGE_EXT_RE.test(state.selectedPath)) {
+          setToc([]);
+          setPdfUrl('');
+          setContent(imageHtmlFor(state.selectedPath, blobs));
           setLoading(false);
         } else {
           const dir = state.selectedPath.substring(0, state.selectedPath.lastIndexOf('/') + 1);
@@ -420,9 +474,12 @@ export default function Viewer() {
   const indexImages = useCallback(async (zip) => {
     const blobs = {};
     for (const [path, file] of Object.entries(zip.files)) {
-      if (file.dir || !/\.(png|jpg|jpeg|gif|svg|webp|ico)$/i.test(path)) continue;
+      if (file.dir || !IMAGE_EXT_RE.test(path)) continue;
       const data = await file.async('blob');
-      const url = URL.createObjectURL(data);
+      // JSZip blob은 type이 비어 있어 SVG가 <img>에서 렌더되지 않는다.
+      // 확장자 MIME으로 재포장해 브라우저가 이미지로 인식하게 한다.
+      const typed = new Blob([data], { type: mimeTypeForPath(path) });
+      const url = URL.createObjectURL(typed);
       blobs[path] = url;
       const base = path.split('/').pop();
       blobs[base] = url; blobs['./' + base] = url; blobs['./' + path] = url;
@@ -744,6 +801,14 @@ export default function Viewer() {
         setLoading(false);
         return;
       }
+      // 이미지 파일 — markdown으로 파싱하지 않고 <img>로 바로 표시 (SVG 포함)
+      if (IMAGE_EXT_RE.test(path)) {
+        setPdfUrl('');
+        setPdfInitialPage(null);
+        setContent(imageHtmlFor(path, entry.blobs));
+        setLoading(false);
+        return;
+      }
       const dir = path.substring(0, path.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir, entry.blobs);
       const txt = await file.async('text');
@@ -976,6 +1041,12 @@ export default function Viewer() {
     }
     setPdfUrl('');
     setPdfInitialPage(null);
+    // 이미지 파일 — markdown으로 파싱하지 않고 <img>로 바로 표시 (SVG 포함)
+    if (IMAGE_EXT_RE.test(node.name)) {
+      setContent(imageHtmlFor(node.path, imageBlobs));
+      setLoading(false);
+      return;
+    }
     try {
       const dir = node.path.substring(0, node.path.lastIndexOf('/') + 1);
       const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
@@ -1037,6 +1108,12 @@ export default function Viewer() {
     }
     setPdfUrl('');
     setPdfInitialPage(null);
+    // 이미지 파일 — markdown으로 파싱하지 않고 <img>로 바로 표시 (SVG 포함)
+    if (IMAGE_EXT_RE.test(path)) {
+      setContent(imageHtmlFor(path, imageBlobs));
+      setLoading(false);
+      return;
+    }
     const dir = path.substring(0, path.lastIndexOf('/') + 1);
     const resolveImg = (src) => resolveImagePath(src, dir, imageBlobs);
     file.async('text').then((txt) => {
