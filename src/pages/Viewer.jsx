@@ -28,6 +28,13 @@ import 'katex/dist/katex.min.css';
 import 'highlight.js/styles/github.css';
 
 /** 뷰어가 이미지로 취급하는 확장자 (ZipTree 아이콘과 동일 규칙) */
+
+/** 저장 위치 표식 — archive source에 따라 라벨/툴팁 (server / local / cached) */
+const ZIP_SOURCE_META = {
+  server: { text: '☁️ Server', title: 'Stored on the server — available on every device' },
+  local:  { text: '💾 This device', title: 'Saved on this device only (offline upload)' },
+  cached: { text: '💾 Cached', title: 'Server not reachable — showing the local cache' },
+};
 const IMAGE_EXT_RE = /\.(png|jpg|jpeg|gif|svg|webp|ico)$/i;
 
 /**
@@ -1216,8 +1223,13 @@ export default function Viewer() {
             <div key={entry.id} className="viewer__stored-item" onClick={() => handleLoadStored(entry)}>
               <span className="viewer__stored-name">
                 {entry.name}
-                {entry.source === 'local' && (
-                  <em className="viewer__stored-badge" title="Saved on this device only">💾 Local</em>
+                {ZIP_SOURCE_META[entry.source] && (
+                  <em
+                    className={'viewer__stored-badge viewer__stored-badge--' + entry.source}
+                    title={ZIP_SOURCE_META[entry.source].title}
+                  >
+                    {ZIP_SOURCE_META[entry.source].text}
+                  </em>
                 )}
               </span>
               <button

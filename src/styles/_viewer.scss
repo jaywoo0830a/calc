@@ -162,6 +162,10 @@
     font-style: normal;
     font-size: $fs-step--2;
     color: $c-ink-faint;
+
+    &--server { color: $c-link; }
+    &--local  { color: $c-equals; }
+    &--cached { color: $c-error; }
   }
 
   &__stored-delete {
