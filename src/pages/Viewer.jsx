@@ -590,6 +590,15 @@ export default function Viewer() {
     }
   }, [indexImages, buildZipTree, refreshStored, cacheZip]);
 
+  // 여러 ZIP 동시 선택/드롭 — .zip만 골라 순차 로드 (마지막 ZIP이 뷰어에 표시)
+  const handleZipFiles = useCallback(async (fileList) => {
+    const zips = Array.from(fileList || []).filter((f) => /\.zip$/i.test(f.name || ''));
+    if (zips.length === 0) return;
+    if (zips.length === 1) { await loadZip(zips[0]); return; }
+    for (const f of zips) await loadZip(f);
+    setMdToast('⇪ ' + zips.length + ' ZIPs uploaded — the last one is open');
+  }, [loadZip]);
+
   // IndexedDB에서 저장된 ZIP 불러오기 (이미 열려 있던 ZIP은 캐시 재사용)
   const handleLoadStored = useCallback(async (entry) => {
     const seq = ++navSeq.current;                    // 새로 불러온 ZIP = 최신 탐색
@@ -1176,14 +1185,21 @@ export default function Viewer() {
     <AppLayout className={'viewer' + (fullscreen ? ' viewer--fullscreen' : '')} hideNav={fullscreen} style={readabilityVars} ref={viewerRef}>
       {!fullscreen && (
         <div className="viewer__upload"
-          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && f.name.endsWith('.zip')) loadZip(f); }}
+          onDrop={(e) => { e.preventDefault(); handleZipFiles(e.dataTransfer.files); }}
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
           onClick={() => document.getElementById('zipInput').click()}
         >
-          <input id="zipInput" type="file" accept=".zip" onChange={(e) => { const f = e.target.files[0]; if (f) loadZip(f); }} hidden />
+          <input
+            id="zipInput"
+            type="file"
+            accept=".zip"
+            multiple
+            onChange={(e) => { handleZipFiles(e.target.files); e.target.value = ''; }}
+            hidden
+          />
           {fileName
-            ? <span><strong>{fileName}</strong><em className="viewer__upload-hint"> &mdash; drop another ZIP</em></span>
-            : <span>Drop a <strong>ZIP</strong> archive here, or click to browse</span>}
+            ? <span><strong>{fileName}</strong><em className="viewer__upload-hint"> &mdash; drop or add more ZIPs</em></span>
+            : <span>Drop <strong>ZIP</strong> archive(s) here, or click to browse</span>}
         </div>
       )}
       {!fullscreen && storedZips.length > 0 && (
