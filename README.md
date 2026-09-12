@@ -19,10 +19,18 @@
 
 ```bash
 # Production (HTTPS via Caddy)
-bash run/prod/up.sh      # https://calc.rlawjddn00.online
+bash run/up.sh prod       # https://calc.rlawjddn00.online
 
-# Development (Vite HMR, port 3000)
-bash run/dev/up.sh       # http://localhost:3000
+# Development (Vite HMR, port 3000 — 로컬호스트 전용)
+bash run/up.sh dev        # 서버에서만 접근 가능
+
+# 집/로컬 PC에서 dev 보기 (SSH 터널)
+#   ssh -L 3000:localhost:3000 user@서버
+#   → 브라우저에서 http://localhost:3000
+
+# 종료 (dev|prod 각각)
+bash run/down.sh prod
+bash run/down.sh dev
 ```
 
 ### Local Dev (without Docker)

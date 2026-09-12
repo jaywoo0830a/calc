@@ -62,7 +62,9 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        // 호스트에서 직접 개발할 땐 localhost:3001, docker dev(calc-dev 컨테이너)에서는
+        // compose가 VITE_API_PROXY=http://api:3001 로 override — api 컨테이너로 연결.
+        target: process.env.VITE_API_PROXY || 'http://localhost:3001',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

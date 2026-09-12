@@ -4,7 +4,10 @@ services:
       target: dev
     container_name: calc-dev
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"   # 로컬호스트 전용 — 집에서 ssh -L 터널로 접속 (외부 노출 0)
+    environment:
+      # 컨테이너 안 vite의 /api 프록시가 api 컨테이너로 가도록 (compose 네트워크)
+      - VITE_API_PROXY=http://api:3001
     volumes:
       - ./src:/app/src:ro
       - ./public:/app/public:ro
@@ -18,3 +21,8 @@ services:
     image: caddy:alpine
     deploy:
       replicas: 0
+
+  # dev에서도 calc-api 접근 — vite 프록시(/api → host :3001)가 여기로 연결된다.
+  api:
+    ports:
+      - "127.0.0.1:3001:3001"   # 로컬호스트 전용 — 외부 노출 0
