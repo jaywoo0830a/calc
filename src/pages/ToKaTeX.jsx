@@ -1,36 +1,28 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import AppLayout from '../components/AppLayout.jsx';
 import katex from 'katex';
-import { api } from '../lib/api.js';
 
 // ═══════════════════════════════════════════════════════════════
-// 🧮 To KaTeX — 드로잉 패드/손가락으로 그린 수식을 서버의
-// GLM-OCR(Formula Recognition)로 LaTeX 변환 → KaTeX 렌더.
-// (서버 POST /api/math-ocr → llama.cpp OpenAI 호환 엔드포인트 호출)
+// 🧮 KaTeX Playground — LaTeX를 입력하면 KaTeX로 즉시 렌더링하는
+// 라이브 플레이그라운드. (하단 치트 시트를 클릭하면 커서 위치에 삽입)
 // ═══════════════════════════════════════════════════════════════
-const W = 1024, H = 640;        // 캔버스 내부 해상도 (OCR 정확도)
-const INK = '#1a1a1a';          // 먹색 획
-const PAPER = '#ffffff';        // 흰 배경
-const LINE_W = Math.max(3, Math.round(W / 220)); // ~5 (1024 기준) — 얇은 필기선
-
-// 탭 전환(unmount)·페이지 새로고침 후에도 드로잉/결과 유지 — sessionStorage 캐시.
-// (React Router가 페이지를 언마운트해도 캔버스 비트맵이 여기에 보존된다)
-const SESSION_KEY = 'to-katex:session:v1';
-const EMPTY_SESSION = { dataUrl: null, latex: '', view: 'draw', error: null };
-function loadSession() {
-  try { return { ...EMPTY_SESSION, ...(JSON.parse(sessionStorage.getItem(SESSION_KEY)) || {}) }; }
-  catch { return { ...EMPTY_SESSION }; }
-}
-function saveSession(s) {
-  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch { /* quota/보안 무시 */ }
-}
 
 // KaTeX 공식 지원 함수 표 (수식 교정 시 참조)
 const KATEX_DOCS_URL = 'https://katex.org/docs/supported.html';
 
+// 첫 진입 시 보여줄 샘플 수식
+const DEFAULT_LATEX = String.raw`\int_{0}^{\infty} \frac{\sin x}{x} \, dx = \frac{\pi}{2}`;
+
+const RENDER_OPTS = { throwOnError: false, trust: true, strict: false };
+
+// KaTeX 공통 렌더 — 오류는 throw하지 않고 빨간 텍스트로 표시(throwOnError=false)
+function renderTex(tex, displayMode) {
+  return katex.renderToString(tex, { ...RENDER_OPTS, displayMode });
+}
+
 // 치트 시트 항목 인라인 렌더 (displayMode=false — 인라인 수식)
 function renderInline(tex) {
-  return katex.renderToString(tex, { displayMode: false, throwOnError: false, trust: true, strict: false });
+  return katex.renderToString(tex, { ...RENDER_OPTS, displayMode: false });
 }
 
 // 📖 KaTeX 치트 시트 — 다항식/지수/로그/괄호/삼각/미분/적분 (katex.org 공식 문서 기준)
@@ -98,144 +90,29 @@ const CHEATSHEET = [
     { cmd: String.raw`\sum_{n=1}^{\infty} \frac{1}{n^2}`, desc: 'series sum' },
   ]},
 ];
-
 export default function ToKaTeX() {
-  const canvasRef = useRef(null);
-  const drawingRef = useRef(false);
-  const lastRef = useRef({ x: 0, y: 0 });
-  const [hasInk, setHasInk] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [latex, setLatex] = useState('');
-  const [error, setError] = useState(null);
+  const [latex, setLatex] = useState(DEFAULT_LATEX);
+  const [displayMode, setDisplayMode] = useState(true); // true=$$ 블록, false=인라인
+  const [cheatOpen, setCheatOpen] = useState(false);     // 📖 치트 시트 펼침 여부
   const [copied, setCopied] = useState(null);
-  const [view, setView] = useState('draw'); // 'draw' | 'result' — 둘 중 하나만 표시
-  const [cheatOpen, setCheatOpen] = useState(false); // 📖 치트 시트 펼침 여부
+  const sourceRef = useRef(null);
   const copiedTimer = useRef(null);
-  // 드로잉/결과 영속화 — sessionStorage에 저장/복원
-  const sessionRef = useRef(loadSession());
-  const persist = useCallback((patch) => {
-    Object.assign(sessionRef.current, patch);
-    saveSession(sessionRef.current);
-  }, []);
 
-  // 캔버스 초기화 — 고해상도 + 흰 배경
-  useEffect(() => {
-    const cv = canvasRef.current;
-    if (!cv) return;
-    cv.width = W;
-    cv.height = H;
-    const ctx = cv.getContext('2d');
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = LINE_W;
-    ctx.fillStyle = PAPER;
-    ctx.fillRect(0, 0, W, H);
-    // 이전 세션 복원 — 드로잉 비트맵 + 결과/오류/뷰
-    const s = sessionRef.current;
-    if (s.dataUrl) {
-      const img = new Image();
-      img.onload = () => { ctx.drawImage(img, 0, 0); setHasInk(true); };
-      img.src = s.dataUrl;
-    }
-    setView(s.view || 'draw');
-    if (s.latex) setLatex(s.latex);
-    if (s.error) setError(s.error);
-  }, []);
+  // 라이브 렌더 — 입력할 때마다 즉시 재계산 (throwOnError=false라 오류는 빨간 텍스트)
+  const rendered = renderTex(latex, displayMode);
 
-  // CSS 좌표 → 캔버스 픽셀 좌표
-  const toCanvas = useCallback((e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (W / rect.width),
-      y: (e.clientY - rect.top) * (H / rect.height),
-    };
-  }, []);
-
-  // 필압 반영 — 펜(pointerType 'pen'): pressure 0~1 → 선 두께 변동
-  // (가볍게=얇게, 세게=굵게). 마우스/손가락은 일정한 두께 유지.
-  const strokeWidth = useCallback((e) => {
-    if (e.pointerType === 'pen') {
-      const p = Math.max(0, Math.min(1, Number(e.pressure) || 0.5));
-      return LINE_W * (0.3 + 0.7 * p);
-    }
-    return LINE_W;
-  }, []);
-
-  const onDown = useCallback((e) => {
-    e.preventDefault();
-    const cv = canvasRef.current;
-    cv.setPointerCapture(e.pointerId);
-    drawingRef.current = true;
-    const p = toCanvas(e);
-    lastRef.current = p;
-    const ctx = cv.getContext('2d');
-    ctx.lineWidth = strokeWidth(e);
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-    setHasInk(true);
-  }, [toCanvas, strokeWidth]);
-
-  const onMove = useCallback((e) => {
-    if (!drawingRef.current) return;
-    const p = toCanvas(e);
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.lineWidth = strokeWidth(e);
-    ctx.beginPath();
-    ctx.moveTo(lastRef.current.x, lastRef.current.y);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    lastRef.current = p;
-  }, [toCanvas, strokeWidth]);
-
-  const onUp = useCallback((e) => {
-    if (!drawingRef.current) return;
-    drawingRef.current = false;
-    try { canvasRef.current.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-    // 스트로크 완료 — 캔버스를 세션 캐시에 저장 (탭 전환 복원용)
-    persist({ dataUrl: canvasRef.current.toDataURL('image/png') });
-  }, [persist]);
-
-  const clear = useCallback(() => {
-    const cv = canvasRef.current;
-    const ctx = cv.getContext('2d');
-    ctx.fillStyle = PAPER;
-    ctx.fillRect(0, 0, W, H);
-    setHasInk(false);
-    setLatex('');
-    setError(null);
-    setCopied(null);
-    setView('draw');
-    persist({ dataUrl: null, latex: '', view: 'draw', error: null });
-  }, [persist]);
-
-  const convert = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    setLatex('');
-    try {
-      const dataUrl = canvasRef.current.toDataURL('image/png');
-      const data = await api.mathOcr(dataUrl);
-      const text = String((data && data.latex) || '').trim();
-      if (!text) setError('Empty result from the OCR server.');
-      else {
-        setLatex(text);
-        setView('result'); // 성공 시 결과만 표시 — 캔버스는 숨김
-        persist({
-          dataUrl: canvasRef.current.toDataURL('image/png'),
-          latex: text,
-          view: 'result',
-          error: null,
-        });
-      }
-    } catch (e) {
-      const msg = e && e.message ? e.message : 'Conversion failed';
-      setError(msg);
-      persist({ error: msg });
-    } finally {
-      setBusy(false);
-    }
-  }, [persist]);
+  // 치트 시트 항목을 커서 위치에 삽입
+  const insertTemplate = useCallback((cmd) => {
+    const el = sourceRef.current;
+    const start = el ? el.selectionStart : latex.length;
+    const end = el ? el.selectionEnd : latex.length;
+    const next = latex.slice(0, start) + cmd + latex.slice(end);
+    setLatex(next);
+    requestAnimationFrame(() => {
+      const pos = start + cmd.length;
+      if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+    });
+  }, [latex]);
 
   const copy = useCallback((text) => {
     if (!navigator.clipboard) return;
@@ -246,27 +123,48 @@ export default function ToKaTeX() {
     }).catch(() => { /* clipboard denied — 조용히 무시 */ });
   }, []);
 
-  // LaTeX 수동 교정 — 편집 즉시 KaTeX 재렌더 + sessionStorage 반영 (잘못 렌더링 시 몇 번이고 수정)
-  const onLatexChange = useCallback((v) => {
-    setLatex(v);
-    persist({ latex: v });
-  }, [persist]);
-
-  const rendered = latex
-    ? katex.renderToString(latex, { displayMode: true, throwOnError: false, trust: true, strict: false })
-    : '';
-
   return (
     <AppLayout className="to-katex">
       <div className="to-katex__head">
-        <h1 className="to-katex__title">🧮 To KaTeX</h1>
+        <h1 className="to-katex__title">🧮 KaTeX Playground</h1>
         <span className="to-katex__hint">
-          Draw a formula with your pen or finger — the server's GLM-OCR converts it to LaTeX, rendered here with KaTeX.
+          Type LaTeX below and watch it render live — no server needed, everything happens in your browser.
         </span>
         <a className="to-katex__docs" href={KATEX_DOCS_URL} target="_blank" rel="noreferrer">KaTeX Docs ↗</a>
       </div>
 
-      {/* 📖 KaTeX 치트 시트 — 접었다 펼 수 있는 참조 */}
+      {/* 라이브 에디터 + 미리보기 */}
+      <div className="to-katex__result">
+        <textarea
+          ref={sourceRef}
+          className="to-katex__source"
+          value={latex}
+          onChange={(e) => setLatex(e.target.value)}
+          spellCheck="false"
+          rows="4"
+          placeholder="\frac{a}{b} …"
+        />
+        <div className="to-katex__result-math" dangerouslySetInnerHTML={{ __html: rendered }} />
+      </div>
+
+      <div className="to-katex__actions">
+        <button
+          type="button"
+          className={'to-katex__btn' + (displayMode ? ' to-katex__btn--active' : '')}
+          onClick={() => setDisplayMode((v) => !v)}
+          title="Toggle between block ($…$ display) and inline rendering"
+        >
+          {displayMode ? 'Display mode: on' : 'Display mode: off'}
+        </button>
+        <button type="button" className="to-katex__btn" onClick={() => copy(latex)}>
+          {copied === latex ? '✓ Copied' : 'Copy LaTeX'}
+        </button>
+        <button type="button" className="to-katex__btn" onClick={() => copy('$$' + latex + '$$')}>
+          {copied === '$$' + latex + '$$' ? '✓ Copied' : 'Copy $$…$$'}
+        </button>
+      </div>
+
+      {/* 📖 KaTeX 치트 시트 — 접었다 펼 수 있는 참조 (클릭 → 에디터 커서 위치에 삽입) */}
       <div className="to-katex__cheat">
         <button
           type="button"
@@ -274,7 +172,7 @@ export default function ToKaTeX() {
           onClick={() => setCheatOpen((v) => !v)}
           aria-expanded={cheatOpen}
         >
-          📖 KaTeX Cheat Sheet {cheatOpen ? '▾' : '▸'}
+          📖 KaTeX Cheat Sheet — click to insert {cheatOpen ? '▾' : '▸'}
         </button>
         {cheatOpen && (
           <div className="to-katex__cheat-body">
@@ -285,7 +183,14 @@ export default function ToKaTeX() {
                   {cat.items.map((it) => (
                     <div key={it.cmd} className="to-katex__cs-item">
                       <div className="to-katex__cs-left">
-                        <code className="to-katex__cs-cmd">{it.cmd}</code>
+                        <button
+                          type="button"
+                          className="to-katex__cs-cmd"
+                          onClick={() => insertTemplate(it.cmd)}
+                          title="Insert into the editor above"
+                        >
+                          {it.cmd}
+                        </button>
                         <span className="to-katex__cs-desc">{it.desc}</span>
                       </div>
                       <span
@@ -300,58 +205,6 @@ export default function ToKaTeX() {
           </div>
         )}
       </div>
-
-      {/* 드로잉 캔버스 — 결과가 보일 때는 숨김 (bitmap은 유지되어 돌아오면 그대로) */}
-      <div className="to-katex__stage" hidden={view === 'result'}>
-        <canvas
-          ref={canvasRef}
-          className="to-katex__canvas"
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
-        />
-        {!hasInk && <div className="to-katex__placeholder">✍️ draw a formula here</div>}
-      </div>
-
-      {view === 'draw' ? (
-        <>
-          <div className="to-katex__actions">
-            <button className="to-katex__btn to-katex__btn--primary" onClick={convert} disabled={busy || !hasInk}>
-              {busy ? 'Converting…' : '⇄ Convert'}
-            </button>
-            <button className="to-katex__btn" onClick={clear} disabled={busy || !hasInk}>✕ Clear</button>
-          </div>
-          {error && <div className="to-katex__error">{error}</div>}
-        </>
-      ) : (
-        <div className="to-katex__result">
-          <div className="to-katex__result-math" dangerouslySetInnerHTML={{ __html: rendered }} />
-          <div className="to-katex__source-head">
-            <span className="to-katex__source-label">LaTeX source — edit to correct</span>
-            <a className="to-katex__docs" href={KATEX_DOCS_URL} target="_blank" rel="noreferrer">KaTeX Docs ↗</a>
-          </div>
-          <textarea
-            className="to-katex__source"
-            value={latex}
-            onChange={(e) => onLatexChange(e.target.value)}
-            spellCheck="false"
-            rows="2"
-          />
-          <div className="to-katex__actions">
-            <button className="to-katex__btn" onClick={() => copy(latex)}>
-              {copied === latex ? '✓ Copied' : 'Copy LaTeX'}
-            </button>
-            <button className="to-katex__btn" onClick={() => copy('$$' + latex + '$$')}>
-              {copied === '$$' + latex + '$$' ? '✓ Copied' : 'Copy $$…$$'}
-            </button>
-          </div>
-          <button
-            className="to-katex__btn to-katex__btn--primary"
-            onClick={() => { setView('draw'); persist({ view: 'draw' }); }}
-          >✏️ Draw again</button>
-        </div>
-      )}
     </AppLayout>
   );
 }
