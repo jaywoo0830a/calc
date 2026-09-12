@@ -33,6 +33,21 @@ bash run/down.sh prod
 bash run/down.sh dev
 ```
 
+## Domains (Caddy가 관리하는 서브도메인 구성)
+
+`Caddyfile`이 이 서버의 80/443(공인 포트)을 점유하며, 도메인명 기반 가상 호스팅으로 각 프로젝트에 배분합니다.
+
+| 도메인 | 담당 프로젝트 | 대상 | TLS/라우팅 |
+|--------|--------------|------|-----------|
+| `calc.rlawjddn00.online` | calc (이 저장소) | `api:3001`, `calc:80` | Caddy(this) |
+| `freedf.rlawjddn00.online` | freedf (별도 저장소) | 호스트 `127.0.0.1:8081` → nginx | Caddy(this), TLS만 |
+| `cloud.rlawjddn00.online` | cloud (별도 저장소) | 호스트 `127.0.0.1:8082` → nginx | Caddy(this), TLS만 |
+
+> freedf / cloud는 **별도 compose(호스트 네트워크)**로 독립 실행되고, 자체 nginx를 호스트의
+> **로컬 포트(`127.0.0.1`)에만** 바인딩합니다. 외부 진입점(80/443)은 Caddy가 유일하며
+> `host.docker.internal:host-gateway` 매핑으로 호스트의 해당 포트를 프록시합니다.
+> 세부 경로(미디어/API/Sync) 분기는 각 프로젝트의 nginx가 처리합니다.
+
 ### Local Dev (without Docker)
 
 ```bash

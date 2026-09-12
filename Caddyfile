@@ -10,3 +10,9 @@ calc.rlawjddn00.online {
 freedf.rlawjddn00.online {
     reverse_proxy host.docker.internal:8081
 }
+
+# cloud — freedf와 동일 패턴. 별도 compose(호스트 127.0.0.1:8082)로 독립 실행되고
+# 이 Caddy가 TLS(80/443)를 맡아 cloud nginx로 전달. 세부 라우팅은 cloud nginx가 처리.
+cloud.rlawjddn00.online {
+    reverse_proxy host.docker.internal:8082
+}
