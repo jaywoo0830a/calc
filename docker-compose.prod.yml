@@ -5,6 +5,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp"   # HTTP/3(QUIC) — UDP 443 노출로 최신 브라우저 H3 활성
     extra_hosts:
       - "host.docker.internal:host-gateway"   # freedf nginx(호스트 8081)로 프록시용
     volumes:

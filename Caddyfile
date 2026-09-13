@@ -1,18 +1,60 @@
+# ═══════════════════════════════════════════════════════════════════════
+# Caddyfile — 역방향 프록시 + 자동 TLS + 1Gbps 전송 최적화
+# HTTP/2 + HTTP/3(QUIC), keepalive, 전이중(full-duplex), 스트리밍 프록시
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── 글로벌 연결/전송 최적화 ──
+{
+    servers {
+        # h2 + h3 활성 (h1은 구형 브라우저/클라이언트 호환용으로 유지)
+        protocols h1 h2 h3
+        # 업로드+다운로드 동시 전이중 처리 — 양방향 대역폭 모두 활용
+        enable_full_duplex
+        # keepalive 재사용 — TLS·3-way 핸드셰이크 절약으로 대역폭 소요 감소
+        keepalive_interval 10s
+        keepalive_idle 60s
+        keepalive_count 500
+        # 충분한 타임아웃 — 큰 업로드(read_body) / 긴 다운로드(write) 대응
+        timeouts {
+            read_header 30s
+            read_body  120s
+            write      600s
+            idle       120s
+        }
+    }
+    # 액세스 로그
+    log {
+        level info
+    }
+}
+
+# ── calc — 프론트엔드(calc:80) + API(api:3001) ──
 calc.rlawjddn00.online {
     handle_path /api/* {
-        reverse_proxy api:3001
+        reverse_proxy api:3001 {
+            flush_interval 250ms
+        }
     }
-    reverse_proxy calc:80
+    reverse_proxy calc:80 {
+        flush_interval 250ms
+    }
 }
 
 # freedf — 별도 compose(호스트 네트워크)로 독립 실행. 이 Caddy가 TLS(80/443)를 맡고
 # freedf nginx(127.0.0.1:8081, 호스트 내부 전용)로 전달. 미디어/API/Sync 경로 분기는 freedf nginx가 처리.
+# 스트리밍 + 긴 타임아웃은 미디어 대용량 다운로드/업로드에 중요.
 freedf.rlawjddn00.online {
-    reverse_proxy host.docker.internal:8081
+    reverse_proxy host.docker.internal:8081 {
+        flush_interval 250ms
+        stream_timeout 3600s
+    }
 }
 
 # cloud — freedf와 동일 패턴. 별도 compose(호스트 127.0.0.1:8082)로 독립 실행되고
 # 이 Caddy가 TLS(80/443)를 맡아 cloud nginx로 전달. 세부 라우팅은 cloud nginx가 처리.
 cloud.rlawjddn00.online {
-    reverse_proxy host.docker.internal:8082
+    reverse_proxy host.docker.internal:8082 {
+        flush_interval 250ms
+        stream_timeout 3600s
+    }
 }
