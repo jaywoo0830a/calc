@@ -47,10 +47,12 @@ bash run/down.sh dev
 | **인코딩** | gzip 확대(텍스트·JS·JSON·wasm·ort 모델) + `gzip_static` | `nginx.conf` |
 | **브라우저 캐시** | 불변(aassets/) 1년, 모델/scanic-ml 7일 → 재다운로드 방지 | `nginx.conf` |
 
-> **커널 TCP 튜닝(가장 큰 효과, root 필요)** — 소켓 버퍼가 기본값(약 200KB)이라 1Gbps 대역폭을 못 채웁니다:
+> **커널 TCP 튜닝(가장 큰 효과, root 필요)** — 소켓 버퍼가 기본값(약 200KB)이라 1Gbps 대역폭을 못 채웁니다.
+> `bash run/up.sh prod` 가 **자동으로** 적용하며(이미 적용됐으면 건너뜀, `NET_TUNE=0`으로 끔), 한 번만 실행하면 영속화됩니다:
 > ```bash
-> sudo bash run/sysctl-net.sh            # 즉시 적용
-> sudo bash run/sysctl-net.sh --persist  # 영속화(재부팅 유지)
+> bash run/up.sh prod            # 최초 1회: 자동으로 sudo 커널 튜닝(+영속) 수행
+> # 비대화형(예: CI)이나 자동 적용을 원치 않을 때 수동 1회 적용:
+> sudo bash run/sysctl-net.sh --persist
 > ```
 
 **재배포/재적용 방법:**
