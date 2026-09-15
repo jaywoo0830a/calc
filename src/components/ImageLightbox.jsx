@@ -18,15 +18,17 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
   const stageRef = useRef(null);
   const wrapRef = useRef(null);
   const imgRef = useRef(null);
-  const dragRef = useRef(null);                        // { px, py, x, y, natural }
+  const dragRef = useRef(null);                        // { px, py, x, y, base }
   const pointersRef = useRef(new Map());               // pointerId → {x,y} (핀치용)
-  const pinchRef = useRef(null);                       // { d0, m0x, m0y, scale0, x0, y0, natural, cur }
+  const pinchRef = useRef(null);                       // { d0, m0x, m0y, scale0, x0, y0, base, cur }
 
-  // 이미지 원본 크기 — onLoad 타이밍에 의존하지 않고 상호작용 시점에 DOM에서 직접 읽는다
-  const getNatural = useCallback(() => {
+  // 이미지 기준(레이아웃) 크기 — fit 렌더 기준 크기. transform(scale)과 무관한
+  // clientWidth/Height를 쓴다. ⚠️ naturalWidth를 쓰면 원본이 스테이지보다 작은
+  // 이미지(스크린샷 등)는 확대해도 clampPan이 수평 이동을 0으로 봉쇄한다.
+  const getBase = useCallback(() => {
     const el = imgRef.current;
-    if (!el || !el.naturalWidth) return null;
-    return { w: el.naturalWidth, h: el.naturalHeight };
+    if (!el || !el.clientWidth) return null;
+    return { w: el.clientWidth, h: el.clientHeight };
   }, []);
 
   // 🔄 회전 후 이미지 치수가 바뀌면 뷰(줌/팬) 초기화
@@ -64,21 +66,21 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
     const onWheel = (e) => {
       if (!e.ctrlKey && !e.metaKey) return;   // 일반 휠/스크롤은 줌 아님
       e.preventDefault();
-      const nat = getNatural();
-      if (!nat) return;
+      const base = getBase();
+      if (!base) return;
       const raw = Math.exp(-e.deltaY * 0.002);
       const factor = Math.max(0.7, Math.min(1.35, raw));
       const r = el.getBoundingClientRect();
-      setView((v) => zoomAt(v, factor, { x: e.clientX, y: e.clientY }, { w: r.width, h: r.height }, nat));
+      setView((v) => zoomAt(v, factor, { x: e.clientX, y: e.clientY }, { w: r.width, h: r.height }, base));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [getNatural, portalTarget]);
+  }, [getBase, portalTarget]);
 
   // ── 포인터 상호작용: 1개=팬 드래그, 2개=핀치 줌/팬 (휠·클릭 줌 없음) ──
   const onPointerDown = (e) => {
-    const nat = getNatural();
-    if (!nat || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const base = getBase();
+    if (!base || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const node = wrapRef.current;
@@ -97,11 +99,11 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
         scale0: view.scale,
         x0: view.x,
         y0: view.y,
-        natural: nat,
+        base,
         cur: { scale: view.scale, x: view.x, y: view.y },
       };
     } else if (pointersRef.current.size === 1) {
-      dragRef.current = { px: e.clientX, py: e.clientY, x: view.x, y: view.y, natural: nat };
+      dragRef.current = { px: e.clientX, py: e.clientY, x: view.x, y: view.y, base };
     }
     try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* 무시 */ }
   };
@@ -126,7 +128,7 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
         { x: mx, y: my },
         { dx: mx - p.m0x, dy: my - p.m0y },
         size,
-        p.natural
+        p.base
       );
       p.cur = v;
       if (node) applyTransform(node, v.scale, v.x, v.y, false);
@@ -137,7 +139,7 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
     if (!d) return;
     const dx = e.clientX - d.px;
     const dy = e.clientY - d.py;
-    const pan = clampPan(d.x + dx, d.y + dy, view.scale, size, d.natural);
+    const pan = clampPan(d.x + dx, d.y + dy, view.scale, size, d.base);
     d.x = pan.x;
     d.y = pan.y;
     if (node) applyTransform(node, view.scale, pan.x, pan.y, false);

@@ -277,19 +277,21 @@ export default function CustomCursor() {
   const handlePointerEnter = useCallback(() => setMode('default'), []);
 
   useEffect(() => {
-    window.addEventListener('pointermove', handlePointerMove, { passive: true });
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerCancel);
-    document.addEventListener('pointerleave', handlePointerLeave);
-    document.addEventListener('pointerenter', handlePointerEnter);
+    // ⚠️ 캡처 단계에서 듣는다 — 라이트박스 등 오버레이가 pointermove에서
+    // stopPropagation()으로 네이티브 버블링을 끊어도 커서가 멈추지 않게 한다.
+    window.addEventListener('pointermove', handlePointerMove, { capture: true, passive: true });
+    window.addEventListener('pointerdown', handlePointerDown, { capture: true });
+    window.addEventListener('pointerup', handlePointerUp, { capture: true });
+    window.addEventListener('pointercancel', handlePointerCancel, { capture: true });
+    document.addEventListener('pointerleave', handlePointerLeave, { capture: true });
+    document.addEventListener('pointerenter', handlePointerEnter, { capture: true });
     return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerCancel);
-      document.removeEventListener('pointerleave', handlePointerLeave);
-      document.removeEventListener('pointerenter', handlePointerEnter);
+      window.removeEventListener('pointermove', handlePointerMove, { capture: true });
+      window.removeEventListener('pointerdown', handlePointerDown, { capture: true });
+      window.removeEventListener('pointerup', handlePointerUp, { capture: true });
+      window.removeEventListener('pointercancel', handlePointerCancel, { capture: true });
+      document.removeEventListener('pointerleave', handlePointerLeave, { capture: true });
+      document.removeEventListener('pointerenter', handlePointerEnter, { capture: true });
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [handlePointerMove, handlePointerDown, handlePointerUp, handlePointerCancel, handlePointerLeave, handlePointerEnter]);
