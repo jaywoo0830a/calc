@@ -307,53 +307,6 @@
     // 사용자 휠/터치 스크롤은 네이티브라 영향 없음.
   }
 
-  // ---- Markdown pinch-zoom — 확대 상태 --------------------
-  // 배율 > 1 이면 JS가 이 클래스를 붙인다: 가로 팬 허용 + 리셋 배지 노출
-  &__preview--zoom {
-    overflow: auto;             // hidden auto → 양축 스크롤 (확대 팬)
-    -webkit-overflow-scrolling: touch;
-  }
-
-  // 핀치 줌 래퍼 — 확대 시 JS가 박스를 배율에 맞춘다.
-  // contain 으로 레이아웃/페인트 범위를 래퍼 안으로 한정해 확대 중 렌더 비용 절감
-  &__zoom {
-    contain: layout paint;
-  }
-
-  // 확대 배지/리셋 버튼 — 확대 중에만 표시
-  &__zoom-reset {
-    position: absolute;
-    right: $sp-4;
-    bottom: $sp-4;
-    z-index: 6;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: $sp-1 $sp-3;
-    border: $border-thin solid $c-rule;
-    border-radius: 999px;
-    background: $c-page;
-    color: $c-ink-soft;
-    font-family: $ff;
-    font-size: $fs-step--1;
-    font-weight: $fw-semibold;
-    line-height: 1.4;
-    cursor: pointer;
-    touch-action: manipulation;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-
-    @media (hover: hover) {
-      &:hover {
-        border-color: $c-accent;
-        color: $c-ink;
-      }
-    }
-  }
-
-  &__preview--zoom &__zoom-reset {
-    display: flex;
-  }
-
   // ---- ZIP 로딩 오버레이 -----------------------------------
   &__loading-overlay {
     position: absolute;
