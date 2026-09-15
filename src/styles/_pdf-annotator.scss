@@ -879,28 +879,29 @@
     z-index: 2400;                  // 모든 플로팅 버튼/패널(최대 2000) 위
     background: rgba(18, 15, 11, 0.93);
     animation: lightboxIn 0.2s ease;
-    touch-action: none;             // 터치스크린 가장자리 스와이프(뒤로가기) 차단
     overscroll-behavior: contain;   // 스크롤 체이닝 → 브라우저 제스처 유발 방지
+    // ⚠️ 여기서 touch-action: none 하면 자식 스테이지의 네이티브 스크롤 팬까지 죽는다
 
     &-stage {
       position: absolute;
       inset: 0;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      touch-action: none;           // 핀치/팬 제스처를 앱이 직접 처리 (브라우저 줌 방지)
+      overflow: auto;               // ★ 팬 = 네이티브 스크롤 (트랙패드 스와이프·휠·터치 모멘텀)
+      overscroll-behavior: contain; // 스크롤 끝에서 브라우저 뒤로가기 제스처 차단
+      touch-action: pan-x pan-y;    // 터치 팬은 네이티브 스크롤, 핀치만 JS가 처리
+      scrollbar-width: none;        // 스크롤바 숨김 — 제스처/휠로 팬
       user-select: none;
       -webkit-user-select: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
     }
 
     &-wrap {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: grab;                 // 클릭 줌 없음 — 드래그 팬 전용
-      touch-action: none;           // 터치 팬 드래그
-      transition: transform 0.18s ease-out;
-      will-change: transform;
+      flex: none;                   // 스테이지보다 커져도 수축 금지 — 스크롤 범위 = 확대 크기
+      margin: auto;                 // 작을 땐 중앙, 클 땐 0 → 스크롤로 가장자리까지 도달
+      cursor: grab;                 // 마우스 드래그 팬
 
       &:active {
         cursor: grabbing;
@@ -908,8 +909,8 @@
 
       img {
         display: block;
-        max-width: 92vw;
-        max-height: 92vh;
+        width: 100%;                // wrap(fit × scale)을 정확히 채움 — 줌이 곧 실제 크기
+        height: 100%;
         object-fit: contain;
         border-radius: $radius-md;
         box-shadow: $shadow-lg;
