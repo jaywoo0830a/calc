@@ -879,6 +879,8 @@
     z-index: 2400;                  // 모든 플로팅 버튼/패널(최대 2000) 위
     background: rgba(18, 15, 11, 0.93);
     animation: lightboxIn 0.2s ease;
+    touch-action: none;             // 터치스크린 가장자리 스와이프(뒤로가기) 차단
+    overscroll-behavior: contain;   // 스크롤 체이닝 → 브라우저 제스처 유발 방지
 
     &-stage {
       position: absolute;

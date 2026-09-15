@@ -58,24 +58,64 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
     node.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
   }, []);
 
-  // 트랙패드 "투 핑거 핀치" — ctrl+휠 이벤트로 들어온다 (일반 휠 스크롤은 무시).
-  // React의 wheel은 passive라 preventDefault가 안 되므로 네이티브로 바인딩.
+  // 휠/트랙패드 제스처 처리 — 라이트박스 위 휠은 항상 앱이 소비(preventDefault)해
+  // 페이지 스크롤·브라우저 "두 손가락 스와이프 = 뒤로가기"가 발동되지 않게 한다.
+  // ─ ctrl/⌘+휠(트랙패드 핀치): 줌인/줌아웃
+  // ─ 일반 휠(두 손가락 스와이프): 확대 상태에서 팬 (콘텐츠가 손가락을 따라감)
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
     const onWheel = (e) => {
-      if (!e.ctrlKey && !e.metaKey) return;   // 일반 휠/스크롤은 줌 아님
       e.preventDefault();
-      const base = getBase();
-      if (!base) return;
-      const raw = Math.exp(-e.deltaY * 0.002);
-      const factor = Math.max(0.7, Math.min(1.35, raw));
       const r = el.getBoundingClientRect();
-      setView((v) => zoomAt(v, factor, { x: e.clientX, y: e.clientY }, { w: r.width, h: r.height }, base));
+      const size = { w: r.width, h: r.height };
+      if (e.ctrlKey || e.metaKey) {
+        const base = getBase();
+        if (!base) return;
+        const raw = Math.exp(-e.deltaY * 0.002);
+        const factor = Math.max(0.7, Math.min(1.35, raw));
+        setView((v) => zoomAt(v, factor, { x: e.clientX, y: e.clientY }, size, base));
+        return;
+      }
+      // 두 손가락 스와이프 → 팬 (deltaMode 정규화: 1=줄, 2=페이지)
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+      const dx = e.deltaX * unit;
+      const dy = e.deltaY * unit;
+      setView((v) => {
+        if (v.scale <= 1) return v;   // fit 상태에서는 팬 없음
+        const base = getBase();
+        if (!base) return v;
+        return clampPan(v.x - dx, v.y - dy, v.scale, size, base);
+      });
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [getBase, portalTarget]);
+
+  // 브라우저 뒤로가기 가드 — 트랙패드 스와이프·뒤로 버튼으로 앱 페이지가 이탈하는
+  // 대신 라이트박스만 닫히고 앱은 제자리에 머문다.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const open = !!dataUrl;
+  const pushedRef = useRef(false);
+  const poppedRef = useRef(false);
+  useEffect(() => {
+    if (!open || pushedRef.current) return;
+    history.pushState({ imageLightboxGuard: true }, '');
+    pushedRef.current = true;
+    const onPopState = () => {
+      poppedRef.current = true;       // 뒤로가기로 소비됨 → 정리용 back() 불필요
+      onCloseRef.current();
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      if (pushedRef.current && !poppedRef.current) {
+        history.back();               // Esc/✕ 등으로 닫힌 경우 가드 엔트리 정리
+      }
+      pushedRef.current = false;
+    };
+  }, [open]);
 
   // ── 포인터 상호작용: 1개=팬 드래그, 2개=핀치 줌/팬 (휠·클릭 줌 없음) ──
   const onPointerDown = (e) => {
@@ -250,7 +290,7 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
             >↻</button>
           </>
         )}
-        <div className="pdf-annotator__lightbox-hint">Pinch: zoom in/out · Drag: pan · {onRotate ? '↺ ↻: rotate · ' : ''}Esc: close</div>
+        <div className="pdf-annotator__lightbox-hint">Pinch: zoom · Drag/Swipe: pan · {onRotate ? '↺ ↻: rotate · ' : ''}Esc: close</div>
       </div>
     </div>,
     portalTarget
