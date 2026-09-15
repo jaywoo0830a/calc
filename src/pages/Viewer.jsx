@@ -240,7 +240,10 @@ export default function Viewer() {
   const zoomRef = useRef(1);            // 현재 배율 (제스처 중 실시간)
   const zoomBaseRef = useRef(null);     // 확대 전 콘텐츠 레이아웃 크기 { w, h }
   const pinchRef = useRef(null);        // 진행 중 핀치 { d }
-  const [zoom, setZoom] = useState(1);  // 배율 (클래스/배지 동기화용 — 제스처 종료 시 갱신)
+  const zoomElsRef = useRef(null);      // 제스처용 DOM/치수 캐시 — 기수당 1회 읽기 (레이아웃 thrash 방지)
+  const zoomRafRef = useRef(0);         // rAF 배치 핸들
+  const zoomPendingRef = useRef(null);  // rAF로 배치할 최신 제스처 입력
+  const [zoom, setZoom] = useState(1);  // 배율 (클래스/배지 동기화 — 제스처 종료 시 갱신)
   const scrollPositions = useRef({});
   const pdfState = useRef({});   // { path: { page, scrollTop } } PDF 읽기 위치 보존
   const [readability, setReadability] = useState(0);
@@ -435,97 +438,156 @@ export default function Viewer() {
     }
   }, [rendered, selectedPath, pdfUrl, posKey]);
 
-  // ── 마크다운 핀치 줌 적용 ──
-  // 배율 변경 + 앵커(포인터) 아래 콘텐츠 지점이 같은 화면 위치에 유지되도록 스크롤 보정.
-  // 확대 중에는 래퍼(.viewer__zoom) 박스를 배율에 맞게 키워 가로·세로 모두 스크롤(팬) 가능.
-  const applyZoom = useCallback((next, clientX, clientY) => {
+  // ── 마크다운 핀치 줌 적용 — 빠르고 부드럽게 ──
+  // · 읽기(치수)는 기수 시작 시 1회 캐시하고, 이동 중에는 쓰기만 한다 (레이아웃 thrash 제거)
+  // · 최대 스크롤도 캐시 치수로 해석 계산 — scrollWidth/Height 읽기(강제 레이아웃) 제거
+  // · 확대 중에는 래퍼(.viewer__zoom) 박스를 배율에 맞게 키워 가로·세로 모두 네이티브 스크롤(팬)
+  const getZoomEls = useCallback(() => {
+    if (zoomElsRef.current) return zoomElsRef.current;
     const preview = previewRef.current;
     const content = preview?.querySelector('.viewer__content');
     const wrap = preview?.querySelector('.viewer__zoom');
-    if (!preview || !content || !wrap) return;
+    if (!preview || !content || !wrap) return null;
+    const cs = getComputedStyle(preview);
+    zoomElsRef.current = {
+      preview, content, wrap,
+      rect: preview.getBoundingClientRect(),
+      ox: content.offsetLeft,
+      oy: content.offsetTop,
+      clientW: preview.clientWidth,
+      clientH: preview.clientHeight,
+      padX: (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0),
+      padY: (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0),
+    };
+    return zoomElsRef.current;
+  }, []);
+
+  const applyZoom = useCallback((next, clientX, clientY) => {
+    const els = zoomElsRef.current;      // 제스처 중에는 캐시만 사용 (호출부가 getZoomEls 보장)
+    if (!els) return;
     const s = Number.isFinite(next) ? Math.min(5, Math.max(1, next)) : 1;
     const prev = zoomRef.current;
-    if (s === prev) return;
-    if (prev === 1) zoomBaseRef.current = { w: content.offsetWidth, h: content.offsetHeight };
+    if (s === prev || Math.abs(s - prev) < 0.0005) return;
+    if (prev === 1) zoomBaseRef.current = { w: els.content.offsetWidth, h: els.content.offsetHeight };
     const base = zoomBaseRef.current;
     if (!base) return;
-    const ox = content.offsetLeft;
-    const oy = content.offsetTop;
-    const rect = preview.getBoundingClientRect();
-    const ax = clientX == null ? preview.clientWidth / 2 : clientX - rect.left;
-    const ay = clientY == null ? preview.clientHeight / 2 : clientY - rect.top;
-    const cx = (preview.scrollLeft + ax - ox) / prev;
-    const cy = (preview.scrollTop + ay - oy) / prev;
+    // ── 읽기 (쓰기 전에 몰아서 1회만) ──
+    const sl = els.preview.scrollLeft;
+    const st = els.preview.scrollTop;
+    const ax = clientX == null ? els.clientW / 2 : clientX - els.rect.left;
+    const ay = clientY == null ? els.clientH / 2 : clientY - els.rect.top;
+    // 앵커(포인터) 아래 콘텐츠 지점 — 배율 변경 후에도 같은 화면 위치 유지
+    const cx = (sl + ax - els.ox) / prev;
+    const cy = (st + ay - els.oy) / prev;
+    // ── 쓰기 ──
+    const { content, wrap, preview } = els;
     if (s > 1) {
-      // 너비를 px로 고정해 배율 변경 시 리플로우 없이 순수 확대
       content.style.transformOrigin = '0 0';
-      content.style.width = base.w + 'px';
+      content.style.width = base.w + 'px';   // 너비 고정 → 배율 변경 시 리플로우 없는 순수 확대
       content.style.transform = `scale(${s})`;
-      // 레이아웃 박스 보정 → 스크롤 영역 확보 (한 손가락 네이티브 팬)
-      wrap.style.width = Math.round(base.w * s) + 'px';
+      content.style.willChange = 'transform';
+      wrap.style.width = Math.round(base.w * s) + 'px';  // 레이아웃 박스 보정 → 스크롤 영역 확보
       wrap.style.height = Math.round(base.h * s) + 'px';
     } else {
       content.style.transform = '';
       content.style.width = '';
       content.style.transformOrigin = '';
+      content.style.willChange = '';
       wrap.style.width = '';
       wrap.style.height = '';
       zoomBaseRef.current = null;
     }
     zoomRef.current = s;
-    preview.classList.toggle('viewer__preview--zoom', s > 1);
-    const maxL = Math.max(0, preview.scrollWidth - preview.clientWidth);
-    const maxT = Math.max(0, preview.scrollHeight - preview.clientHeight);
-    preview.scrollLeft = Math.min(Math.max(cx * s + ox - ax, 0), maxL);
-    preview.scrollTop = Math.min(Math.max(cy * s + oy - ay, 0), maxT);
-    setZoom(s);
+    if ((s > 1) !== (prev > 1)) preview.classList.toggle('viewer__preview--zoom', s > 1);
+    const maxL = Math.max(0, Math.round(base.w * s) + els.padX - els.clientW);
+    const maxT = Math.max(0, Math.round(base.h * s) + els.padY - els.clientH);
+    preview.scrollLeft = Math.min(Math.max(cx * s + els.ox - ax, 0), maxL);
+    preview.scrollTop = Math.min(Math.max(cy * s + els.oy - ay, 0), maxT);
   }, []);
 
   const resetZoom = useCallback(() => {
+    if (zoomRafRef.current) { cancelAnimationFrame(zoomRafRef.current); zoomRafRef.current = 0; }
+    zoomPendingRef.current = null;
     pinchRef.current = null;
     zoomBaseRef.current = null;
-    applyZoom(1);
+    if (zoomRef.current !== 1) {
+      getZoomEls();          // 인라인 스타일 정리에 필요 — 1회 조회
+      applyZoom(1);
+    }
+    zoomElsRef.current = null;
+  }, [applyZoom, getZoomEls]);
+
+  // 제스처 입력을 rAF로 프레임당 1회 배치 — 120Hz 터치/연속 휠에서도 처리·렌더 1회
+  const flushZoomPending = useCallback(() => {
+    zoomRafRef.current = 0;
+    const p = zoomPendingRef.current;
+    zoomPendingRef.current = null;
+    if (!p) return;
+    if (p.type === 'pinch') {
+      if (!pinchRef.current || !pinchRef.current.d || !p.d) return;
+      const factor = Math.min(2, Math.max(0.5, p.d / pinchRef.current.d));
+      pinchRef.current.d = p.d;
+      applyZoom(zoomRef.current * factor, p.mx, p.my);
+    } else {
+      applyZoom(zoomRef.current * p.factor, p.x, p.y);
+      setZoom(zoomRef.current);          // 휠은 종료 신호가 없으므로 배지 즉시 동기화
+    }
   }, [applyZoom]);
+
+  const scheduleZoomFlush = useCallback(() => {
+    if (!zoomRafRef.current) zoomRafRef.current = requestAnimationFrame(flushZoomPending);
+  }, [flushZoomPending]);
 
   // 핀치/휠 제스처 바인딩 — 마크다운 모드에서만 동작 (PDF·빈 상태는 no-op)
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview) return;
-    const hasContent = () => !!preview.querySelector('.viewer__content');
     const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
     const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 
     const onTouchStart = (e) => {
-      if (e.touches.length !== 2 || !hasContent()) return;
-      e.preventDefault();                    // 네이티브 비주얼 뷰포트 핀치 차단
+      if (e.touches.length !== 2) return;
+      zoomElsRef.current = null;           // 기수마다 치수 재측정 (읽기 1회로 제한)
+      if (!getZoomEls()) return;
+      e.preventDefault();                  // 네이티브 비주얼 뷰포트 핀치 차단
       pinchRef.current = { d: dist(e.touches) };
     };
     const onTouchMove = (e) => {
-      const p = pinchRef.current;
-      if (!p || e.touches.length < 2 || !hasContent()) return;
+      if (!pinchRef.current || e.touches.length < 2) return;
       e.preventDefault();
-      const d = dist(e.touches);
-      if (!p.d || !d) return;
-      const factor = clamp(d / p.d, 0.5, 2); // 이동당 과속 방지
-      p.d = d;
-      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      applyZoom(zoomRef.current * factor, mx, my);
+      // 최신 입력만 남기고 rAF에서 프레임당 1회 처리
+      zoomPendingRef.current = {
+        type: 'pinch',
+        d: dist(e.touches),
+        mx: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        my: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+      };
+      scheduleZoomFlush();
     };
-    const onTouchEnd = (e) => {
-      if (e.touches.length < 2) {
-        pinchRef.current = null;
-        setZoom(zoomRef.current);            // 클래스/배지 동기화
+    const endPinch = () => {
+      if (zoomRafRef.current) {
+        cancelAnimationFrame(zoomRafRef.current);
+        zoomRafRef.current = 0;
+        flushZoomPending();                // 마지막 입력 반영 후 종료
       }
+      pinchRef.current = null;
+      zoomElsRef.current = null;
+      setZoom(zoomRef.current);            // 클래스/배지 동기화 (핀치 중엔 렌더 없음)
     };
+    const onTouchEnd = (e) => { if (e.touches.length < 2) endPinch(); };
     const onWheel = (e) => {
       if (!e.ctrlKey && !e.metaKey) return;  // 일반 휠은 네이티브 스크롤 유지
-      if (!hasContent()) return;
+      if (!zoomElsRef.current && !getZoomEls()) return;
       e.preventDefault();
-      const raw = Math.exp(-e.deltaY * 0.002);
-      applyZoom(zoomRef.current * clamp(raw, 0.75, 1.3), e.clientX, e.clientY);
+      const factor = clamp(Math.exp(-e.deltaY * 0.002), 0.75, 1.3);
+      const p = zoomPendingRef.current;
+      zoomPendingRef.current = (p && p.type === 'wheel')
+        ? { type: 'wheel', x: e.clientX, y: e.clientY, factor: p.factor * factor }
+        : { type: 'wheel', x: e.clientX, y: e.clientY, factor };
+      scheduleZoomFlush();
     };
-    const onGesture = (e) => { if (hasContent()) e.preventDefault(); }; // iOS Safari 네이티브 핀치
+    const onGesture = (e) => { if (preview.querySelector('.viewer__content')) e.preventDefault(); }; // iOS Safari 네이티브 핀치
+    const onResize = () => { zoomElsRef.current = null; resetZoom(); }; // 회전 등 — 고정 px 레이아웃 초기화
 
     preview.addEventListener('touchstart', onTouchStart, { passive: false });
     preview.addEventListener('touchmove', onTouchMove, { passive: false });
@@ -533,8 +595,7 @@ export default function Viewer() {
     preview.addEventListener('touchcancel', onTouchEnd);
     preview.addEventListener('wheel', onWheel, { passive: false });
     preview.addEventListener('gesturestart', onGesture);
-    // 회전 등 리사이즈 시 고정된 px 레이아웃이 어긋나므로 초기화
-    window.addEventListener('resize', resetZoom);
+    window.addEventListener('resize', onResize);
     return () => {
       preview.removeEventListener('touchstart', onTouchStart);
       preview.removeEventListener('touchmove', onTouchMove);
@@ -542,12 +603,13 @@ export default function Viewer() {
       preview.removeEventListener('touchcancel', onTouchEnd);
       preview.removeEventListener('wheel', onWheel);
       preview.removeEventListener('gesturestart', onGesture);
-      window.removeEventListener('resize', resetZoom);
+      window.removeEventListener('resize', onResize);
+      if (zoomRafRef.current) cancelAnimationFrame(zoomRafRef.current);
     };
-  }, [applyZoom, resetZoom]);
+  }, [getZoomEls, applyZoom, resetZoom, flushZoomPending, scheduleZoomFlush]);
 
-  // 문서/모드 전환 시 배율 초기화
-  useEffect(() => { resetZoom(); }, [resetZoom, rendered, selectedPath, pdfUrl, fullscreen]);
+  // 문서·모드·레이아웃 전환 시 배율 초기화 (캐시된 치수도 함께 무효화)
+  useEffect(() => { resetZoom(); }, [resetZoom, rendered, selectedPath, pdfUrl, fullscreen, sidebarOpen, tocOpen]);
 
   // PDF 페이지/스크롤 위치 보고 수신 (ZIP별 보존 + 세션 저장 — 스크롤마다 저장하지 않도록 디바운스)
   useEffect(() => {
