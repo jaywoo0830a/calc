@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useFullscreenPortal } from '../lib/fullscreenPortal.js';
-import { clampPan, pinchView, zoomAt, toggleZoom } from '../lib/zoomView.js';
+import { clampPan, pinchView } from '../lib/zoomView.js';
+
+// 핀치 감도 — 1보다 크면 같은 손가락 벌림/모음으로 더 크게 확대/축소된다
+const PINCH_GAIN = 1.3;
 
 /**
  * 🖼️ ImageLightbox — Amazon 스타일 전체화면 이미지 뷰어
- * ─ 클릭: 확대(2배)/fit 토글 · 드래그: 이동 · 휠: 커서 기준 줌 · 핀치: 두 손가락 줌/팬
+ * ─ 핀치(두 손가락): 줌인/줌아웃 · 드래그: 이동(팬)
  * ─ Esc / ✕ / 배경 클릭: 닫기
  * 드래그 중에는 React 상태를 거치지 않고 DOM을 직접 조작한다 (ImageOverlay와 동일 전략).
  */
@@ -18,7 +21,6 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
   const dragRef = useRef(null);                        // { px, py, x, y, natural }
   const pointersRef = useRef(new Map());               // pointerId → {x,y} (핀치용)
   const pinchRef = useRef(null);                       // { d0, m0x, m0y, scale0, x0, y0, natural, cur }
-  const movedRef = useRef(false);
 
   // 이미지 원본 크기 — onLoad 타이밍에 의존하지 않고 상호작용 시점에 DOM에서 직접 읽는다
   const getNatural = useCallback(() => {
@@ -49,32 +51,12 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
     };
   }, [portalTarget, onClose, onPrev, onNext]);
 
-  // 휠 줌 — React의 wheel은 passive라 preventDefault가 안 되므로 네이티브로 바인딩
-  // (라이트박스 뒤의 PDF 스크롤이 함께 움직이는 것을 막는다)
-  // ⚠️ portalTarget이 준비되기 전에는 stage가 없으므로 deps에 포함해 재실행한다
-  useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
-    const onWheel = (e) => {
-      e.preventDefault();
-      const nat = getNatural();
-      if (!nat) return;
-      // ⚠️ 감도 제한: 이벤트당 최대 ±25% — 트랙패드 모멘텀 연타에도 안정적
-      const raw = Math.exp(-e.deltaY * 0.0008);
-      const factor = Math.max(0.8, Math.min(1.25, raw));
-      const r = el.getBoundingClientRect();
-      setView((v) => zoomAt(v, factor, { x: e.clientX, y: e.clientY }, { w: r.width, h: r.height }, nat));
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [getNatural, portalTarget]);
-
   const applyTransform = useCallback((node, scale, x, y, animate) => {
     node.style.transition = animate ? '' : 'none';
     node.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
   }, []);
 
-  // ── 포인터 상호작용: 1개=팬 드래그 / 탭, 2개=핀치 줌+팬 (모바일) ──
+  // ── 포인터 상호작용: 1개=팬 드래그, 2개=핀치 줌/팬 (휠·클릭 줌 없음) ──
   const onPointerDown = (e) => {
     const nat = getNatural();
     if (!nat || (e.pointerType === 'mouse' && e.button !== 0)) return;
@@ -88,7 +70,6 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
     if (pointersRef.current.size === 2) {
       // 두 번째 손가락 → 핀치 시작 (단일 팬 취소)
       dragRef.current = null;
-      movedRef.current = true; // 핀치 후 클릭 토글 방지
       const [a, b] = [...pointersRef.current.values()];
       pinchRef.current = {
         d0: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
@@ -102,7 +83,6 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
       };
     } else if (pointersRef.current.size === 1) {
       dragRef.current = { px: e.clientX, py: e.clientY, x: view.x, y: view.y, natural: nat };
-      movedRef.current = false;
     }
     try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* 무시 */ }
   };
@@ -120,7 +100,7 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
       const d = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
       const mx = (a.x + b.x) / 2;
       const my = (a.y + b.y) / 2;
-      const factor = Math.max(0.5, Math.min(2, d / p.d0));
+      const factor = Math.max(0.25, Math.min(4, (d / p.d0) * PINCH_GAIN)); // 감도 가산
       const v = pinchView(
         { scale: p.scale0, x: p.x0, y: p.y0 },
         factor,
@@ -138,7 +118,6 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
     if (!d) return;
     const dx = e.clientX - d.px;
     const dy = e.clientY - d.py;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) movedRef.current = true;
     const pan = clampPan(d.x + dx, d.y + dy, view.scale, size, d.natural);
     d.x = pan.x;
     d.y = pan.y;
@@ -178,8 +157,6 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
 
   if (!portalTarget || !dataUrl) return null;
 
-  const zoomed = view.scale > 1.001;
-
   return createPortal(
     <div
       className="pdf-annotator__lightbox"
@@ -204,17 +181,12 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
       >
         <div
           ref={wrapRef}
-          className={'pdf-annotator__lightbox-wrap' + (zoomed ? ' pdf-annotator__lightbox-wrap--zoom' : '')}
+          className="pdf-annotator__lightbox-wrap"
           style={{ transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})` }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerCancel}
-          onClick={() => {
-            if (movedRef.current) return; // 팬/핀치 후 확대 토글이 발동하지 않게
-            setView((v) => ({ scale: toggleZoom(v.scale), x: 0, y: 0 }));
-          }}
-          title={zoomed ? 'Click to fit' : 'Click to zoom'}
         >
           <img ref={imgRef} src={dataUrl} alt={alt} draggable={false} />
         </div>
@@ -257,7 +229,7 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
             >↻</button>
           </>
         )}
-        <div className="pdf-annotator__lightbox-hint">Click: zoom · Drag: pan · Wheel / Pinch: zoom · {onRotate ? '↺ ↻: rotate · ' : ''}Esc: close</div>
+        <div className="pdf-annotator__lightbox-hint">Pinch: zoom in/out · Drag: pan · {onRotate ? '↺ ↻: rotate · ' : ''}Esc: close</div>
       </div>
     </div>,
     portalTarget

@@ -895,10 +895,14 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      cursor: zoom-in;
+      cursor: grab;                 // 클릭 줌 없음 — 드래그 팬 전용
       touch-action: none;           // 터치 팬 드래그
       transition: transform 0.18s ease-out;
       will-change: transform;
+
+      &:active {
+        cursor: grabbing;
+      }
 
       img {
         display: block;
@@ -909,14 +913,6 @@
         box-shadow: $shadow-lg;
         user-select: none;
         -webkit-user-drag: none;
-      }
-
-      &--zoom {
-        cursor: grab;
-
-        &:active {
-          cursor: grabbing;
-        }
       }
     }
 
