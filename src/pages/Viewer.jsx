@@ -234,6 +234,13 @@ export default function Viewer() {
   const [mdToast, setMdToast] = useState(null);                // 등록 피드백 (PDF와 통일)
   const [dlProgress, setDlProgress] = useState(null);          // 서버 ZIP 다운로드 진행률 { loaded, total }
   const previewRef = useRef(null);
+  // ── 마크다운 핀치 줌 — 뷰어가 직접 제스처를 처리한다 ──
+  // 네이티브(비주얼 뷰포트) 핀치 줌은 PWA에서 줌 후 한 손가락 팬이 끊기므로,
+  // 핀치는 콘텐츠 배율(transform scale)로 변환하고 이동은 컨테이너 네이티브 스크롤로 처리한다.
+  const zoomRef = useRef(1);            // 현재 배율 (제스처 중 실시간)
+  const zoomBaseRef = useRef(null);     // 확대 전 콘텐츠 레이아웃 크기 { w, h }
+  const pinchRef = useRef(null);        // 진행 중 핀치 { d }
+  const [zoom, setZoom] = useState(1);  // 배율 (클래스/배지 동기화용 — 제스처 종료 시 갱신)
   const scrollPositions = useRef({});
   const pdfState = useRef({});   // { path: { page, scrollTop } } PDF 읽기 위치 보존
   const [readability, setReadability] = useState(0);
@@ -427,6 +434,120 @@ export default function Viewer() {
       el.scrollTop = 0;
     }
   }, [rendered, selectedPath, pdfUrl, posKey]);
+
+  // ── 마크다운 핀치 줌 적용 ──
+  // 배율 변경 + 앵커(포인터) 아래 콘텐츠 지점이 같은 화면 위치에 유지되도록 스크롤 보정.
+  // 확대 중에는 래퍼(.viewer__zoom) 박스를 배율에 맞게 키워 가로·세로 모두 스크롤(팬) 가능.
+  const applyZoom = useCallback((next, clientX, clientY) => {
+    const preview = previewRef.current;
+    const content = preview?.querySelector('.viewer__content');
+    const wrap = preview?.querySelector('.viewer__zoom');
+    if (!preview || !content || !wrap) return;
+    const s = Number.isFinite(next) ? Math.min(5, Math.max(1, next)) : 1;
+    const prev = zoomRef.current;
+    if (s === prev) return;
+    if (prev === 1) zoomBaseRef.current = { w: content.offsetWidth, h: content.offsetHeight };
+    const base = zoomBaseRef.current;
+    if (!base) return;
+    const ox = content.offsetLeft;
+    const oy = content.offsetTop;
+    const rect = preview.getBoundingClientRect();
+    const ax = clientX == null ? preview.clientWidth / 2 : clientX - rect.left;
+    const ay = clientY == null ? preview.clientHeight / 2 : clientY - rect.top;
+    const cx = (preview.scrollLeft + ax - ox) / prev;
+    const cy = (preview.scrollTop + ay - oy) / prev;
+    if (s > 1) {
+      // 너비를 px로 고정해 배율 변경 시 리플로우 없이 순수 확대
+      content.style.transformOrigin = '0 0';
+      content.style.width = base.w + 'px';
+      content.style.transform = `scale(${s})`;
+      // 레이아웃 박스 보정 → 스크롤 영역 확보 (한 손가락 네이티브 팬)
+      wrap.style.width = Math.round(base.w * s) + 'px';
+      wrap.style.height = Math.round(base.h * s) + 'px';
+    } else {
+      content.style.transform = '';
+      content.style.width = '';
+      content.style.transformOrigin = '';
+      wrap.style.width = '';
+      wrap.style.height = '';
+      zoomBaseRef.current = null;
+    }
+    zoomRef.current = s;
+    preview.classList.toggle('viewer__preview--zoom', s > 1);
+    const maxL = Math.max(0, preview.scrollWidth - preview.clientWidth);
+    const maxT = Math.max(0, preview.scrollHeight - preview.clientHeight);
+    preview.scrollLeft = Math.min(Math.max(cx * s + ox - ax, 0), maxL);
+    preview.scrollTop = Math.min(Math.max(cy * s + oy - ay, 0), maxT);
+    setZoom(s);
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    pinchRef.current = null;
+    zoomBaseRef.current = null;
+    applyZoom(1);
+  }, [applyZoom]);
+
+  // 핀치/휠 제스처 바인딩 — 마크다운 모드에서만 동작 (PDF·빈 상태는 no-op)
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview) return;
+    const hasContent = () => !!preview.querySelector('.viewer__content');
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+
+    const onTouchStart = (e) => {
+      if (e.touches.length !== 2 || !hasContent()) return;
+      e.preventDefault();                    // 네이티브 비주얼 뷰포트 핀치 차단
+      pinchRef.current = { d: dist(e.touches) };
+    };
+    const onTouchMove = (e) => {
+      const p = pinchRef.current;
+      if (!p || e.touches.length < 2 || !hasContent()) return;
+      e.preventDefault();
+      const d = dist(e.touches);
+      if (!p.d || !d) return;
+      const factor = clamp(d / p.d, 0.5, 2); // 이동당 과속 방지
+      p.d = d;
+      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      applyZoom(zoomRef.current * factor, mx, my);
+    };
+    const onTouchEnd = (e) => {
+      if (e.touches.length < 2) {
+        pinchRef.current = null;
+        setZoom(zoomRef.current);            // 클래스/배지 동기화
+      }
+    };
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;  // 일반 휠은 네이티브 스크롤 유지
+      if (!hasContent()) return;
+      e.preventDefault();
+      const raw = Math.exp(-e.deltaY * 0.002);
+      applyZoom(zoomRef.current * clamp(raw, 0.75, 1.3), e.clientX, e.clientY);
+    };
+    const onGesture = (e) => { if (hasContent()) e.preventDefault(); }; // iOS Safari 네이티브 핀치
+
+    preview.addEventListener('touchstart', onTouchStart, { passive: false });
+    preview.addEventListener('touchmove', onTouchMove, { passive: false });
+    preview.addEventListener('touchend', onTouchEnd);
+    preview.addEventListener('touchcancel', onTouchEnd);
+    preview.addEventListener('wheel', onWheel, { passive: false });
+    preview.addEventListener('gesturestart', onGesture);
+    // 회전 등 리사이즈 시 고정된 px 레이아웃이 어긋나므로 초기화
+    window.addEventListener('resize', resetZoom);
+    return () => {
+      preview.removeEventListener('touchstart', onTouchStart);
+      preview.removeEventListener('touchmove', onTouchMove);
+      preview.removeEventListener('touchend', onTouchEnd);
+      preview.removeEventListener('touchcancel', onTouchEnd);
+      preview.removeEventListener('wheel', onWheel);
+      preview.removeEventListener('gesturestart', onGesture);
+      window.removeEventListener('resize', resetZoom);
+    };
+  }, [applyZoom, resetZoom]);
+
+  // 문서/모드 전환 시 배율 초기화
+  useEffect(() => { resetZoom(); }, [resetZoom, rendered, selectedPath, pdfUrl, fullscreen]);
 
   // PDF 페이지/스크롤 위치 보고 수신 (ZIP별 보존 + 세션 저장 — 스크롤마다 저장하지 않도록 디바운스)
   useEffect(() => {
@@ -1282,11 +1403,13 @@ export default function Viewer() {
         {(zipTree || toc.length > 0) && (
           <div className="viewer__overlay" onClick={() => { setSidebarOpen(false); setTocOpen(false); }} />
         )}
-        <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '')} ref={previewRef}>
+        <div className={'viewer__preview' + (!zipTree ? ' viewer__preview--full' : '') + (zoom > 1 ? ' viewer__preview--zoom' : '')} ref={previewRef}>
           {pdfUrl ? (
             <PdfViewer url={pdfUrl} filePath={selectedPath} initialPage={pdfInitialPage} initialScrollTop={pdfState.current[posKey(selectedPath)]?.scrollTop} onOpenConcepts={() => { setPendingConceptsFullscreen(selectedPath); navigate('/concepts'); }} />
           ) : rendered ? (
-            <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
+            <div className="viewer__zoom">
+              <div className="viewer__content markdown-body" dangerouslySetInnerHTML={{ __html: rendered }} onClick={handleContentClick} />
+            </div>
           ) : !loading ? (
             <div className="viewer__empty">{zipTree ? 'Select a file from the sidebar to start reading' : 'Upload a ZIP archive to get started'}</div>
           ) : null}
@@ -1316,6 +1439,17 @@ export default function Viewer() {
                 <span>Loading…</span>
               )}
             </div>
+          )}
+          {/* 확대 배지/리셋 버튼 — 핀치 줌 중에만 표시 (CSS: &__preview--zoom) */}
+          {rendered && !pdfUrl && (
+            <button
+              className="viewer__zoom-reset"
+              onClick={resetZoom}
+              title="Reset zoom (배율 초기화)"
+              aria-label="Reset zoom"
+            >
+              {zoom.toFixed(1)}×
+            </button>
           )}
         </div>
       </div>
