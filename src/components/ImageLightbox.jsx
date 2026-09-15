@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useFullscreenPortal } from '../lib/fullscreenPortal.js';
-import { clampPan, pinchView } from '../lib/zoomView.js';
+import { clampPan, pinchView, zoomAt } from '../lib/zoomView.js';
 
 // 핀치 감도 — 1보다 크면 같은 손가락 벌림/모음으로 더 크게 확대/축소된다
-const PINCH_GAIN = 1.3;
+const PINCH_GAIN = 1.2;
 
 /**
  * 🖼️ ImageLightbox — Amazon 스타일 전체화면 이미지 뷰어
@@ -55,6 +55,25 @@ export default function ImageLightbox({ dataUrl, alt = '', onClose, onRotate, on
     node.style.transition = animate ? '' : 'none';
     node.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
   }, []);
+
+  // 트랙패드 "투 핑거 핀치" — ctrl+휠 이벤트로 들어온다 (일반 휠 스크롤은 무시).
+  // React의 wheel은 passive라 preventDefault가 안 되므로 네이티브로 바인딩.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;   // 일반 휠/스크롤은 줌 아님
+      e.preventDefault();
+      const nat = getNatural();
+      if (!nat) return;
+      const raw = Math.exp(-e.deltaY * 0.002);
+      const factor = Math.max(0.7, Math.min(1.35, raw));
+      const r = el.getBoundingClientRect();
+      setView((v) => zoomAt(v, factor, { x: e.clientX, y: e.clientY }, { w: r.width, h: r.height }, nat));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [getNatural, portalTarget]);
 
   // ── 포인터 상호작용: 1개=팬 드래그, 2개=핀치 줌/팬 (휠·클릭 줌 없음) ──
   const onPointerDown = (e) => {

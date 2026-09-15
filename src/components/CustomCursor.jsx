@@ -6,6 +6,8 @@ import { IS_TOUCH_PRIMARY } from '../lib/device.js';
 const INTERACTIVE_SELECTOR = 'a, button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"]), .clickable, summary, details';
 const PEN_SELECTOR = '.pdf-annotator__page-wrapper--pen';
 const TEXT_SELECTOR = '.react-pdf__Page__textContent span, [contenteditable="true"], textarea, input[type="text"], input[type="search"]';
+// 어두운 오버레이(이미지 라이트박스 등) — 회색 기본 커서가 안 보여서 고대비(흰색)로 렌더
+const DARK_SELECTOR = '.pdf-annotator__lightbox';
 
 // ── RangeSelect(✂️ Selecting) 상태의 정밀 타깃 커서 ────────────
 // 단일 선택 색상 + 크로스헤어 눈금. 단계 배지(①/②)는 터치(두 번 탭) 전용.
@@ -109,15 +111,16 @@ function CursorElement({ pos, mode, range }) {
     return <RangeCursor pos={pos} step={range.step} />;
   }
   const isHidden = mode === 'hidden';
+  const isDark = mode === 'dark';
   const isPen = mode === 'pen';
   const isText = mode === 'text';
   const isHover = mode === 'hover';
   const isActive = mode === 'active';
 
-  const size = isActive ? 12 : isHover ? 22 : isPen ? 8 : isText ? 8 : 16;
-  const opacity = isHidden ? 0 : isHover ? 0.55 : isPen ? 0.7 : isText ? 0.7 : 0.3;
-  const bg = isPen ? 'rgba(44, 36, 22, 0.8)' : isText ? 'rgba(44, 36, 22, 0.8)' : 'rgba(128, 128, 128, 0.25)';
-  const border = isPen ? 'none' : isText ? 'none' : '1.2px solid rgba(128, 128, 128, 0.45)';
+  const size = isActive ? 12 : isDark ? 18 : isHover ? 22 : isPen ? 8 : isText ? 8 : 16;
+  const opacity = isHidden ? 0 : isDark ? 0.45 : isHover ? 0.55 : isPen ? 0.7 : isText ? 0.7 : 0.3;
+  const bg = isDark ? 'rgba(255, 255, 255, 0.45)' : isPen ? 'rgba(44, 36, 22, 0.8)' : isText ? 'rgba(44, 36, 22, 0.8)' : 'rgba(128, 128, 128, 0.25)';
+  const border = isDark ? '1.2px solid rgba(255, 255, 255, 0.9)' : isPen ? 'none' : isText ? 'none' : '1.2px solid rgba(128, 128, 128, 0.45)';
   const showPenTip = isPen || isText;
 
   return (
@@ -130,7 +133,7 @@ function CursorElement({ pos, mode, range }) {
           width: size,
           height: size,
           borderRadius: '50%',
-          background: showPenTip ? bg : `rgba(128, 128, 128, ${opacity})`,
+          background: (showPenTip || isDark) ? bg : `rgba(128, 128, 128, ${opacity})`,
           border: border,
           transform: 'translate(-50%, -50%)',
           pointerEvents: 'none',
@@ -199,6 +202,7 @@ export default function CustomCursor() {
 
   const detectMode = useCallback((el) => {
     if (!el) return 'default';
+    if (el.closest(DARK_SELECTOR)) return 'dark';   // 어두운 오버레이 위 — 최우선 (내부 버튼도 포함)
     if (el.closest(PEN_SELECTOR)) return 'pen';
     if (el.closest(TEXT_SELECTOR) || el.matches(TEXT_SELECTOR)) return 'text';
     if (el.closest(INTERACTIVE_SELECTOR)) return 'hover';
